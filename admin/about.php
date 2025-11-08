@@ -30,14 +30,8 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                 <p class="text-muted">Kelola sistem, update dari GitHub, dan backup database</p>
             </div>
             <div class="btn-group">
-                <a href="<?php echo base_url('test_git.php'); ?>" class="btn btn-outline-info" target="_blank">
-                    <i class="fas fa-vial"></i> Test Git
-                </a>
-                <a href="<?php echo base_url('setup_git_config.php'); ?>" class="btn btn-outline-warning" target="_blank">
-                    <i class="fas fa-cog"></i> Setup Config
-                </a>
-                <a href="<?php echo base_url('push_to_github.php'); ?>" class="btn btn-outline-success" target="_blank">
-                    <i class="fas fa-upload"></i> Push Helper
+                <a href="<?php echo base_url('cleanup_repo.php'); ?>" class="btn btn-outline-danger" target="_blank">
+                    <i class="fas fa-broom"></i> Cleanup
                 </a>
             </div>
         </div>
