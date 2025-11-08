@@ -1,0 +1,70 @@
+# Apache Configuration for UJAN
+# Sistem Ujian dan Pekerjaan Rumah
+
+# Set default index file (PENTING untuk XAMPP)
+DirectoryIndex index.php index.html index.htm
+
+# Enable Rewrite Engine untuk Clean URLs
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /UJAN/
+    
+    # Skip rewrite for existing files and directories
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+    
+    # Skip rewrite for assets
+    RewriteCond %{REQUEST_URI} ^/UJAN/assets/ [OR]
+    RewriteCond %{REQUEST_URI} ^/UJAN/config/ [OR]
+    RewriteCond %{REQUEST_URI} ^/UJAN/includes/ [OR]
+    RewriteCond %{REQUEST_URI} ^/UJAN/api/
+    RewriteRule ^ - [L]
+    
+    # Redirect root to index
+    RewriteCond %{REQUEST_URI} ^/UJAN/?$
+    RewriteRule ^$ index.php [L]
+    
+    # Route all other requests to router.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ router.php [L,QSA]
+</IfModule>
+
+# Prevent directory listing
+Options -Indexes
+
+# Security: Deny access to sensitive files
+<FilesMatch "\.(sql|log|ini|conf)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Protect config files
+<FilesMatch "^(config|database|ai_config)\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Enable PHP error display (disable in production)
+# php_flag display_errors On
+# php_value error_reporting E_ALL
+
+# Set charset
+AddDefaultCharset UTF-8
+
+# Enable compression
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css text/javascript application/javascript
+</IfModule>
+
+# Cache static files
+<IfModule mod_expires.c>
+    ExpiresActive On
+    ExpiresByType image/jpeg "access plus 1 year"
+    ExpiresByType image/png "access plus 1 year"
+    ExpiresByType image/gif "access plus 1 year"
+    ExpiresByType text/css "access plus 1 month"
+    ExpiresByType application/javascript "access plus 1 month"
+</IfModule>
+

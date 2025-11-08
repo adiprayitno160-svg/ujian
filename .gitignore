@@ -1,0 +1,66 @@
+# Sistem Ujian dan Pekerjaan Rumah (UJAN)
+# Git ignore file
+
+# Configuration files with sensitive data
+config/database.php
+config/ai_config.php
+*.env
+.env.local
+
+# Uploads and user content
+assets/uploads/*
+!assets/uploads/.gitkeep
+assets/uploads/soal/*
+!assets/uploads/soal/.gitkeep
+assets/uploads/pr/*
+!assets/uploads/pr/.gitkeep
+assets/uploads/profile/*
+!assets/uploads/profile/.gitkeep
+
+# Backups
+backups/*
+!backups/.gitkeep
+*.sql
+*.zip
+*.tar.gz
+
+# Logs
+*.log
+logs/*
+!logs/.gitkeep
+
+# Cache
+cache/*
+!cache/.gitkeep
+tmp/*
+!tmp/.gitkeep
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Composer
+vendor/
+composer.lock
+
+# Node modules (if using npm)
+node_modules/
+package-lock.json
+
+# System files
+.htaccess.local
+.htpasswd
+
+# Session files
+sessions/*
+!sessions/.gitkeep
+
+# Temporary files
+*.tmp
+*.temp
+
