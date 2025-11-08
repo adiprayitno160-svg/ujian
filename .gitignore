@@ -64,3 +64,28 @@ sessions/*
 *.tmp
 *.temp
 
+# Test and helper files (development only)
+test.php
+test_*.php
+*_test.php
+setup_git*.php
+push_to_github.php
+git_setup.ps1
+setup_git.ps1
+push_to_github.ps1
+migrate_*.php
+cleanup_*.php
+cleanup_*.ps1
+*.ps1
+
+# Documentation (keep only README.md)
+*.md
+!README.md
+
+# Migration files (keep database.sql, ignore migration scripts)
+migration_*.sql
+migrate_*.php
+
+# API operations (development)
+api/github_operations.php
+
