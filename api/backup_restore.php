@@ -36,6 +36,19 @@ try {
             
             $file = $_FILES['backup_file'];
             
+            // Check file upload error
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(['success' => false, 'message' => 'Upload error: ' . $file['error']]);
+                exit;
+            }
+            
+            // Check file size (max 500MB)
+            $max_size = 500 * 1024 * 1024; // 500MB
+            if ($file['size'] > $max_size) {
+                echo json_encode(['success' => false, 'message' => 'File terlalu besar. Maksimal 500MB']);
+                exit;
+            }
+            
             // Check if it's a zip file (full backup) or sql file (database only)
             $file_ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             
@@ -47,6 +60,9 @@ try {
                 
                 // Extract zip file
                 $backup_dir = BASE_PATH . '/backups';
+                if (!is_dir($backup_dir)) {
+                    mkdir($backup_dir, 0755, true);
+                }
                 $temp_dir = $backup_dir . '/temp_' . time();
                 mkdir($temp_dir, 0755, true);
                 
@@ -63,7 +79,7 @@ try {
                     );
                     
                     foreach ($iterator as $file_item) {
-                        if ($file_item->isFile() && $file_item->getExtension() === 'sql') {
+                        if ($file_item->isFile() && strtolower($file_item->getExtension()) === 'sql') {
                             $sql_file = $file_item->getPathname();
                             break;
                         }
@@ -76,24 +92,39 @@ try {
                     }
                     
                     // Cleanup temp directory
-                    array_map('unlink', glob("$temp_dir/**/*"));
-                    array_map('rmdir', glob("$temp_dir/**"));
+                    $files = new RecursiveIteratorIterator(
+                        new RecursiveDirectoryIterator($temp_dir, RecursiveDirectoryIterator::SKIP_DOTS),
+                        RecursiveIteratorIterator::CHILD_FIRST
+                    );
+                    
+                    foreach ($files as $file_item) {
+                        if ($file_item->isDir()) {
+                            rmdir($file_item->getRealPath());
+                        } else {
+                            unlink($file_item->getRealPath());
+                        }
+                    }
                     rmdir($temp_dir);
                 } else {
-                    $result = ['success' => false, 'message' => 'Gagal mengekstrak file ZIP'];
+                    $result = ['success' => false, 'message' => 'Gagal mengekstrak file ZIP. Pastikan file ZIP valid.'];
                 }
             } elseif ($file_ext === 'sql') {
-                // Direct SQL file
-                $upload_result = upload_file($file, BASE_PATH . '/backups', ['application/sql', 'text/plain', 'text/x-sql'], 100 * 1024 * 1024); // 100MB max
+                // Direct SQL file - save temporarily and restore
+                $backup_dir = BASE_PATH . '/backups';
+                if (!is_dir($backup_dir)) {
+                    mkdir($backup_dir, 0755, true);
+                }
                 
-                if ($upload_result['success']) {
-                    $result = restore_database($upload_result['path']);
-                    // Delete uploaded file after restore
-                    if (file_exists($upload_result['path'])) {
-                        unlink($upload_result['path']);
+                $temp_file = $backup_dir . '/temp_restore_' . time() . '.sql';
+                
+                if (move_uploaded_file($file['tmp_name'], $temp_file)) {
+                    $result = restore_database($temp_file);
+                    // Delete temporary file after restore
+                    if (file_exists($temp_file)) {
+                        unlink($temp_file);
                     }
                 } else {
-                    $result = $upload_result;
+                    $result = ['success' => false, 'message' => 'Gagal mengupload file backup'];
                 }
             } else {
                 $result = ['success' => false, 'message' => 'Format file tidak didukung. Gunakan file .sql atau .zip'];

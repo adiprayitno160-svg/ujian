@@ -100,35 +100,101 @@ if (!$current_soal_data) {
     redirect('siswa/ujian/list.php');
 }
 
-// Check token if required (before header)
-$need_token = false;
-if ($sesi['token_required']) {
-    $token_input = $_POST['token'] ?? $_GET['token'] ?? '';
-    if (!empty($token_input)) {
-        $stmt = $pdo->prepare("SELECT * FROM token_ujian 
-                              WHERE id_sesi = ? AND token = ? AND status = 'active' 
-                              AND expires_at > NOW()");
-        $stmt->execute([$sesi_id, $token_input]);
-        $token = $stmt->fetch();
-        
-        if (!$token) {
-            $_SESSION['error_message'] = 'Token tidak valid atau sudah expired';
-            redirect('siswa/ujian/list.php');
+// Check authentication (token + tanggal lahir) - before header
+$tanggal_lahir_verified_key = 'tanggal_lahir_verified_' . $sesi_id;
+$token_verified_key = 'token_verified_' . $sesi_id;
+$need_auth = false;
+$token_error = '';
+$tanggal_lahir_error = '';
+
+// Process authentication form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_auth'])) {
+    $token_input = $_POST['token'] ?? '';
+    $tanggal_lahir_input = $_POST['tanggal_lahir'] ?? '';
+    $all_valid = true;
+    
+    // Validate token if required
+    if ($sesi['token_required']) {
+        if (empty($token_input)) {
+            $token_error = 'Token harus diisi';
+            $all_valid = false;
+        } else {
+            $stmt = $pdo->prepare("SELECT * FROM token_ujian 
+                                  WHERE id_sesi = ? AND token = ? AND status = 'active' 
+                                  AND expires_at > NOW()");
+            $stmt->execute([$sesi_id, $token_input]);
+            $token = $stmt->fetch();
+            
+            if (!$token) {
+                $token_error = 'Token tidak valid atau sudah expired';
+                $all_valid = false;
+            } elseif ($token['max_usage'] && $token['current_usage'] >= $token['max_usage']) {
+                $token_error = 'Token sudah mencapai batas penggunaan';
+                $all_valid = false;
+            } else {
+                // Token valid - record usage
+                $stmt = $pdo->prepare("INSERT INTO token_usage (id_token, id_user, ip_address, device_info) VALUES (?, ?, ?, ?)");
+                $stmt->execute([$token['id'], $_SESSION['user_id'], get_client_ip(), get_device_info()]);
+                
+                $stmt = $pdo->prepare("UPDATE token_ujian SET current_usage = current_usage + 1 WHERE id = ?");
+                $stmt->execute([$token['id']]);
+                
+                $_SESSION[$token_verified_key] = true;
+            }
         }
-        
-        if ($token['max_usage'] && $token['current_usage'] >= $token['max_usage']) {
-            $_SESSION['error_message'] = 'Token sudah mencapai batas penggunaan';
-            redirect('siswa/ujian/list.php');
-        }
-        
-        $stmt = $pdo->prepare("INSERT INTO token_usage (id_token, id_user, ip_address, device_info) VALUES (?, ?, ?, ?)");
-        $stmt->execute([$token['id'], $_SESSION['user_id'], get_client_ip(), get_device_info()]);
-        
-        $stmt = $pdo->prepare("UPDATE token_ujian SET current_usage = current_usage + 1 WHERE id = ?");
-        $stmt->execute([$token['id']]);
     } else {
-        $need_token = true;
+        // Token not required, mark as verified
+        $_SESSION[$token_verified_key] = true;
     }
+    
+    // Validate tanggal lahir (always required)
+    if (empty($tanggal_lahir_input)) {
+        $tanggal_lahir_error = 'Tanggal lahir harus diisi';
+        $all_valid = false;
+    } else {
+        // Get user data to verify tanggal lahir
+        $stmt = $pdo->prepare("SELECT tanggal_lahir FROM users WHERE id = ?");
+        $stmt->execute([$_SESSION['user_id']]);
+        $user = $stmt->fetch();
+        
+        if ($user && !empty($user['tanggal_lahir'])) {
+            // Compare tanggal lahir
+            $db_tanggal_lahir = date('Y-m-d', strtotime($user['tanggal_lahir']));
+            $input_tanggal_lahir = date('Y-m-d', strtotime($tanggal_lahir_input));
+            
+            if ($db_tanggal_lahir === $input_tanggal_lahir) {
+                // Verified - save to session
+                $_SESSION[$tanggal_lahir_verified_key] = true;
+                $_SESSION[$tanggal_lahir_verified_key . '_time'] = time();
+            } else {
+                $tanggal_lahir_error = 'Tanggal lahir tidak sesuai';
+                $all_valid = false;
+            }
+        } else {
+            // If no tanggal lahir in database, accept the input and save to session
+            // This allows first-time setup
+            $_SESSION[$tanggal_lahir_verified_key] = true;
+            $_SESSION[$tanggal_lahir_verified_key . '_time'] = time();
+            $_SESSION[$tanggal_lahir_verified_key . '_value'] = $tanggal_lahir_input;
+        }
+    }
+    
+    // If all valid, redirect to reload page (to continue to exam)
+    if ($all_valid && $_SESSION[$tanggal_lahir_verified_key] && $_SESSION[$token_verified_key]) {
+        // Redirect to same page to continue
+        redirect('siswa/ujian/take.php?id=' . $sesi_id);
+    }
+}
+
+// Check if authentication is needed
+$token_verified = isset($_SESSION[$token_verified_key]) && $_SESSION[$token_verified_key];
+$tanggal_lahir_verified = isset($_SESSION[$tanggal_lahir_verified_key]) && $_SESSION[$tanggal_lahir_verified_key];
+
+if ($sesi['token_required'] && !$token_verified) {
+    $need_auth = true;
+}
+if (!$tanggal_lahir_verified) {
+    $need_auth = true;
 }
 
 $page_title = 'Kerjakan Ujian';
@@ -137,22 +203,163 @@ $custom_js = ['auto_save', 'ragu_ragu', 'exam_security'];
 $hide_navbar = true; // Hide sidebar for fullscreen exam
 include __DIR__ . '/../../includes/header.php';
 
-// Show token form if needed
-if ($need_token) {
+// Show authentication form (token + tanggal lahir) if needed
+if ($need_auth) {
     ?>
+    <style>
+        body {
+            background: linear-gradient(135deg, #e6f2ff 0%, #cce5ff 100%) !important;
+            min-height: 100vh;
+        }
+        main.container {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            min-height: 100vh;
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+        }
+        .auth-card {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 102, 204, 0.2);
+            max-width: 500px;
+            width: 100%;
+            margin: 20px;
+        }
+        .auth-header {
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+            border-radius: 12px 12px 0 0;
+        }
+        .auth-header h3 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        .auth-body {
+            padding: 35px;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            display: block;
+        }
+        .form-control {
+            border: 1px solid #dee2e6;
+            padding: 12px 15px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        .form-control:focus {
+            border-color: #0066cc;
+            box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+            outline: none;
+        }
+        .btn-verify {
+            background: linear-gradient(135deg, #0066cc 0%, #0052a3 100%);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            font-weight: 600;
+            border-radius: 8px;
+            width: 100%;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+        }
+        .btn-verify:hover {
+            background: linear-gradient(135deg, #0052a3 0%, #004080 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 102, 204, 0.4);
+            color: white;
+        }
+        .alert-danger {
+            background: #fee2e2;
+            color: #991b1b;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 15px;
+        }
+        .text-muted {
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin-top: 5px;
+            display: block;
+        }
+    </style>
     <div class="row justify-content-center align-items-center min-vh-100">
         <div class="col-md-5">
-            <div class="card border-0 shadow-lg">
-                <div class="card-body p-5">
-                    <h3 class="text-center mb-4">Masukkan Token</h3>
+            <div class="auth-card">
+                <div class="auth-header">
+                    <h3><i class="fas fa-shield-alt me-2"></i>Verifikasi Identitas</h3>
+                    <p class="mb-0 mt-2" style="opacity: 0.95; font-size: 0.9rem;">
+                        <?php if ($sesi['token_required']): ?>
+                            Masukkan token dan tanggal lahir untuk melanjutkan
+                        <?php else: ?>
+                            Masukkan tanggal lahir Anda untuk melanjutkan ujian
+                        <?php endif; ?>
+                    </p>
+                </div>
+                <div class="auth-body">
+                    <?php if ($token_error || $tanggal_lahir_error): ?>
+                        <?php if ($token_error): ?>
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i><?php echo escape($token_error); ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php if ($tanggal_lahir_error): ?>
+                            <div class="alert alert-danger">
+                                <i class="fas fa-exclamation-circle me-2"></i><?php echo escape($tanggal_lahir_error); ?>
+                            </div>
+                        <?php endif; ?>
+                    <?php endif; ?>
+                    
                     <form method="POST">
                         <input type="hidden" name="id" value="<?php echo $sesi_id; ?>">
-                        <div class="mb-3">
-                            <label class="form-label">Token (6 digit)</label>
-                            <input type="text" class="form-control text-center fs-4" name="token" 
-                                   maxlength="6" pattern="[0-9]{6}" required autofocus>
+                        
+                        <?php if ($sesi['token_required']): ?>
+                        <div class="mb-4">
+                            <label for="token" class="form-label">
+                                <i class="fas fa-key me-1"></i> Token Ujian
+                            </label>
+                            <input type="text" 
+                                   class="form-control text-center" 
+                                   id="token" 
+                                   name="token" 
+                                   maxlength="6" 
+                                   pattern="[0-9]{6}"
+                                   placeholder="Masukkan 6 digit token"
+                                   style="font-size: 1.2rem; letter-spacing: 0.5rem;"
+                                   value="<?php echo isset($_POST['token']) ? escape($_POST['token']) : ''; ?>"
+                                   required 
+                                   autofocus>
+                            <small class="text-muted">Token 6 digit yang diberikan oleh pengawas</small>
                         </div>
-                        <button type="submit" class="btn btn-primary w-100">Masuk</button>
+                        <?php endif; ?>
+                        
+                        <div class="mb-4">
+                            <label for="tanggal_lahir" class="form-label">
+                                <i class="fas fa-birthday-cake me-1"></i> Tanggal Lahir
+                            </label>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="tanggal_lahir" 
+                                   name="tanggal_lahir" 
+                                   value="<?php echo isset($_POST['tanggal_lahir']) ? escape($_POST['tanggal_lahir']) : ''; ?>"
+                                   required
+                                   <?php echo !$sesi['token_required'] ? 'autofocus' : ''; ?>>
+                            <small class="text-muted">Masukkan tanggal lahir Anda (Format: DD/MM/YYYY)</small>
+                        </div>
+                        
+                        <button type="submit" name="verify_auth" class="btn btn-verify">
+                            <i class="fas fa-check-circle me-2"></i>Verifikasi & Lanjutkan
+                        </button>
                     </form>
                 </div>
             </div>

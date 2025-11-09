@@ -53,7 +53,10 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                     </tr>
                     <tr>
                         <th>Versi</th>
-                        <td><?php echo escape(APP_VERSION ?? '1.0.0'); ?></td>
+                        <td>
+                            <span id="currentVersionDisplay"><?php echo escape(APP_VERSION ?? '1.0.0'); ?></span>
+                            <small class="text-muted ms-2">(Kelola versi di section Version Management di bawah)</small>
+                        </td>
                     </tr>
                     <tr>
                         <th>PHP Version</th>
@@ -70,11 +73,6 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                                 <i class="fab fa-github"></i> <?php echo $github_repo; ?>
                             </a>
                             <br>
-                            <small class="text-muted">
-                                <a href="<?php echo base_url('test_git.php'); ?>" target="_blank">
-                                    <i class="fas fa-vial"></i> Test Git Setup
-                                </a>
-                            </small>
                         </td>
                     </tr>
                 </table>
@@ -101,13 +99,19 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
 
 <!-- GitHub Operations -->
 <div class="row g-4 mb-4">
-    <div class="col-md-6">
+    <div class="col-md-12">
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-success text-white">
                 <h5 class="mb-0"><i class="fas fa-download"></i> Update dari GitHub</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Pull update terbaru dari repository GitHub</p>
+                <div class="mb-3">
+                    <p class="text-muted mb-2">Pull update terbaru dari repository GitHub</p>
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="badge bg-info me-2">Versi Saat Ini:</span>
+                        <strong id="currentVersionBeforePull">-</strong>
+                    </div>
+                </div>
                 
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i> 
@@ -119,7 +123,7 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                         <label class="form-label">Branch</label>
                         <select class="form-select" id="pullBranch" name="branch">
                             <option value="main">main</option>
-                            <option value="master">master</option>
+                            <option value="master" selected>master</option>
                         </select>
                     </div>
                     
@@ -127,6 +131,13 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                         <input class="form-check-input" type="checkbox" id="autoBackup" checked>
                         <label class="form-check-label" for="autoBackup">
                             Buat backup otomatis sebelum update
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="updateVersionAfterPull">
+                        <label class="form-check-label" for="updateVersionAfterPull">
+                            Update versi sistem setelah pull berhasil
                         </label>
                     </div>
                     
@@ -139,78 +150,90 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
             </div>
         </div>
     </div>
-    
-    <div class="col-md-6">
+</div>
+
+<!-- Backup & Restore -->
+<div class="row g-4 mb-4">
+    <div class="col-md-12">
         <div class="card border-0 shadow-sm">
-            <div class="card-header bg-warning text-white">
-                <h5 class="mb-0"><i class="fas fa-upload"></i> Upload ke GitHub</h5>
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0"><i class="fas fa-database"></i> Backup & Restore</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">Push perubahan ke repository GitHub</p>
-                
-                <div class="alert alert-info">
-                    <i class="fas fa-info-circle"></i> 
-                    Pastikan Anda sudah mengkonfigurasi Git credentials.
+                <div class="row">
+                    <!-- Backup Section -->
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-download"></i> Backup</h6>
+                        <p class="text-muted small">Backup database atau full backup (database + source code)</p>
+                        
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-danger mb-2" id="backupDbBtn">
+                                <i class="fas fa-database"></i> Backup Database
+                            </button>
+                            <div class="text-muted small mb-2">Export database ke file SQL</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <button type="button" class="btn btn-danger mb-2" id="backupFullBtn">
+                                <i class="fas fa-archive"></i> Backup Full (Database + Source Code)
+                            </button>
+                            <div class="text-muted small mb-2">Export database dan seluruh source code ke file ZIP</div>
+                        </div>
+                        
+                        <div id="backupResult" class="mt-2"></div>
+                    </div>
+                    
+                    <!-- Restore Section -->
+                    <div class="col-md-6">
+                        <h6><i class="fas fa-upload"></i> Restore</h6>
+                        <p class="text-muted small">Restore database dari file backup (.sql atau .zip)</p>
+                        
+                        <form id="restoreForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="backupFile" class="form-label">Pilih File Backup</label>
+                                <input type="file" class="form-control" id="backupFile" name="backup_file" 
+                                       accept=".sql,.zip" required>
+                                <small class="text-muted">Format: .sql (database only) atau .zip (full backup)</small>
+                            </div>
+                            
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle"></i> 
+                                <strong>Peringatan:</strong> Restore akan mengganti database saat ini. Pastikan sudah melakukan backup sebelumnya.
+                            </div>
+                            
+                            <button type="submit" class="btn btn-warning" id="restoreBtn">
+                                <i class="fas fa-upload"></i> Restore Database
+                            </button>
+                        </form>
+                        
+                        <div id="restoreResult" class="mt-2"></div>
+                    </div>
                 </div>
-                
-                <form id="pushForm">
-                    <div class="mb-3">
-                        <label class="form-label">Commit Message</label>
-                        <input type="text" class="form-control" id="commitMessage" 
-                               placeholder="Deskripsi perubahan" required>
-                    </div>
-                    
-                    <div class="mb-3">
-                        <label class="form-label">Branch</label>
-                        <select class="form-select" id="pushBranch" name="branch">
-                            <option value="main">main</option>
-                            <option value="master">master</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-check mb-3">
-                        <input class="form-check-input" type="checkbox" id="includeDatabase">
-                        <label class="form-check-label" for="includeDatabase">
-                            Include database backup (akan di-export terlebih dahulu)
-                        </label>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-warning w-100" id="pushBtn">
-                        <i class="fas fa-upload"></i> Push ke GitHub
-                    </button>
-                </form>
-                
-                <div id="pushResult" class="mt-3"></div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Database Backup -->
-<div class="row g-4 mb-4">
+<!-- Version & Changelog Management -->
+<div class="row g-4 mb-4" id="versionManagementSection">
     <div class="col-md-12">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0"><i class="fas fa-database"></i> Database Management</h5>
+        <div class="card border-0 shadow-sm" style="border-left: 4px solid #212529 !important;">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                    <i class="fas fa-code-branch"></i> Version & Changelog Management
+                    <small class="ms-2 text-light opacity-75">(Kelola versi sistem dan changelog)</small>
+                </h5>
+                <button class="btn btn-sm btn-light" data-bs-toggle="modal" data-bs-target="#versionModal">
+                    <i class="fas fa-plus"></i> Versi Baru
+                </button>
             </div>
             <div class="card-body">
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Backup Database</h6>
-                        <p class="text-muted small">Export database ke file SQL</p>
-                        <button type="button" class="btn btn-danger" id="backupDbBtn">
-                            <i class="fas fa-download"></i> Backup Database
-                        </button>
-                        <div id="backupDbResult" class="mt-2"></div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <h6>Upload Database ke GitHub</h6>
-                        <p class="text-muted small">Export dan push database ke GitHub</p>
-                        <button type="button" class="btn btn-outline-danger" id="uploadDbBtn">
-                            <i class="fab fa-github"></i> Upload DB ke GitHub
-                        </button>
-                        <div id="uploadDbResult" class="mt-2"></div>
+                <div id="versionList">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 text-muted">Memuat data versi...</p>
                     </div>
                 </div>
             </div>
@@ -236,36 +259,139 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
     </div>
 </div>
 
+<!-- Version Modal -->
+<div class="modal fade" id="versionModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="versionModalTitle">Tambah Versi Baru</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="versionForm">
+                    <input type="hidden" id="versionId" name="version_id">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Versi <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="versionInput" name="version" 
+                               placeholder="1.0.1" pattern="^\d+\.\d+\.\d+$" required>
+                        <small class="text-muted">Format: X.Y.Z (contoh: 1.0.1, 1.1.0, 2.0.0)</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tanggal Release <span class="text-danger">*</span></label>
+                        <input type="date" class="form-control" id="releaseDate" name="release_date" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Release Notes</label>
+                        <textarea class="form-control" id="releaseNotes" name="release_notes" rows="3" 
+                                  placeholder="Catatan rilis versi ini..."></textarea>
+                    </div>
+                    
+                    <div class="form-check mb-3">
+                        <input class="form-check-input" type="checkbox" id="isCurrent" name="is_current" checked>
+                        <label class="form-check-label" for="isCurrent">
+                            Set sebagai versi saat ini
+                        </label>
+                    </div>
+                    
+                    <hr>
+                    
+                    <h6>Changelog (Fitur yang di-update/di-betulkan)</h6>
+                    <div id="changelogItems"></div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addChangelogItem()">
+                        <i class="fas fa-plus"></i> Tambah Changelog
+                    </button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-primary" onclick="saveVersion()">
+                    <i class="fas fa-save"></i> Simpan
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Changelog Item Template -->
+<template id="changelogItemTemplate">
+    <div class="changelog-item border rounded p-3 mb-3">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Tipe</label>
+                <select class="form-select form-select-sm changelog-type">
+                    <option value="feature">Feature (Fitur Baru)</option>
+                    <option value="bugfix">Bugfix (Perbaikan Bug)</option>
+                    <option value="improvement">Improvement (Peningkatan)</option>
+                    <option value="security">Security (Keamanan)</option>
+                    <option value="other">Other (Lainnya)</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Kategori</label>
+                <input type="text" class="form-control form-control-sm changelog-category" 
+                       placeholder="PR, Ujian, Admin, dll">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">Judul <span class="text-danger">*</span></label>
+                <input type="text" class="form-control form-control-sm changelog-title" 
+                       placeholder="Judul perubahan" required>
+            </div>
+            <div class="col-12">
+                <label class="form-label">Deskripsi</label>
+                <textarea class="form-control form-control-sm changelog-description" rows="2" 
+                          placeholder="Deskripsi detail perubahan..."></textarea>
+            </div>
+            <div class="col-12 text-end">
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeChangelogItem(this)">
+                    <i class="fas fa-trash"></i> Hapus
+                </button>
+            </div>
+        </div>
+    </div>
+</template>
+
 <script>
 const apiUrl = '<?php echo base_url("api/github_sync.php"); ?>';
+const versionApiUrl = '<?php echo base_url("api/version_management.php"); ?>';
+const backupRestoreApiUrl = '<?php echo base_url("api/backup_restore.php"); ?>';
 
 // Load Git Status
 function loadGitStatus() {
+    console.log('Loading Git status from:', apiUrl);
+    
     $.ajax({
         url: apiUrl,
         method: 'GET',
         data: { action: 'status' },
         dataType: 'json',
+        timeout: 10000, // 10 seconds timeout
         success: function(response) {
-            if (response.success) {
+            console.log('Git status response:', response);
+            
+            if (response && response.success) {
                 let html = '<table class="table table-sm table-borderless">';
                 
                 if (!response.git_available) {
                     html += '<tr><td colspan="2"><div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Git tidak tersedia di server</div></td></tr>';
                 } else {
-                    html += '<tr><th>Repository</th><td><a href="' + response.github_url + '" target="_blank"><i class="fab fa-github"></i> ' + response.github_url + '</a></td></tr>';
+                    html += '<tr><th>Repository</th><td><a href="' + (response.github_url || 'https://github.com/adiprayitno160-svg/ujian') + '" target="_blank"><i class="fab fa-github"></i> ' + (response.github_url || 'GitHub Repository') + '</a></td></tr>';
                     
-                    if (response.git_info.is_repo) {
-                        html += '<tr><th>Branch</th><td><span class="badge bg-primary">' + response.git_info.branch + '</span></td></tr>';
-                        html += '<tr><th>Commit</th><td><code>' + response.git_info.commit + '</code></td></tr>';
-                        html += '<tr><th>Remote</th><td><small>' + response.git_info.remote + '</small></td></tr>';
+                    if (response.git_info && response.git_info.is_repo) {
+                        html += '<tr><th>Branch</th><td><span class="badge bg-primary">' + (response.git_info.branch || 'N/A') + '</span></td></tr>';
+                        html += '<tr><th>Commit</th><td><code>' + (response.git_info.commit || 'N/A') + '</code></td></tr>';
+                        if (response.git_info.remote) {
+                            html += '<tr><th>Remote</th><td><small>' + response.git_info.remote + '</small></td></tr>';
+                        }
                         
-                        if (response.git_status.has_changes) {
+                        if (response.git_status && response.git_status.has_changes) {
                             html += '<tr><th>Status</th><td><span class="badge bg-warning">Modified</span></td></tr>';
-                            if (response.git_status.changes.length > 0) {
+                            if (response.git_status.changes && response.git_status.changes.length > 0) {
                                 html += '<tr><th>Changes</th><td><small><ul class="mb-0">';
                                 response.git_status.changes.slice(0, 5).forEach(function(change) {
-                                    html += '<li>' + change + '</li>';
+                                    html += '<li>' + escapeHtml(change) + '</li>';
                                 });
                                 if (response.git_status.changes.length > 5) {
                                     html += '<li>... dan ' + (response.git_status.changes.length - 5) + ' file lainnya</li>';
@@ -286,16 +412,32 @@ function loadGitStatus() {
                 html += '</table>';
                 $('#gitStatus').html(html);
             } else {
-                $('#gitStatus').html('<div class="alert alert-warning">' + response.message + '</div>');
+                $('#gitStatus').html('<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ' + (response && response.message ? response.message : 'Gagal memuat status Git') + '</div>');
             }
         },
-        error: function(xhr) {
+        error: function(xhr, status, error) {
+            console.error('Git status error:', status, error, xhr);
             let message = 'Gagal memuat status Git';
-            try {
-                const response = JSON.parse(xhr.responseText);
-                message = response.message || message;
-            } catch(e) {}
-            $('#gitStatus').html('<div class="alert alert-danger">' + message + '</div>');
+            
+            if (status === 'timeout') {
+                message = 'Request timeout. Git mungkin tidak tersedia atau server tidak merespons.';
+            } else if (xhr.status === 0) {
+                message = 'Tidak dapat terhubung ke server. Pastikan API endpoint tersedia.';
+            } else {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    message = response.message || message;
+                } catch(e) {
+                    if (xhr.responseText) {
+                        message = 'Error: ' + xhr.status + ' - ' + error;
+                    }
+                }
+            }
+            
+            $('#gitStatus').html('<div class="alert alert-danger">' +
+                '<i class="fas fa-exclamation-triangle"></i> ' + message + 
+                '<br><small class="mt-2 d-block">Cek console browser (F12) untuk detail error.</small>' +
+                '</div>');
         }
     });
 }
@@ -325,11 +467,37 @@ function initRepo() {
     });
 }
 
+// Load current version for display
+function loadCurrentVersionForPull() {
+    $.ajax({
+        url: versionApiUrl,
+        method: 'GET',
+        data: { action: 'get_current_version' },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success && response.version) {
+                $('#currentVersionBeforePull').text('v' + response.version.version);
+            } else {
+                $('#currentVersionBeforePull').text('Belum ada versi');
+            }
+        },
+        error: function() {
+            $('#currentVersionBeforePull').text('-');
+        }
+    });
+}
+
 // Pull from GitHub
 $('#pullForm').on('submit', function(e) {
     e.preventDefault();
     
-    if (!confirm('Pull update dari GitHub? Database akan di-backup otomatis sebelum update.')) {
+    const updateVersion = $('#updateVersionAfterPull').is(':checked');
+    let confirmMsg = 'Pull update dari GitHub? Database akan di-backup otomatis sebelum update.';
+    if (updateVersion) {
+        confirmMsg += '\n\nSetelah pull berhasil, Anda akan diminta untuk membuat versi baru.';
+    }
+    
+    if (!confirm(confirmMsg)) {
         return;
     }
     
@@ -352,8 +520,29 @@ $('#pullForm').on('submit', function(e) {
                     html += '<br><details class="mt-2"><summary>Detail Output</summary><pre class="mt-2 small">' + response.output.join('\n') + '</pre></details>';
                 }
                 html += '</div>';
+                
+                // If update version is checked, prompt for version update
+                if (updateVersion) {
+                    html += '<div class="alert alert-info mt-3">';
+                    html += '<i class="fas fa-info-circle"></i> <strong>Update Versi:</strong> ';
+                    html += '<button class="btn btn-sm btn-primary ms-2" onclick="$(\'#versionModal\').modal(\'show\')">';
+                    html += '<i class="fas fa-plus"></i> Buat Versi Baru</button>';
+                    html += '</div>';
+                }
+                
                 $('#pullResult').html(html);
                 loadGitStatus();
+                loadVersions();
+                loadCurrentVersionForPull();
+                
+                // If update version is checked, show modal after a short delay
+                if (updateVersion) {
+                    setTimeout(function() {
+                        if (confirm('Pull berhasil! Apakah Anda ingin membuat versi baru sekarang?')) {
+                            $('#versionModal').modal('show');
+                        }
+                    }, 1000);
+                }
             } else {
                 $('#pullResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
             }
@@ -372,85 +561,37 @@ $('#pullForm').on('submit', function(e) {
     });
 });
 
-// Push to GitHub
-$('#pushForm').on('submit', function(e) {
-    e.preventDefault();
-    const commitMessage = $('#commitMessage').val();
-    const includeDatabase = $('#includeDatabase').is(':checked');
-    
-    if (!commitMessage.trim()) {
-        alert('Commit message harus diisi');
-        return;
-    }
-    
-    if (!confirm('Push perubahan ke GitHub? Pastikan Anda sudah mengkonfigurasi Git credentials.')) {
-        return;
-    }
-    
-    $('#pushBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
-    $('#pushResult').html('<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Sedang memproses...</div>');
-    
-    $.ajax({
-        url: apiUrl,
-        method: 'POST',
-        data: {
-            action: 'push',
-            commit_message: commitMessage,
-            include_database: includeDatabase ? 1 : 0
-        },
-        dataType: 'json',
-        success: function(response) {
-            if (response.success) {
-                let html = '<div class="alert alert-success">';
-                html += '<i class="fas fa-check-circle"></i> <strong>Berhasil!</strong> ' + response.message;
-                if (response.backup && response.backup.success) {
-                    html += '<br><small><i class="fas fa-database"></i> Database backup dibuat: ' + response.backup.filename + '</small>';
-                }
-                if (response.output && response.output.length > 0) {
-                    html += '<br><details class="mt-2"><summary>Detail Output</summary><pre class="mt-2 small">' + response.output.join('\n') + '</pre></details>';
-                }
-                html += '</div>';
-                $('#pushResult').html(html);
-                loadGitStatus();
-            } else {
-                $('#pushResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
-            }
-        },
-        error: function(xhr) {
-            let message = 'Terjadi kesalahan';
-            try {
-                const response = JSON.parse(xhr.responseText);
-                message = response.message || message;
-            } catch(e) {}
-            $('#pushResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>');
-        },
-        complete: function() {
-            $('#pushBtn').prop('disabled', false).html('<i class="fas fa-upload"></i> Push ke GitHub');
-        }
-    });
-});
+// Push to GitHub - Removed (gunakan Git CLI untuk push)
 
 // Backup Database
 $('#backupDbBtn').on('click', function() {
     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
-    $('#backupDbResult').html('<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Membuat backup...</div>');
+    $('#backupResult').html('<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Membuat backup database...</div>');
     
     $.ajax({
-        url: apiUrl,
+        url: backupRestoreApiUrl,
         method: 'POST',
-        data: { action: 'backup_db' },
+        data: { 
+            action: 'backup',
+            include_sourcecode: '0'
+        },
         dataType: 'json',
         success: function(response) {
             if (response.success) {
                 let html = '<div class="alert alert-success">';
-                html += '<i class="fas fa-check-circle"></i> <strong>Backup berhasil!</strong>';
+                html += '<i class="fas fa-check-circle"></i> <strong>Backup database berhasil!</strong>';
                 html += '<br><small>File: ' + response.filename + '</small>';
-                html += '<br><a href="' + apiUrl + '?action=download&file=' + encodeURIComponent(response.filename) + '" class="btn btn-sm btn-success mt-2">';
+                if (response.size) {
+                    const sizeMB = (response.size / (1024 * 1024)).toFixed(2);
+                    html += '<br><small>Ukuran: ' + sizeMB + ' MB</small>';
+                }
+                html += '<br><a href="' + backupRestoreApiUrl + '?action=download&filename=' + encodeURIComponent(response.filename) + '" class="btn btn-sm btn-success mt-2">';
                 html += '<i class="fas fa-download"></i> Download Backup</a>';
                 html += '</div>';
-                $('#backupDbResult').html(html);
+                $('#backupResult').html(html);
+                loadBackupList();
             } else {
-                $('#backupDbResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
+                $('#backupResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
             }
         },
         error: function(xhr) {
@@ -459,70 +600,149 @@ $('#backupDbBtn').on('click', function() {
                 const response = JSON.parse(xhr.responseText);
                 message = response.message || message;
             } catch(e) {}
-            $('#backupDbResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>');
+            $('#backupResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>');
         },
         complete: function() {
-            $('#backupDbBtn').prop('disabled', false).html('<i class="fas fa-download"></i> Backup Database');
+            $('#backupDbBtn').prop('disabled', false).html('<i class="fas fa-database"></i> Backup Database');
         }
     });
 });
 
-// Upload Database to GitHub
-$('#uploadDbBtn').on('click', function() {
-    if (!confirm('Upload database ke GitHub? Database akan di-backup dan di-push ke repository.')) {
-        return;
-    }
-    
-    const commitMessage = prompt('Commit message untuk database backup:', 'Database backup ' + new Date().toLocaleString('id-ID'));
-    if (!commitMessage) {
+// Backup Full (Database + Source Code)
+$('#backupFullBtn').on('click', function() {
+    if (!confirm('Backup full akan membuat file ZIP yang berisi database dan seluruh source code. Proses ini mungkin memakan waktu cukup lama. Lanjutkan?')) {
         return;
     }
     
     $(this).prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
-    $('#uploadDbResult').html('<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Memproses...</div>');
+    $('#backupResult').html('<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Membuat backup full (database + source code)...</div>');
     
     $.ajax({
-        url: apiUrl,
+        url: backupRestoreApiUrl,
         method: 'POST',
         data: { 
-            action: 'push',
-            commit_message: commitMessage,
-            include_database: 1
+            action: 'backup',
+            include_sourcecode: '1'
         },
         dataType: 'json',
+        timeout: 300000, // 5 minutes timeout for full backup
         success: function(response) {
             if (response.success) {
                 let html = '<div class="alert alert-success">';
-                html += '<i class="fas fa-check-circle"></i> <strong>Berhasil!</strong> ' + response.message;
-                if (response.backup && response.backup.success) {
-                    html += '<br><small>Database backup: ' + response.backup.filename + '</small>';
+                html += '<i class="fas fa-check-circle"></i> <strong>Backup full berhasil!</strong>';
+                const filename = response.zip_filename || response.filename;
+                html += '<br><small>File: ' + filename + '</small>';
+                if (response.zip_size || response.size) {
+                    const size = response.zip_size || response.size;
+                    const sizeMB = (size / (1024 * 1024)).toFixed(2);
+                    html += '<br><small>Ukuran: ' + sizeMB + ' MB</small>';
                 }
+                html += '<br><a href="' + backupRestoreApiUrl + '?action=download&filename=' + encodeURIComponent(filename) + '" class="btn btn-sm btn-success mt-2">';
+                html += '<i class="fas fa-download"></i> Download Backup</a>';
                 html += '</div>';
-                $('#uploadDbResult').html(html);
-                loadGitStatus();
+                $('#backupResult').html(html);
+                loadBackupList();
             } else {
-                $('#uploadDbResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
+                $('#backupResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
             }
         },
-        error: function(xhr) {
+        error: function(xhr, status, error) {
             let message = 'Terjadi kesalahan';
-            try {
-                const response = JSON.parse(xhr.responseText);
-                message = response.message || message;
-            } catch(e) {}
-            $('#uploadDbResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>');
+            if (status === 'timeout') {
+                message = 'Request timeout. Backup full mungkin memakan waktu lebih lama. Coba lagi atau cek folder backups.';
+            } else {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    message = response.message || message;
+                } catch(e) {
+                    message = 'Error: ' + error;
+                }
+            }
+            $('#backupResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>');
         },
         complete: function() {
-            $('#uploadDbBtn').prop('disabled', false).html('<i class="fab fa-github"></i> Upload DB ke GitHub');
+            $('#backupFullBtn').prop('disabled', false).html('<i class="fas fa-archive"></i> Backup Full (Database + Source Code)');
         }
     });
 });
+
+// Restore Database
+$('#restoreForm').on('submit', function(e) {
+    e.preventDefault();
+    
+    const fileInput = $('#backupFile')[0];
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Pilih file backup terlebih dahulu');
+        return;
+    }
+    
+    if (!confirm('Peringatan: Restore akan mengganti database saat ini. Pastikan Anda sudah melakukan backup sebelumnya. Lanjutkan?')) {
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'restore');
+    formData.append('backup_file', fileInput.files[0]);
+    
+    $('#restoreBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
+    $('#restoreResult').html('<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Memproses restore...</div>');
+    
+    $.ajax({
+        url: backupRestoreApiUrl,
+        method: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        dataType: 'json',
+        timeout: 300000, // 5 minutes timeout for restore
+        success: function(response) {
+            if (response.success) {
+                let html = '<div class="alert alert-success">';
+                html += '<i class="fas fa-check-circle"></i> <strong>Restore berhasil!</strong>';
+                html += '<br><small>' + response.message + '</small>';
+                html += '</div>';
+                $('#restoreResult').html(html);
+                
+                // Reset form
+                $('#restoreForm')[0].reset();
+                
+                // Reload page after 2 seconds to reflect changes
+                setTimeout(function() {
+                    if (confirm('Restore berhasil! Halaman akan di-refresh untuk menampilkan perubahan. Lanjutkan?')) {
+                        location.reload();
+                    }
+                }, 2000);
+            } else {
+                $('#restoreResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + response.message + '</div>');
+            }
+        },
+        error: function(xhr, status, error) {
+            let message = 'Terjadi kesalahan';
+            if (status === 'timeout') {
+                message = 'Request timeout. Restore mungkin memakan waktu lebih lama.';
+            } else {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    message = response.message || message;
+                } catch(e) {
+                    message = 'Error: ' + error;
+                }
+            }
+            $('#restoreResult').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>');
+        },
+        complete: function() {
+            $('#restoreBtn').prop('disabled', false).html('<i class="fas fa-upload"></i> Restore Database');
+        }
+    });
+});
+
+// Upload Database to GitHub - Removed (gunakan Git CLI untuk push)
 
 // Load Backup List
 function loadBackupList() {
     // Get backups from backups directory
     $.ajax({
-        url: '<?php echo base_url("api/backup_restore.php"); ?>',
+        url: backupRestoreApiUrl,
         method: 'GET',
         data: { action: 'list' },
         dataType: 'json',
@@ -534,19 +754,30 @@ function loadBackupList() {
                     const typeBadge = backup.type === 'full' 
                         ? '<span class="badge bg-success">Full</span>' 
                         : '<span class="badge bg-primary">Database</span>';
+                    const fileIcon = backup.type === 'full' 
+                        ? '<i class="fas fa-file-archive"></i>' 
+                        : '<i class="fas fa-database"></i>';
                     html += '<tr>';
-                    html += '<td><i class="fas fa-file-archive"></i> ' + backup.filename + '</td>';
+                    html += '<td>' + fileIcon + ' ' + escapeHtml(backup.filename) + '</td>';
                     html += '<td>' + typeBadge + '</td>';
-                    html += '<td>' + backup.size_formatted + '</td>';
-                    html += '<td>' + backup.modified + '</td>';
+                    html += '<td>' + escapeHtml(backup.size_formatted) + '</td>';
+                    html += '<td>' + escapeHtml(backup.modified) + '</td>';
                     html += '<td>';
-                    html += '<a href="<?php echo base_url("api/backup_restore.php"); ?>?action=download&filename=' + encodeURIComponent(backup.filename) + '" class="btn btn-sm btn-success me-1" title="Download">';
+                    html += '<a href="' + backupRestoreApiUrl + '?action=download&filename=' + encodeURIComponent(backup.filename) + '" class="btn btn-sm btn-success me-1" title="Download">';
                     html += '<i class="fas fa-download"></i></a>';
+                    html += '<button class="btn btn-sm btn-danger delete-backup-btn" data-filename="' + escapeHtml(backup.filename.replace(/"/g, '&quot;')) + '" title="Hapus">';
+                    html += '<i class="fas fa-trash"></i></button>';
                     html += '</td>';
                     html += '</tr>';
                 });
                 html += '</tbody></table></div>';
                 $('#backupList').html(html);
+                
+                // Attach delete handlers
+                $('.delete-backup-btn').on('click', function() {
+                    const filename = $(this).data('filename');
+                    deleteBackup(filename);
+                });
             } else {
                 $('#backupList').html('<div class="alert alert-info"><i class="fas fa-info-circle"></i> Belum ada backup</div>');
             }
@@ -557,10 +788,367 @@ function loadBackupList() {
     });
 }
 
+// Delete Backup
+function deleteBackup(filename) {
+    if (!confirm('Hapus backup "' + filename + '"? Tindakan ini tidak dapat dibatalkan.')) {
+        return;
+    }
+    
+    $.ajax({
+        url: backupRestoreApiUrl,
+        method: 'POST',
+        data: {
+            action: 'delete',
+            filename: filename
+        },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                loadBackupList();
+            } else {
+                alert('Error: ' + response.message);
+            }
+        },
+        error: function() {
+            alert('Terjadi kesalahan saat menghapus backup');
+        }
+    });
+}
+
+// Version Management Functions
+function loadVersions() {
+    console.log('Loading versions from:', versionApiUrl);
+    
+    // Show section if hidden
+    $('#versionManagementSection').show();
+    
+    $.ajax({
+        url: versionApiUrl,
+        method: 'GET',
+        data: { action: 'get_all_versions' },
+        dataType: 'json',
+        success: function(response) {
+            console.log('Versions response:', response);
+            if (response.success && response.versions) {
+                let html = '';
+                
+                if (response.versions.length === 0) {
+                    html = '<div class="alert alert-info"><i class="fas fa-info-circle"></i> Belum ada versi yang dibuat</div>';
+                } else {
+                    response.versions.forEach(function(version) {
+                        const isCurrent = version.is_current == 1;
+                        const typeBadges = {
+                            'feature': 'success',
+                            'bugfix': 'danger',
+                            'improvement': 'info',
+                            'security': 'warning',
+                            'other': 'secondary'
+                        };
+                        
+                        html += '<div class="card mb-3 ' + (isCurrent ? 'border-primary' : '') + '">';
+                        html += '<div class="card-header d-flex justify-content-between align-items-center">';
+                        html += '<div>';
+                        html += '<h6 class="mb-0">';
+                        html += '<span class="badge bg-primary me-2">v' + version.version + '</span>';
+                        if (isCurrent) {
+                            html += '<span class="badge bg-success">Versi Saat Ini</span>';
+                        }
+                        html += '</h6>';
+                        html += '<small class="text-muted">';
+                        html += '<i class="fas fa-calendar"></i> ' + version.release_date;
+                        if (version.created_by_name) {
+                            html += ' | <i class="fas fa-user"></i> ' + version.created_by_name;
+                        }
+                        html += '</small>';
+                        html += '</div>';
+                        html += '<div>';
+                        html += '<button class="btn btn-sm btn-outline-primary me-1" onclick="editVersion(' + version.id + ')">';
+                        html += '<i class="fas fa-edit"></i> Edit</button>';
+                        if (!isCurrent) {
+                            html += '<button class="btn btn-sm btn-outline-danger" onclick="deleteVersion(' + version.id + ')">';
+                            html += '<i class="fas fa-trash"></i></button>';
+                        }
+                        html += '</div>';
+                        html += '</div>';
+                        html += '<div class="card-body">';
+                        
+                        if (version.release_notes) {
+                            html += '<p class="text-muted">' + escapeHtml(version.release_notes) + '</p>';
+                        }
+                        
+                        if (version.changelog && version.changelog.length > 0) {
+                            html += '<h6 class="mt-3 mb-2">Changelog:</h6>';
+                            html += '<ul class="list-unstyled">';
+                            version.changelog.forEach(function(item) {
+                                html += '<li class="mb-2">';
+                                html += '<span class="badge bg-' + (typeBadges[item.type] || 'secondary') + ' me-2">';
+                                html += item.type.charAt(0).toUpperCase() + item.type.slice(1);
+                                html += '</span>';
+                                if (item.category) {
+                                    html += '<span class="badge bg-light text-dark me-2">' + escapeHtml(item.category) + '</span>';
+                                }
+                                html += '<strong>' + escapeHtml(item.title) + '</strong>';
+                                if (item.description) {
+                                    html += '<br><small class="text-muted ms-4">' + escapeHtml(item.description) + '</small>';
+                                }
+                                html += '</li>';
+                            });
+                            html += '</ul>';
+                        }
+                        
+                        html += '</div>';
+                        html += '</div>';
+                    });
+                }
+                
+                $('#versionList').html(html);
+                
+                // Update current version display
+                const currentVersion = response.versions.find(v => v.is_current == 1);
+                if (currentVersion) {
+                    $('#currentVersionDisplay').text('v' + currentVersion.version);
+                }
+            } else {
+                $('#versionList').html('<div class="alert alert-warning">' + (response.message || 'Gagal memuat versi') + '</div>');
+            }
+        },
+        error: function(xhr) {
+            let message = 'Gagal memuat versi';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                message = response.message || message;
+            } catch(e) {
+                if (xhr.status === 404) {
+                    message = 'API endpoint tidak ditemukan. Pastikan file api/version_management.php ada.';
+                } else if (xhr.status === 500) {
+                    message = 'Error server. Cek console browser untuk detail.';
+                }
+            }
+            $('#versionList').html('<div class="alert alert-danger"><i class="fas fa-exclamation-triangle"></i> ' + message + '</div>');
+            console.error('Error loading versions:', xhr);
+        }
+    });
+}
+
+function addChangelogItem() {
+    const template = document.getElementById('changelogItemTemplate');
+    const clone = template.content.cloneNode(true);
+    document.getElementById('changelogItems').appendChild(clone);
+}
+
+function removeChangelogItem(btn) {
+    $(btn).closest('.changelog-item').remove();
+}
+
+function saveVersion() {
+    const version = $('#versionInput').val().trim();
+    const releaseDate = $('#releaseDate').val();
+    const releaseNotes = $('#releaseNotes').val().trim();
+    const isCurrent = $('#isCurrent').is(':checked') ? 1 : 0;
+    const versionId = $('#versionId').val();
+    
+    if (!version || !releaseDate) {
+        alert('Versi dan tanggal release harus diisi');
+        return;
+    }
+    
+    // Validate version format
+    if (!/^\d+\.\d+\.\d+$/.test(version)) {
+        alert('Format versi tidak valid. Gunakan format X.Y.Z (contoh: 1.0.1)');
+        return;
+    }
+    
+    // Collect changelog items
+    const changelogItems = [];
+    $('.changelog-item').each(function() {
+        const title = $(this).find('.changelog-title').val().trim();
+        if (title) {
+            changelogItems.push({
+                type: $(this).find('.changelog-type').val(),
+                title: title,
+                description: $(this).find('.changelog-description').val().trim(),
+                category: $(this).find('.changelog-category').val().trim()
+            });
+        }
+    });
+    
+    const action = versionId ? 'update_version' : 'create_version';
+    const data = {
+        action: action,
+        version: version,
+        release_date: releaseDate,
+        release_notes: releaseNotes,
+        is_current: isCurrent
+    };
+    
+    if (versionId) {
+        data.version_id = versionId;
+    }
+    
+    $.ajax({
+        url: versionApiUrl,
+        method: 'POST',
+        data: data,
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                const versionIdToUse = response.version_id || versionId;
+                
+                // Save changelog items
+                if (changelogItems.length > 0 && versionIdToUse) {
+                    let saved = 0;
+                    changelogItems.forEach(function(item) {
+                        $.ajax({
+                            url: versionApiUrl,
+                            method: 'POST',
+                            data: {
+                                action: 'add_changelog',
+                                version_id: versionIdToUse,
+                                type: item.type,
+                                title: item.title,
+                                description: item.description,
+                                category: item.category
+                            },
+                            dataType: 'json',
+                            success: function() {
+                                saved++;
+                                if (saved === changelogItems.length) {
+                                    $('#versionModal').modal('hide');
+                                    loadVersions();
+                                    loadCurrentVersionForPull();
+                                    resetVersionForm();
+                                    $(document).trigger('versionSaved');
+                                }
+                            }
+                        });
+                    });
+                } else {
+                    $('#versionModal').modal('hide');
+                    loadVersions();
+                    loadCurrentVersionForPull();
+                    resetVersionForm();
+                    $(document).trigger('versionSaved');
+                }
+            } else {
+                alert('Error: ' + response.message);
+            }
+        },
+        error: function(xhr) {
+            let message = 'Terjadi kesalahan';
+            try {
+                const response = JSON.parse(xhr.responseText);
+                message = response.message || message;
+            } catch(e) {}
+            alert(message);
+        }
+    });
+}
+
+function editVersion(versionId) {
+    // Load version data
+    $.ajax({
+        url: versionApiUrl,
+        method: 'GET',
+        data: { action: 'get_all_versions' },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                const version = response.versions.find(v => v.id == versionId);
+                if (version) {
+                    $('#versionId').val(version.id);
+                    $('#versionInput').val(version.version);
+                    $('#releaseDate').val(version.release_date);
+                    $('#releaseNotes').val(version.release_notes || '');
+                    $('#isCurrent').prop('checked', version.is_current == 1);
+                    $('#versionModalTitle').text('Edit Versi');
+                    
+                    // Load changelog
+                    $('#changelogItems').empty();
+                    if (version.changelog && version.changelog.length > 0) {
+                        version.changelog.forEach(function(item) {
+                            addChangelogItem();
+                            const lastItem = $('#changelogItems .changelog-item').last();
+                            lastItem.find('.changelog-type').val(item.type);
+                            lastItem.find('.changelog-category').val(item.category || '');
+                            lastItem.find('.changelog-title').val(item.title);
+                            lastItem.find('.changelog-description').val(item.description || '');
+                        });
+                    }
+                    
+                    $('#versionModal').modal('show');
+                }
+            }
+        }
+    });
+}
+
+function deleteVersion(versionId) {
+    if (!confirm('Hapus versi ini? Changelog yang terkait juga akan dihapus.')) {
+        return;
+    }
+    
+    $.ajax({
+        url: versionApiUrl,
+        method: 'POST',
+        data: {
+            action: 'delete_version',
+            version_id: versionId
+        },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                loadVersions();
+            } else {
+                alert('Error: ' + response.message);
+            }
+        }
+    });
+}
+
+function resetVersionForm() {
+    $('#versionForm')[0].reset();
+    $('#versionId').val('');
+    $('#versionModalTitle').text('Tambah Versi Baru');
+    $('#changelogItems').empty();
+    $('#releaseDate').val(new Date().toISOString().split('T')[0]);
+}
+
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text ? text.replace(/[&<>"']/g, m => map[m]) : '';
+}
+
 // Initialize
 $(document).ready(function() {
+    console.log('About page initialized');
+    console.log('Version API URL:', versionApiUrl);
+    
+    // Ensure version section is visible
+    $('#versionManagementSection').show();
+    
     loadGitStatus();
     loadBackupList();
+    loadVersions();
+    loadCurrentVersionForPull();
+    
+    // Reset form when modal is closed
+    $('#versionModal').on('hidden.bs.modal', function() {
+        resetVersionForm();
+    });
+    
+    // Set default release date to today
+    $('#releaseDate').val(new Date().toISOString().split('T')[0]);
+    
+    // Refresh version display after version is saved
+    $(document).on('versionSaved', function() {
+        loadCurrentVersionForPull();
+    });
 });
 </script>
 

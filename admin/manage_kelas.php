@@ -71,20 +71,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Get filter tingkat
 $filter_tingkat = $_GET['tingkat'] ?? '';
 
-// Get kelas dengan filter
-$sql = "SELECT * FROM kelas WHERE 1=1";
-$params = [];
+// Get kelas dengan filter dan jumlah siswa
+$tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+$sql = "SELECT k.*, 
+        COUNT(DISTINCT uk.id_user) as jumlah_siswa
+        FROM kelas k
+        LEFT JOIN user_kelas uk ON k.id = uk.id_kelas AND uk.tahun_ajaran = ?
+        WHERE 1=1";
+$params = [$tahun_ajaran];
 
 if ($filter_tingkat && in_array($filter_tingkat, ['VII', 'VIII', 'IX'])) {
-    $sql .= " AND tingkat = ?";
+    $sql .= " AND k.tingkat = ?";
     $params[] = $filter_tingkat;
 }
 
-$sql .= " ORDER BY tahun_ajaran DESC, tingkat ASC, nama_kelas ASC";
+$sql .= " GROUP BY k.id
+          ORDER BY k.tahun_ajaran DESC, k.tingkat ASC, k.nama_kelas ASC";
 
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $kelas_list = $stmt->fetchAll();
+
+// Get siswa per kelas untuk detail
+$siswa_per_kelas = [];
+foreach ($kelas_list as $kelas) {
+    $stmt = $pdo->prepare("SELECT u.id, u.username as nis, u.nama, u.status
+                           FROM users u
+                           INNER JOIN user_kelas uk ON u.id = uk.id_user
+                           WHERE uk.id_kelas = ? AND uk.tahun_ajaran = ?
+                           ORDER BY u.nama ASC");
+    $stmt->execute([$kelas['id'], $tahun_ajaran]);
+    $siswa_per_kelas[$kelas['id']] = $stmt->fetchAll();
+}
 
 // Get count per tingkat
 $stmt = $pdo->query("SELECT tingkat, COUNT(*) as total FROM kelas WHERE status = 'active' GROUP BY tingkat");
@@ -158,6 +176,7 @@ $total_all = $stmt->fetch()['total'];
                         <th>Nama Kelas</th>
                         <th>Tingkat</th>
                         <th>Tahun Ajaran</th>
+                        <th>Jumlah Siswa</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -165,7 +184,7 @@ $total_all = $stmt->fetch()['total'];
                 <tbody>
                     <?php if (empty($kelas_list)): ?>
                         <tr>
-                            <td colspan="6" class="text-center py-4">
+                            <td colspan="7" class="text-center py-4">
                                 <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
                                 <p class="text-muted mb-0">Tidak ada kelas<?php echo $filter_tingkat ? ' untuk tingkat ' . $filter_tingkat : ''; ?></p>
                             </td>
@@ -178,11 +197,19 @@ $total_all = $stmt->fetch()['total'];
                             <td><?php echo escape($kelas['tingkat'] ?? '-'); ?></td>
                             <td><?php echo escape($kelas['tahun_ajaran']); ?></td>
                             <td>
+                                <span class="badge bg-info">
+                                    <i class="fas fa-users"></i> <?php echo intval($kelas['jumlah_siswa'] ?? 0); ?> siswa
+                                </span>
+                            </td>
+                            <td>
                                 <span class="badge bg-<?php echo $kelas['status'] === 'active' ? 'success' : 'secondary'; ?>">
                                     <?php echo ucfirst($kelas['status']); ?>
                                 </span>
                             </td>
                             <td>
+                                <button type="button" class="btn btn-sm btn-info" onclick="showSiswaList(<?php echo $kelas['id']; ?>, '<?php echo escape($kelas['nama_kelas']); ?>')" title="Lihat Daftar Siswa">
+                                    <i class="fas fa-users"></i>
+                                </button>
                                 <button type="button" class="btn btn-sm btn-primary" onclick="editKelas(<?php echo htmlspecialchars(json_encode($kelas)); ?>)">
                                     <i class="fas fa-edit"></i>
                                 </button>
@@ -287,7 +314,35 @@ $total_all = $stmt->fetch()['total'];
     </div>
 </div>
 
+<!-- Modal Daftar Siswa -->
+<div class="modal fade" id="siswaListModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-users"></i> Daftar Siswa - <span id="modalKelasName"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="siswaListContent">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
+const siswaPerKelas = <?php echo json_encode($siswa_per_kelas); ?>;
+
 function editKelas(kelas) {
     document.getElementById('edit_id').value = kelas.id;
     document.getElementById('edit_nama_kelas').value = kelas.nama_kelas || '';
@@ -297,6 +352,65 @@ function editKelas(kelas) {
     
     const modal = new bootstrap.Modal(document.getElementById('editKelasModal'));
     modal.show();
+}
+
+function showSiswaList(kelasId, kelasName) {
+    document.getElementById('modalKelasName').textContent = kelasName;
+    
+    const siswaList = siswaPerKelas[kelasId] || [];
+    let html = '';
+    
+    if (siswaList.length === 0) {
+        html = '<div class="alert alert-info">';
+        html += '<i class="fas fa-info-circle"></i> Belum ada siswa di kelas ini.';
+        html += '</div>';
+    } else {
+        html = '<div class="table-responsive">';
+        html += '<table class="table table-hover table-sm">';
+        html += '<thead><tr>';
+        html += '<th>No</th>';
+        html += '<th>NIS</th>';
+        html += '<th>Nama</th>';
+        html += '<th>Status</th>';
+        html += '</tr></thead>';
+        html += '<tbody>';
+        
+        siswaList.forEach(function(siswa, index) {
+            html += '<tr>';
+            html += '<td>' + (index + 1) + '</td>';
+            html += '<td>' + escapeHtml(siswa.nis || '-') + '</td>';
+            html += '<td>' + escapeHtml(siswa.nama || '-') + '</td>';
+            html += '<td>';
+            html += '<span class="badge bg-' + (siswa.status === 'active' ? 'success' : 'secondary') + '">';
+            html += siswa.status === 'active' ? 'Aktif' : 'Tidak Aktif';
+            html += '</span>';
+            html += '</td>';
+            html += '</tr>';
+        });
+        
+        html += '</tbody>';
+        html += '</table>';
+        html += '</div>';
+        html += '<div class="mt-3">';
+        html += '<p class="text-muted mb-0"><strong>Total:</strong> ' + siswaList.length + ' siswa</p>';
+        html += '</div>';
+    }
+    
+    document.getElementById('siswaListContent').innerHTML = html;
+    
+    const modal = new bootstrap.Modal(document.getElementById('siswaListModal'));
+    modal.show();
+}
+
+function escapeHtml(text) {
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text ? text.replace(/[&<>"']/g, m => map[m]) : '';
 }
 </script>
 

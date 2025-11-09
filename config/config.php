@@ -7,8 +7,40 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.0');
-    define('APP_URL', 'http://localhost/UJAN');
+    define('APP_VERSION', '1.0.1');
+    
+    // Auto-detect APP_URL based on server environment
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 
+                 !empty($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') 
+                 ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
+    
+    // Detect base path from document root
+    $document_root = $_SERVER['DOCUMENT_ROOT'] ?? '';
+    $script_dir = str_replace('\\', '/', __DIR__);
+    $base_path = '';
+    
+    if ($document_root) {
+        $document_root = str_replace('\\', '/', $document_root);
+        // Get relative path from document root
+        if (strpos($script_dir, $document_root) === 0) {
+            $base_path = substr($script_dir, strlen($document_root));
+            $base_path = rtrim($base_path, '/');
+        }
+    }
+    
+    // Fallback: detect from SCRIPT_NAME
+    if (empty($base_path) && !empty($_SERVER['SCRIPT_NAME'])) {
+        $script_name = $_SERVER['SCRIPT_NAME'];
+        $base_path = dirname($script_name);
+        if ($base_path === '.' || $base_path === '/') {
+            $base_path = '';
+        } else {
+            $base_path = rtrim($base_path, '/');
+        }
+    }
+    
+    define('APP_URL', $protocol . '://' . $host . $base_path);
 }
 
 // Timezone

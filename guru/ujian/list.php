@@ -8,11 +8,16 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
-require_role('guru');
+require_login();
 check_session_timeout();
 
+// Allow guru and operator (with operator access)
+if ($_SESSION['role'] !== 'guru' && !has_operator_access()) {
+    redirect('index.php');
+}
+
 $page_title = 'Daftar Ujian';
-$role_css = 'guru';
+$role_css = $_SESSION['role'] === 'guru' ? 'guru' : 'admin';
 include __DIR__ . '/../../includes/header.php';
 
 global $pdo;
@@ -25,8 +30,16 @@ if (!isset($_SESSION['user_id'])) {
     redirect('login.php');
 }
 
-$where = "id_guru = ?";
-$params = [$_SESSION['user_id']];
+// For guru: only show their own ujian
+// For operator: show all ujian
+if ($_SESSION['role'] === 'guru') {
+    $where = "id_guru = ?";
+    $params = [$_SESSION['user_id']];
+} else {
+    // Operator can see all ujian
+    $where = "1=1";
+    $params = [];
+}
 
 if ($search) {
     $where .= " AND (judul LIKE ? OR deskripsi LIKE ?)";
@@ -50,13 +63,29 @@ $stmt->execute($params);
 $ujian_list = $stmt->fetchAll();
 ?>
 
+<?php if (isset($_GET['success']) && $_GET['success'] === 'ujian_deleted'): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <i class="fas fa-check-circle"></i> Ujian berhasil dihapus!
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
+<?php if (isset($_GET['error']) && $_GET['error'] === 'delete_failed'): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-circle"></i> Gagal menghapus ujian. Silakan coba lagi.
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+<?php endif; ?>
+
 <div class="row mb-4">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center">
             <h2 class="fw-bold">Daftar Ujian</h2>
-            <a href="<?php echo base_url('guru/ujian/create.php'); ?>" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Buat Ujian Baru
-            </a>
+            <?php if ($_SESSION['role'] === 'guru'): ?>
+                <a href="<?php echo base_url('guru/ujian/create.php'); ?>" class="btn btn-primary">
+                    <i class="fas fa-plus"></i> Buat Ujian Baru
+                </a>
+            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -131,6 +160,11 @@ $ujian_list = $stmt->fetchAll();
                         </a>
                         <a href="<?php echo base_url('guru/ujian/settings.php?id=' . $ujian['id']); ?>" class="btn btn-sm btn-outline-secondary">
                             <i class="fas fa-cog"></i> Settings
+                        </a>
+                        <a href="<?php echo base_url('guru/ujian/delete.php?id=' . $ujian['id']); ?>" 
+                           class="btn btn-sm btn-danger"
+                           onclick="return confirm('Yakin hapus ujian ini? Tindakan ini tidak dapat dibatalkan!');">
+                            <i class="fas fa-trash"></i> Hapus
                         </a>
                     </div>
                 </div>

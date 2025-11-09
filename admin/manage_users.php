@@ -35,9 +35,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Semua field wajib harus diisi';
         } else {
             try {
+                // Hanya admin yang bisa set is_operator
+                // is_operator hanya berlaku untuk role 'guru'
+                $is_operator = 0;
+                if (isset($_POST['is_operator']) && $_POST['is_operator'] === '1' && $role === 'guru') {
+                    $is_operator = 1;
+                }
+                
+                // Jika role bukan guru, pastikan is_operator = 0
+                if ($role !== 'guru') {
+                    $is_operator = 0;
+                }
+                
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, role, nama, no_hp) VALUES (?, ?, ?, ?, ?)");
-                $stmt->execute([$username, $hashed_password, $role, $nama, $no_hp]);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, role, nama, no_hp, is_operator) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$username, $hashed_password, $role, $nama, $no_hp, $is_operator]);
                 $success = 'User berhasil ditambahkan';
                 log_activity('create_user', 'users', $pdo->lastInsertId());
             } catch (PDOException $e) {
@@ -57,14 +69,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $no_hp = sanitize($_POST['no_hp'] ?? '');
         $status = sanitize($_POST['status'] ?? 'active');
         
+        // Hanya admin yang bisa set is_operator
+        // is_operator hanya berlaku untuk role 'guru'
+        $is_operator = 0;
+        if (isset($_POST['is_operator']) && $_POST['is_operator'] === '1' && $role === 'guru') {
+            $is_operator = 1;
+        }
+        
+        // Jika role bukan guru, pastikan is_operator = 0
+        if ($role !== 'guru') {
+            $is_operator = 0;
+        }
+        
         try {
             if (!empty($password)) {
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, role = ?, nama = ?, no_hp = ?, status = ? WHERE id = ?");
-                $stmt->execute([$username, $hashed_password, $role, $nama, $no_hp, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, role = ?, nama = ?, no_hp = ?, status = ?, is_operator = ? WHERE id = ?");
+                $stmt->execute([$username, $hashed_password, $role, $nama, $no_hp, $status, $is_operator, $id]);
             } else {
-                $stmt = $pdo->prepare("UPDATE users SET username = ?, role = ?, nama = ?, no_hp = ?, status = ? WHERE id = ?");
-                $stmt->execute([$username, $role, $nama, $no_hp, $status, $id]);
+                $stmt = $pdo->prepare("UPDATE users SET username = ?, role = ?, nama = ?, no_hp = ?, status = ?, is_operator = ? WHERE id = ?");
+                $stmt->execute([$username, $role, $nama, $no_hp, $status, $is_operator, $id]);
             }
             $success = 'User berhasil diupdate';
             log_activity('update_user', 'users', $id);
@@ -93,7 +117,7 @@ $page = intval($_GET['page'] ?? 1);
 $search = sanitize($_GET['search'] ?? '');
 $role_filter = sanitize($_GET['role'] ?? '');
 
-$where = "1=1";
+$where = "1=1 AND role != 'siswa'"; // Exclude siswa from admin view
 $params = [];
 
 if ($search) {
@@ -149,7 +173,6 @@ $users = $stmt->fetchAll();
                     <option value="admin" <?php echo $role_filter === 'admin' ? 'selected' : ''; ?>>Admin</option>
                     <option value="guru" <?php echo $role_filter === 'guru' ? 'selected' : ''; ?>>Guru</option>
                     <option value="operator" <?php echo $role_filter === 'operator' ? 'selected' : ''; ?>>Operator</option>
-                    <option value="siswa" <?php echo $role_filter === 'siswa' ? 'selected' : ''; ?>>Siswa</option>
                 </select>
             </div>
             <div class="col-md-2">
@@ -176,6 +199,7 @@ $users = $stmt->fetchAll();
                         <th>Username</th>
                         <th>Nama</th>
                         <th>Role</th>
+                        <th>Operator</th>
                         <th>No. HP</th>
                         <th>Status</th>
                         <th>Last Login</th>
@@ -185,7 +209,7 @@ $users = $stmt->fetchAll();
                 <tbody>
                     <?php if (empty($users)): ?>
                         <tr>
-                            <td colspan="8" class="text-center text-muted">Tidak ada data</td>
+                            <td colspan="9" class="text-center text-muted">Tidak ada data</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($users as $user): ?>
@@ -201,6 +225,17 @@ $users = $stmt->fetchAll();
                                 ?>">
                                     <?php echo ucfirst($user['role']); ?>
                                 </span>
+                            </td>
+                            <td>
+                                <?php if ($user['role'] === 'guru'): ?>
+                                    <span class="badge bg-<?php echo ($user['is_operator'] ?? 0) ? 'info' : 'secondary'; ?>">
+                                        <?php echo ($user['is_operator'] ?? 0) ? 'Ya' : 'Tidak'; ?>
+                                    </span>
+                                <?php elseif ($user['role'] === 'admin'): ?>
+                                    <span class="badge bg-success">Auto</span>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
                             </td>
                             <td><?php echo escape($user['no_hp'] ?? '-'); ?></td>
                             <td>
@@ -275,13 +310,21 @@ $users = $stmt->fetchAll();
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Role <span class="text-danger">*</span></label>
-                        <select class="form-select" name="role" required>
+                        <select class="form-select" name="role" id="create_role" required onchange="toggleOperatorField('create')">
                             <option value="">Pilih Role</option>
                             <option value="admin">Admin</option>
                             <option value="guru">Guru</option>
                             <option value="operator">Operator</option>
-                            <option value="siswa">Siswa</option>
                         </select>
+                    </div>
+                    <div class="mb-3" id="create_operator_field" style="display: none;">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_operator" value="1" id="create_is_operator">
+                            <label class="form-check-label" for="create_is_operator">
+                                Juga sebagai Operator
+                            </label>
+                            <small class="form-text text-muted d-block">Guru ini juga bisa mengakses halaman operator</small>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">No. HP</label>
@@ -323,12 +366,20 @@ $users = $stmt->fetchAll();
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Role <span class="text-danger">*</span></label>
-                        <select class="form-select" name="role" id="edit_role" required>
+                        <select class="form-select" name="role" id="edit_role" required onchange="toggleOperatorField('edit')">
                             <option value="admin">Admin</option>
                             <option value="guru">Guru</option>
                             <option value="operator">Operator</option>
-                            <option value="siswa">Siswa</option>
                         </select>
+                    </div>
+                    <div class="mb-3" id="edit_operator_field" style="display: none;">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="is_operator" value="1" id="edit_is_operator">
+                            <label class="form-check-label" for="edit_is_operator">
+                                Juga sebagai Operator
+                            </label>
+                            <small class="form-text text-muted d-block">Guru ini juga bisa mengakses halaman operator</small>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">No. HP</label>
@@ -352,6 +403,19 @@ $users = $stmt->fetchAll();
 </div>
 
 <script>
+function toggleOperatorField(formType) {
+    const roleSelect = document.getElementById(formType + '_role');
+    const operatorField = document.getElementById(formType + '_operator_field');
+    const operatorCheckbox = document.getElementById(formType + '_is_operator');
+    
+    if (roleSelect && roleSelect.value === 'guru') {
+        if (operatorField) operatorField.style.display = 'block';
+    } else {
+        if (operatorField) operatorField.style.display = 'none';
+        if (operatorCheckbox) operatorCheckbox.checked = false;
+    }
+}
+
 function editUser(user) {
     document.getElementById('edit_id').value = user.id;
     document.getElementById('edit_username').value = user.username;
@@ -359,6 +423,10 @@ function editUser(user) {
     document.getElementById('edit_role').value = user.role;
     document.getElementById('edit_no_hp').value = user.no_hp || '';
     document.getElementById('edit_status').value = user.status;
+    document.getElementById('edit_is_operator').checked = (user.is_operator == 1);
+    
+    // Toggle operator field based on role
+    toggleOperatorField('edit');
     
     const modal = new bootstrap.Modal(document.getElementById('editUserModal'));
     modal.show();

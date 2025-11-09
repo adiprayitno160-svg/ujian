@@ -225,25 +225,6 @@ include __DIR__ . '/../includes/header.php';
         color: #4b5563;
     }
     
-    .login-footer {
-        text-align: center;
-        margin-top: 20px;
-        padding-top: 20px;
-        border-top: 1px solid #e5e7eb;
-    }
-    
-    .login-footer a {
-        color: #0066cc;
-        text-decoration: none;
-        font-size: 0.9rem;
-        transition: color 0.2s ease;
-    }
-    
-    .login-footer a:hover {
-        color: #0052a3;
-        text-decoration: underline;
-    }
-    
     @media (max-width: 576px) {
         .login-container {
             padding: 15px;
@@ -335,12 +316,6 @@ include __DIR__ . '/../includes/header.php';
                     <i class="fas fa-sign-in-alt me-2"></i>Masuk
                 </button>
             </form>
-            
-            <div class="login-footer">
-                <a href="<?php echo base_url('about.php'); ?>">
-                    <i class="fas fa-info-circle me-1"></i>Tentang Aplikasi
-                </a>
-            </div>
         </div>
     </div>
 </div>

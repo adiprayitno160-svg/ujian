@@ -1,0 +1,82 @@
+═══════════════════════════════════════════════════════════════
+  CHECKLIST INSTALASI SISTEM UJAN DI AAPANEL
+═══════════════════════════════════════════════════════════════
+
+📥 METODE INSTALASI (Pilih salah satu):
+  
+  □ Opsi A: Clone dari GitHub (Disarankan)
+    □ Buka Terminal di aaPanel atau SSH
+    □ cd /www/wwwroot/domain-anda.com
+    □ git clone https://github.com/adiprayitno160-svg/ujian.git
+    □ cd ujian
+    
+  □ Opsi B: Download ZIP dari GitHub
+    □ Download: https://github.com/adiprayitno160-svg/ujian
+    □ Upload ZIP ke server via File Manager
+    □ Extract di web root
+    
+  □ Opsi C: Upload Manual
+    □ Upload semua file ke server
+    □ Pastikan struktur folder lengkap
+
+□ Langkah 1: Buat Database di aaPanel
+  □ Login ke aaPanel
+  □ Buat database baru: "ujian"
+  □ Buat user database dengan password
+  □ Catat: DB_NAME, DB_USER, DB_PASS, DB_HOST
+
+□ Langkah 2: Konfigurasi Database
+  □ Edit file: config/database.php
+  □ Update DB_HOST, DB_NAME, DB_USER, DB_PASS
+  □ Simpan file
+
+□ Langkah 3: Import Database
+  □ Opsi A: Akses install.php di browser
+  □ Opsi B: Import via phpMyAdmin
+  □ Import database.sql
+  □ Import migration files (jika ada)
+
+□ Langkah 4: Set Permissions
+  □ Set permissions folder assets/uploads ke 755
+  □ Set permissions subfolder (soal, pr, profile)
+
+□ Langkah 5: Cek PHP Extensions
+  □ PDO, PDO_MySQL, GD/Imagick, mbstring, zip, json, curl
+
+□ Langkah 6: Konfigurasi URL (Opsional)
+  □ Edit config/config.php
+  □ Update APP_URL sesuai domain
+
+□ Langkah 7: Konfigurasi AI (Opsional)
+  □ Edit config/ai_config.php
+  □ Masukkan Gemini API Key (jika perlu)
+
+□ Langkah 8: Test Instalasi
+  □ Akses aplikasi di browser
+  □ Login dengan admin/admin123
+  □ Ganti password default
+
+□ Langkah 9: Keamanan
+  □ Hapus file install.php
+  □ Set permissions yang tepat
+  □ Enable HTTPS (disarankan)
+
+═══════════════════════════════════════════════════════════════
+  INFORMASI LOGIN DEFAULT
+═══════════════════════════════════════════════════════════════
+
+Admin:
+  Username: admin
+  Password: admin123
+  URL: /admin/login.php
+
+⚠️ PENTING: Ganti password setelah login pertama!
+
+═══════════════════════════════════════════════════════════════
+
+Untuk panduan lengkap:
+  - Instalasi Manual: PANDUAN_INSTALASI_AAPANEL.md
+  - Instalasi dari GitHub: PANDUAN_INSTALASI_GITHUB_AAPANEL.md
+
+Repository GitHub: https://github.com/adiprayitno160-svg/ujian
+

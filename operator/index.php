@@ -105,6 +105,69 @@ try {
     </div>
 </div>
 
+<!-- Quick Actions -->
+<div class="row g-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-tasks"></i> Menu Operator</h5>
+            </div>
+            <div class="card-body">
+                <div class="list-group list-group-flush">
+                    <a href="<?php echo base_url('operator-manage-siswa'); ?>" class="list-group-item list-group-item-action">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-user-graduate fa-2x text-info me-3"></i>
+                            <div>
+                                <h6 class="mb-0">Kelola Siswa</h6>
+                                <small class="text-muted">Tambah, edit, hapus siswa dan import dari Excel</small>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="<?php echo base_url('operator/sesi/list.php'); ?>" class="list-group-item list-group-item-action">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-calendar fa-2x text-primary me-3"></i>
+                            <div>
+                                <h6 class="mb-0">Kelola Sesi</h6>
+                                <small class="text-muted">Lihat dan kelola semua sesi ujian</small>
+                            </div>
+                        </div>
+                    </a>
+                    <a href="<?php echo base_url('operator/monitoring/realtime.php'); ?>" class="list-group-item list-group-item-action">
+                        <div class="d-flex align-items-center">
+                            <i class="fas fa-chart-line fa-2x text-success me-3"></i>
+                            <div>
+                                <h6 class="mb-0">Monitoring Real-time</h6>
+                                <small class="text-muted">Pantau progress ujian secara real-time</small>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle"></i> Informasi</h5>
+            </div>
+            <div class="card-body">
+                <p class="mb-3">Sebagai operator, Anda memiliki akses penuh untuk:</p>
+                <ul class="list-unstyled">
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Mengelola siswa (tambah, edit, hapus)</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Import siswa dari Excel</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Assign siswa ke kelas</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Mengelola semua sesi ujian</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Assign peserta ke sesi</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Mengelola token ujian</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Monitoring real-time</li>
+                    <li class="mb-2"><i class="fas fa-check text-success me-2"></i> Menghapus sesi ujian</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 

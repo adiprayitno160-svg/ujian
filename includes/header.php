@@ -498,11 +498,15 @@ $current_user = get_logged_in_user();
                         <i class="fas fa-book"></i>
                         <span class="menu-label">Mata Pelajaran</span>
                     </a>
-                    <a href="<?php echo base_url('admin/migrasi_kelas.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'migrasi_kelas.php') ? 'active' : ''; ?>">
-                        <i class="fas fa-exchange-alt"></i>
-                        <span class="menu-label">Migrasi Kelas</span>
+                    <a href="<?php echo base_url('admin/naik_kelas.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'naik_kelas.php') ? 'active' : ''; ?>">
+                        <i class="fas fa-arrow-up"></i>
+                        <span class="menu-label">Naik Kelas</span>
                     </a>
                     <hr style="margin: 0.5rem 1.5rem; border-color: rgba(255, 255, 255, 0.2);">
+                    <a href="<?php echo base_url('admin/about.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-info-circle"></i>
+                        <span class="menu-label">About & System</span>
+                    </a>
                     <a href="<?php echo base_url('admin/sekolah_settings.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'sekolah_settings.php') ? 'active' : ''; ?>">
                         <i class="fas fa-cog"></i>
                         <span class="menu-label">Pengaturan</span>
@@ -525,7 +529,7 @@ $current_user = get_logged_in_user();
                         <span class="menu-label">PR</span>
                     </a>
                     <?php if (has_operator_access()): ?>
-                        <a href="<?php echo base_url('operator/index.php'); ?>" class="menu-item">
+                        <a href="<?php echo base_url('operator/index.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
                             <i class="fas fa-user-cog"></i>
                             <span class="menu-label">Operator</span>
                         </a>
@@ -536,7 +540,7 @@ $current_user = get_logged_in_user();
                         <span class="menu-label">Pengaturan</span>
                     </a>
                 <?php elseif ($_SESSION['role'] === 'operator'): ?>
-                    <a href="<?php echo base_url('admin/manage_siswa.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_siswa.php') ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('operator-manage-siswa'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_siswa.php' && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
                         <i class="fas fa-user-graduate"></i>
                         <span class="menu-label">Kelola Siswa</span>
                     </a>
@@ -564,10 +568,12 @@ $current_user = get_logged_in_user();
                     </a>
                 <?php endif; ?>
                 
-                <a href="<?php echo base_url('about.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php') ? 'active' : ''; ?>">
+                <?php if ($_SESSION['role'] !== 'admin'): ?>
+                <a href="<?php echo base_url('about.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/admin/') === false) ? 'active' : ''; ?>">
                     <i class="fas fa-info-circle"></i>
                     <span class="menu-label">About</span>
                 </a>
+                <?php endif; ?>
             </nav>
             
             <div class="sidebar-footer">

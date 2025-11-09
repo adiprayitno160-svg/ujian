@@ -34,55 +34,88 @@ function checkGitAvailable() {
 
 // Get git status
 function getGitStatus($repo_path) {
-    $output = [];
-    $return_var = 0;
-    chdir($repo_path);
-    exec('git status --porcelain 2>&1', $output, $return_var);
-    return [
-        'has_changes' => count($output) > 0,
-        'changes' => $output,
-        'success' => $return_var === 0
-    ];
+    try {
+        $output = [];
+        $return_var = 0;
+        
+        if (!is_dir($repo_path)) {
+            return [
+                'has_changes' => false,
+                'changes' => [],
+                'success' => false
+            ];
+        }
+        
+        $old_dir = getcwd();
+        @chdir($repo_path);
+        
+        // Set timeout for git command
+        exec('git status --porcelain 2>&1', $output, $return_var);
+        
+        @chdir($old_dir);
+        
+        return [
+            'has_changes' => count($output) > 0,
+            'changes' => $output,
+            'success' => $return_var === 0
+        ];
+    } catch (Exception $e) {
+        return [
+            'has_changes' => false,
+            'changes' => [],
+            'success' => false,
+            'error' => $e->getMessage()
+        ];
+    }
 }
 
 // Get current branch and commit
 function getGitInfo($repo_path) {
     $info = [
-        'branch' => 'unknown',
-        'commit' => 'unknown',
-        'remote' => 'unknown',
+        'branch' => null,
+        'commit' => null,
+        'remote' => null,
         'is_repo' => false
     ];
     
-    if (!is_dir($repo_path . '/.git')) {
+    try {
+        if (!is_dir($repo_path . '/.git')) {
+            return $info;
+        }
+        
+        $old_dir = getcwd();
+        @chdir($repo_path);
+        
+        // Get branch
+        $output = [];
+        @exec('git rev-parse --abbrev-ref HEAD 2>&1', $output, $return_var);
+        if ($return_var === 0 && !empty($output)) {
+            $info['branch'] = trim($output[0]);
+        }
+        
+        // Get commit hash
+        $output = [];
+        @exec('git rev-parse --short HEAD 2>&1', $output, $return_var);
+        if ($return_var === 0 && !empty($output)) {
+            $info['commit'] = trim($output[0]);
+        }
+        
+        // Get remote URL
+        $output = [];
+        @exec('git config --get remote.origin.url 2>&1', $output, $return_var);
+        if ($return_var === 0 && !empty($output)) {
+            $info['remote'] = trim($output[0]);
+        }
+        
+        $info['is_repo'] = true;
+        
+        @chdir($old_dir);
+        
+        return $info;
+    } catch (Exception $e) {
+        @chdir($old_dir ?? getcwd());
         return $info;
     }
-    
-    chdir($repo_path);
-    
-    // Get branch
-    $output = [];
-    exec('git rev-parse --abbrev-ref HEAD 2>&1', $output, $return_var);
-    if ($return_var === 0 && !empty($output)) {
-        $info['branch'] = trim($output[0]);
-    }
-    
-    // Get commit hash
-    $output = [];
-    exec('git rev-parse --short HEAD 2>&1', $output, $return_var);
-    if ($return_var === 0 && !empty($output)) {
-        $info['commit'] = trim($output[0]);
-    }
-    
-    // Get remote URL
-    $output = [];
-    exec('git config --get remote.origin.url 2>&1', $output, $return_var);
-    if ($return_var === 0 && !empty($output)) {
-        $info['remote'] = trim($output[0]);
-    }
-    
-    $info['is_repo'] = true;
-    return $info;
 }
 
 // Initialize git repository if not exists
@@ -220,17 +253,23 @@ function backupDatabase() {
 try {
     switch ($action) {
         case 'status':
-            $git_available = checkGitAvailable();
-            $git_info = getGitInfo($repo_path);
-            $git_status = getGitStatus($repo_path);
+            // Set execution time limit
+            @set_time_limit(10);
             
-            echo json_encode([
+            $git_available = @checkGitAvailable();
+            $git_info = @getGitInfo($repo_path);
+            $git_status = @getGitStatus($repo_path);
+            
+            // Ensure we always return valid JSON
+            $response = [
                 'success' => true,
-                'git_available' => $git_available,
-                'git_info' => $git_info,
-                'git_status' => $git_status,
+                'git_available' => $git_available !== false,
+                'git_info' => $git_info ?: ['is_repo' => false, 'branch' => null, 'commit' => null, 'remote' => null],
+                'git_status' => $git_status ?: ['has_changes' => false, 'changes' => [], 'success' => false],
                 'github_url' => $github_url
-            ]);
+            ];
+            
+            echo json_encode($response);
             break;
             
         case 'init':
