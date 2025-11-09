@@ -5,7 +5,7 @@
 #
 # Usage: ./update.sh [version] [branch]
 #   version: Versi yang ingin diupdate (optional, default: latest)
-#   branch: Branch yang ingin diupdate (optional, default: main)
+#   branch: Branch yang ingin diupdate (optional, default: master)
 #
 # Example:
 #   ./update.sh              # Update ke versi terbaru dari branch master
@@ -206,17 +206,22 @@ rm -rf cache/github_releases.json 2>/dev/null || true
 print_success "Update selesai!"
 print_info "Version: $CURRENT_VERSION"
 print_info "Commit: $CURRENT_COMMIT"
-print_info "Backup: $BACKUP_FILE"
+if [ -f "$BACKUP_FILE" ]; then
+    print_info "Backup: $BACKUP_FILE"
+fi
 
 # Show what changed
 print_info "Perubahan terakhir:"
-git log --oneline -5
+git log --oneline -5 2>/dev/null || print_warning "Tidak dapat menampilkan log"
 
 echo ""
 print_success "Aplikasi berhasil diupdate!"
 print_warning "Jangan lupa untuk:"
-print_warning "1. Cek konfigurasi database"
+print_warning "1. Cek konfigurasi database di config/database.php"
 print_warning "2. Jalankan migrations jika ada"
-print_warning "3. Cek log error jika ada masalah"
-print_warning "4. Test aplikasi untuk memastikan semua berfungsi"
-
+print_warning "3. Set permissions: chmod -R 777 cache assets/uploads"
+print_warning "4. Clear cache browser jika diperlukan"
+print_warning "5. Test aplikasi untuk memastikan semua berfungsi"
+print_info ""
+print_info "Untuk melihat perubahan: git log --oneline -10"
+print_info "Untuk rollback: git checkout <commit-hash> atau git reset --hard HEAD~1"
