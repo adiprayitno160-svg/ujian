@@ -232,17 +232,26 @@ Remove-Item -Path "cache\github_releases.json" -ErrorAction SilentlyContinue
 Write-Success "Update selesai!"
 Write-Info "Version: $CurrentVersion"
 Write-Info "Commit: $CurrentCommit"
-Write-Info "Backup: $BackupFile"
+if (Test-Path $BackupFile) {
+    Write-Info "Backup: $BackupFile"
+}
 
 # Show what changed
 Write-Info "Perubahan terakhir:"
-git log --oneline -5
+git log --oneline -5 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Warning "Tidak dapat menampilkan log"
+}
 
 Write-Host ""
 Write-Success "Aplikasi berhasil diupdate!"
 Write-Warning "Jangan lupa untuk:"
-Write-Warning "1. Cek konfigurasi database"
+Write-Warning "1. Cek konfigurasi database di config\database.php"
 Write-Warning "2. Jalankan migrations jika ada"
-Write-Warning "3. Cek log error jika ada masalah"
-Write-Warning "4. Test aplikasi untuk memastikan semua berfungsi"
+Write-Warning "3. Set permissions untuk cache dan uploads (jika di Linux/Mac)"
+Write-Warning "4. Clear cache browser jika diperlukan"
+Write-Warning "5. Test aplikasi untuk memastikan semua berfungsi"
+Write-Info ""
+Write-Info "Untuk melihat perubahan: git log --oneline -10"
+Write-Info "Untuk rollback: git checkout <commit-hash> atau git reset --hard HEAD~1"
 
