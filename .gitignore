@@ -82,9 +82,11 @@ cleanup_*.ps1
 !scripts/update.ps1
 !scripts/README_UPDATE.md
 
-# Documentation (keep only README.md)
+# Documentation (keep only README.md and release notes)
 *.md
 !README.md
+!RELEASE_NOTES*.md
+!scripts/README*.md
 
 # Migration files (keep database.sql, ignore migration scripts)
 migration_*.sql
