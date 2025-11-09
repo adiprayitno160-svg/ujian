@@ -3,16 +3,16 @@
 #
 # Usage: .\update.ps1 [version] [branch]
 #   version: Versi yang ingin diupdate (optional, default: latest)
-#   branch: Branch yang ingin diupdate (optional, default: main)
+#   branch: Branch yang ingin diupdate (optional, default: master)
 #
 # Example:
-#   .\update.ps1              # Update ke versi terbaru dari branch main
+#   .\update.ps1              # Update ke versi terbaru dari branch master
 #   .\update.ps1 v1.0.3       # Update ke versi v1.0.3
-#   .\update.ps1 latest main  # Update ke versi terbaru dari branch main
+#   .\update.ps1 latest master  # Update ke versi terbaru dari branch master
 
 param(
     [string]$Version = "latest",
-    [string]$Branch = "main"
+    [string]$Branch = "master"
 )
 
 # Configuration

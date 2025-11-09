@@ -67,12 +67,12 @@ chmod +x scripts/update.sh
 ### update.sh
 
 - `version` (optional): Versi yang ingin diupdate (default: latest)
-- `branch` (optional): Branch yang ingin diupdate (default: main)
+- `branch` (optional): Branch yang ingin diupdate (default: master)
 
 ### update.ps1
 
 - `-Version` (optional): Versi yang ingin diupdate (default: latest)
-- `-Branch` (optional): Branch yang ingin diupdate (default: main)
+- `-Branch` (optional): Branch yang ingin diupdate (default: master)
 
 ## Contoh Penggunaan
 

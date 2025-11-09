@@ -8,9 +8,9 @@
 #   branch: Branch yang ingin diupdate (optional, default: main)
 #
 # Example:
-#   ./update.sh              # Update ke versi terbaru dari branch main
+#   ./update.sh              # Update ke versi terbaru dari branch master
 #   ./update.sh v1.0.3       # Update ke versi v1.0.3
-#   ./update.sh latest main  # Update ke versi terbaru dari branch main
+#   ./update.sh latest master  # Update ke versi terbaru dari branch master
 
 set -e  # Exit on error
 
@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 REPO_URL="https://github.com/adiprayitno160-svg/ujian.git"
 REPO_DIR=$(pwd)
 BACKUP_DIR="../backups"
-BRANCH="${2:-main}"
+BRANCH="${2:-master}"
 VERSION="${1:-latest}"
 
 # Functions
