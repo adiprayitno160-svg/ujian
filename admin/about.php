@@ -105,11 +105,46 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                 <h5 class="mb-0"><i class="fas fa-download"></i> Update dari GitHub</h5>
             </div>
             <div class="card-body">
+                <!-- Update Status Alert -->
+                <div id="updateStatusAlert" class="alert alert-info d-none mb-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="fas fa-sync-alt fa-spin me-2"></i>
+                            <span id="updateStatusText">Memeriksa update...</span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-light" onclick="checkForUpdate()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Update Available Alert -->
+                <div id="updateAvailableAlert" class="alert alert-success d-none mb-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <i class="fas fa-download me-2"></i>
+                            <strong>Update Tersedia!</strong>
+                            <div class="small mt-1" id="updateInfo">
+                                <span id="updateCount"></span> commit baru tersedia
+                                <span id="updateTag" class="ms-2"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- No Update Alert -->
+                <div id="noUpdateAlert" class="alert alert-secondary d-none mb-3">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <strong>Sistem sudah up-to-date</strong>
+                    <div class="small mt-1" id="noUpdateInfo">Tidak ada update tersedia</div>
+                </div>
+                
                 <div class="mb-3">
                     <p class="text-muted mb-2">Pull update terbaru dari repository GitHub</p>
                     <div class="d-flex align-items-center mb-3">
                         <span class="badge bg-info me-2">Versi Saat Ini:</span>
-                        <strong id="currentVersionBeforePull">-</strong>
+                        <strong id="currentVersionBeforePull">v<?php echo APP_VERSION; ?></strong>
+                        <small class="text-muted ms-2" id="versionSource">(dari config)</small>
                     </div>
                 </div>
                 
@@ -469,20 +504,80 @@ function initRepo() {
 
 // Load current version for display
 function loadCurrentVersionForPull() {
+    // Set default first (in case API fails)
+    $('#versionSource').text('(dari config)');
+    console.log('Loading current version...');
+    
+    // First, try to get version from database (system_version table)
     $.ajax({
         url: versionApiUrl,
         method: 'GET',
         data: { action: 'get_current_version' },
         dataType: 'json',
+        timeout: 5000,
         success: function(response) {
-            if (response.success && response.version) {
-                $('#currentVersionBeforePull').text('v' + response.version.version);
+            console.log('Version API response:', response);
+            if (response && response.success && response.version && response.version.version) {
+                // Version found in database
+                const dbVersion = response.version.version;
+                const configVersion = '<?php echo APP_VERSION; ?>';
+                
+                $('#currentVersionBeforePull').text('v' + dbVersion);
+                if (dbVersion !== configVersion) {
+                    $('#versionSource').text('(dari database)');
+                } else {
+                    $('#versionSource').text('(dari database/config)');
+                }
             } else {
-                $('#currentVersionBeforePull').text('Belum ada versi');
+                // No version in database, try Git tag
+                loadVersionFromGit();
             }
         },
-        error: function() {
-            $('#currentVersionBeforePull').text('-');
+        error: function(xhr, status, error) {
+            // API error, try Git tag
+            console.log('Error loading version from API:', error);
+            loadVersionFromGit();
+        }
+    });
+}
+
+// Load version from Git tag (fallback)
+function loadVersionFromGit() {
+    // Ensure versionSource is set
+    $('#versionSource').text('(dari config)');
+    
+    $.ajax({
+        url: apiUrl,
+        method: 'GET',
+        data: { action: 'check_update' },
+        dataType: 'json',
+        timeout: 10000,
+        success: function(response) {
+            if (response && response.success) {
+                if (response.current_tag) {
+                    // Git tag found
+                    $('#currentVersionBeforePull').text(response.current_tag);
+                    $('#versionSource').text('(dari Git tag)');
+                } else if (response.current_commit) {
+                    // No tag, but commit available
+                    $('#currentVersionBeforePull').text('v<?php echo APP_VERSION; ?>');
+                    $('#versionSource').text('(commit: ' + response.current_commit + ')');
+                } else {
+                    // No Git info, use config
+                    $('#currentVersionBeforePull').text('v<?php echo APP_VERSION; ?>');
+                    $('#versionSource').text('(dari config)');
+                }
+            } else {
+                // Response failed, use config
+                $('#currentVersionBeforePull').text('v<?php echo APP_VERSION; ?>');
+                $('#versionSource').text('(dari config)');
+            }
+        },
+        error: function(xhr, status, error) {
+            // Git API error, use config (already set above)
+            $('#currentVersionBeforePull').text('v<?php echo APP_VERSION; ?>');
+            $('#versionSource').text('(dari config)');
+            console.log('Error loading version from Git:', error);
         }
     });
 }
@@ -504,20 +599,35 @@ $('#pullForm').on('submit', function(e) {
     $('#pullBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
     $('#pullResult').html('<div class="alert alert-info"><i class="fas fa-spinner fa-spin"></i> Sedang memproses...</div>');
     
+    // Get selected branch
+    const selectedBranch = $('#pullBranch').val();
+    const skipBackup = !$('#autoBackup').is(':checked');
+    
     $.ajax({
         url: apiUrl,
         method: 'POST',
-        data: { action: 'pull' },
+        data: { 
+            action: 'pull',
+            branch: selectedBranch,
+            skip_backup: skipBackup ? '1' : '0'
+        },
+        timeout: 300000, // 5 minutes timeout
         dataType: 'json',
         success: function(response) {
             if (response.success) {
                 let html = '<div class="alert alert-success">';
                 html += '<i class="fas fa-check-circle"></i> <strong>Berhasil!</strong> ' + response.message;
+                if (response.branch) {
+                    html += '<br><small><i class="fas fa-code-branch"></i> Branch: ' + escapeHtml(response.branch) + '</small>';
+                }
+                if (response.old_commit && response.new_commit) {
+                    html += '<br><small><i class="fas fa-code"></i> Commit: ' + escapeHtml(response.old_commit) + ' → ' + escapeHtml(response.new_commit) + '</small>';
+                }
                 if (response.backup && response.backup.success) {
-                    html += '<br><small><i class="fas fa-database"></i> Backup database: ' + response.backup.filename + '</small>';
+                    html += '<br><small><i class="fas fa-database"></i> Backup database: ' + escapeHtml(response.backup.filename) + '</small>';
                 }
                 if (response.output && response.output.length > 0) {
-                    html += '<br><details class="mt-2"><summary>Detail Output</summary><pre class="mt-2 small">' + response.output.join('\n') + '</pre></details>';
+                    html += '<br><details class="mt-2"><summary>Detail Output</summary><pre class="mt-2 small">' + escapeHtml(response.output.join('\n')) + '</pre></details>';
                 }
                 html += '</div>';
                 
@@ -534,6 +644,11 @@ $('#pullForm').on('submit', function(e) {
                 loadGitStatus();
                 loadVersions();
                 loadCurrentVersionForPull();
+                
+                // Re-check for updates after pull
+                setTimeout(function() {
+                    checkForUpdate();
+                }, 2000);
                 
                 // If update version is checked, show modal after a short delay
                 if (updateVersion) {
@@ -1124,6 +1239,103 @@ function escapeHtml(text) {
     return text ? text.replace(/[&<>"']/g, m => map[m]) : '';
 }
 
+// Check for updates from GitHub
+function checkForUpdate() {
+    // Show checking status
+    $('#updateStatusAlert').removeClass('d-none');
+    $('#updateAvailableAlert').addClass('d-none');
+    $('#noUpdateAlert').addClass('d-none');
+    $('#updateStatusText').html('Memeriksa update...');
+    $('#pullBtn').prop('disabled', true);
+    
+    // Get selected branch
+    const selectedBranch = $('#pullBranch').val();
+    
+    $.ajax({
+        url: apiUrl,
+        method: 'GET',
+        data: { 
+            action: 'check_update',
+            branch: selectedBranch
+        },
+        dataType: 'json',
+        timeout: 20000, // 20 seconds timeout
+        success: function(response) {
+            $('#updateStatusAlert').addClass('d-none');
+            
+            if (response.success) {
+                if (response.has_update) {
+                    // Update available
+                    $('#updateAvailableAlert').removeClass('d-none');
+                    $('#updateCount').text(response.behind_count + ' commit baru tersedia');
+                    
+                    if (response.latest_tag) {
+                        $('#updateTag').html('<span class="badge bg-primary">' + escapeHtml(response.latest_tag) + '</span>');
+                    } else {
+                        $('#updateTag').html('');
+                    }
+                    
+                    // Enable update button
+                    $('#pullBtn').prop('disabled', false);
+                    $('#pullBtn').removeClass('btn-secondary').addClass('btn-success');
+                    
+                    // Update button text
+                    $('#pullBtn').html('<i class="fas fa-download"></i> Update Sekarang (' + response.behind_count + ' commit)');
+                    
+                    // Show notification badge on page title
+                    if (response.behind_count > 0) {
+                        document.title = '[' + response.behind_count + ' Update] ' + document.title.replace(/^\[.*?\] /, '');
+                    }
+                } else {
+                    // No update available
+                    $('#noUpdateAlert').removeClass('d-none');
+                    let infoText = 'Sistem sudah up-to-date';
+                    if (response.current_commit) {
+                        infoText += ' (Commit: ' + response.current_commit + ')';
+                    }
+                    if (response.current_tag) {
+                        infoText += ' (Tag: ' + response.current_tag + ')';
+                    }
+                    $('#noUpdateInfo').text(infoText);
+                    
+                    // Enable update button (user can still pull manually)
+                    $('#pullBtn').prop('disabled', false);
+                    $('#pullBtn').removeClass('btn-secondary').addClass('btn-success');
+                    $('#pullBtn').html('<i class="fas fa-download"></i> Pull Update dari GitHub');
+                    
+                    // Reset page title
+                    document.title = document.title.replace(/^\[.*?\] /, '');
+                }
+            } else {
+                // Error checking update
+                $('#updateStatusAlert').removeClass('d-none');
+                $('#updateStatusAlert').removeClass('alert-info').addClass('alert-warning');
+                $('#updateStatusText').html('Gagal memeriksa update: ' + (response.message || response.error || 'Unknown error'));
+                
+                // Enable button anyway (user can try manual update)
+                $('#pullBtn').prop('disabled', false);
+                $('#pullBtn').removeClass('btn-secondary').addClass('btn-success');
+                $('#pullBtn').html('<i class="fas fa-download"></i> Pull Update dari GitHub');
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#updateStatusAlert').removeClass('d-none');
+            $('#updateStatusAlert').removeClass('alert-info').addClass('alert-warning');
+            
+            if (status === 'timeout') {
+                $('#updateStatusText').html('Timeout saat memeriksa update. Silakan klik Refresh untuk mencoba lagi.');
+            } else {
+                $('#updateStatusText').html('Error: ' + error + '. Pastikan Git tersedia di server.');
+            }
+            
+            // Enable button anyway (user can try manual update)
+            $('#pullBtn').prop('disabled', false);
+            $('#pullBtn').removeClass('btn-secondary').addClass('btn-success');
+            $('#pullBtn').html('<i class="fas fa-download"></i> Pull Update dari GitHub');
+        }
+    });
+}
+
 // Initialize
 $(document).ready(function() {
     console.log('About page initialized');
@@ -1132,10 +1344,25 @@ $(document).ready(function() {
     // Ensure version section is visible
     $('#versionManagementSection').show();
     
+    // Get branch from URL parameter
+    const urlParams = new URLSearchParams(window.location.search);
+    const branchParam = urlParams.get('branch');
+    if (branchParam) {
+        $('#pullBranch').val(branchParam);
+    }
+    
     loadGitStatus();
     loadBackupList();
     loadVersions();
     loadCurrentVersionForPull();
+    
+    // Auto-check for updates on page load
+    checkForUpdate();
+    
+    // Auto-check for updates every 5 minutes
+    setInterval(function() {
+        checkForUpdate();
+    }, 300000); // 5 minutes
     
     // Reset form when modal is closed
     $('#versionModal').on('hidden.bs.modal', function() {

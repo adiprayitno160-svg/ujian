@@ -56,7 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $user_id = $pdo->lastInsertId();
                     
                     // Assign to kelas
-                    $tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+                    $tahun_ajaran = get_tahun_ajaran_aktif();
                     // Check if already exists
                     $stmt = $pdo->prepare("SELECT id FROM user_kelas WHERE id_user = ? AND tahun_ajaran = ?");
                     $stmt->execute([$user_id, $tahun_ajaran]);
@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     
                     // Update kelas
-                    $tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+                    $tahun_ajaran = get_tahun_ajaran_aktif();
                     $stmt = $pdo->prepare("SELECT id FROM user_kelas WHERE id_user = ? AND tahun_ajaran = ?");
                     $stmt->execute([$id, $tahun_ajaran]);
                     $user_kelas = $stmt->fetch();
@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $skipped = 0;
                     $errors = [];
                     
-                    $tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+                    $tahun_ajaran = get_tahun_ajaran_aktif();
                     
                     // Get kelas mapping (nama kelas to ID)
                     $stmt = $pdo->query("SELECT id, nama_kelas FROM kelas WHERE status = 'active'");
@@ -371,7 +371,7 @@ $search = sanitize($_GET['search'] ?? '');
 $kelas_filter = intval($_GET['kelas'] ?? 0);
 
 // Build query
-$tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+$tahun_ajaran = get_tahun_ajaran_aktif();
 $query = "SELECT u.id, u.username as nis, u.nama, u.status, u.created_at,
           k.id as id_kelas, k.nama_kelas
           FROM users u
@@ -409,7 +409,7 @@ if (isset($_GET['edit'])) {
                           LEFT JOIN user_kelas uk ON u.id = uk.id_user AND uk.tahun_ajaran = ?
                           LEFT JOIN kelas k ON uk.id_kelas = k.id
                           WHERE u.id = ? AND u.role = 'siswa'");
-    $stmt->execute([date('Y') . '/' . (date('Y') + 1), $edit_id]);
+    $stmt->execute([get_tahun_ajaran_aktif(), $edit_id]);
     $edit_siswa = $stmt->fetch();
 }
 ?>

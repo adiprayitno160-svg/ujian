@@ -16,27 +16,52 @@ if (!defined('APP_NAME')) {
     $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? 'localhost');
     
     // Detect base path from document root
+    // Use parent directory (project root), not config directory
     $document_root = $_SERVER['DOCUMENT_ROOT'] ?? '';
-    $script_dir = str_replace('\\', '/', __DIR__);
+    $project_root = str_replace('\\', '/', dirname(__DIR__)); // Get parent of config folder (project root)
     $base_path = '';
     
     if ($document_root) {
         $document_root = str_replace('\\', '/', $document_root);
-        // Get relative path from document root
-        if (strpos($script_dir, $document_root) === 0) {
-            $base_path = substr($script_dir, strlen($document_root));
+        // Get relative path from document root to project root
+        if (strpos($project_root, $document_root) === 0) {
+            $base_path = substr($project_root, strlen($document_root));
             $base_path = rtrim($base_path, '/');
         }
     }
     
-    // Fallback: detect from SCRIPT_NAME
-    if (empty($base_path) && !empty($_SERVER['SCRIPT_NAME'])) {
-        $script_name = $_SERVER['SCRIPT_NAME'];
-        $base_path = dirname($script_name);
-        if ($base_path === '.' || $base_path === '/') {
-            $base_path = '';
-        } else {
-            $base_path = rtrim($base_path, '/');
+    // Fallback: detect from REQUEST_URI or SCRIPT_NAME
+    if (empty($base_path)) {
+        // Try to detect from REQUEST_URI
+        if (!empty($_SERVER['REQUEST_URI'])) {
+            $request_uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+            $request_uri = rtrim($request_uri, '/');
+            // If REQUEST_URI is like /UJAN or /UJAN/, extract base path
+            if (preg_match('#^/([^/]+)/?$#', $request_uri, $matches)) {
+                $potential_base = '/' . $matches[1];
+                // Check if this folder exists in document root
+                if (is_dir($document_root . $potential_base . '/config')) {
+                    $base_path = $potential_base;
+                }
+            } elseif (preg_match('#^/([^/]+)/#', $request_uri, $matches)) {
+                $potential_base = '/' . $matches[1];
+                if (is_dir($document_root . $potential_base . '/config')) {
+                    $base_path = $potential_base;
+                }
+            }
+        }
+        
+        // Last fallback: use SCRIPT_NAME
+        if (empty($base_path) && !empty($_SERVER['SCRIPT_NAME'])) {
+            $script_name = $_SERVER['SCRIPT_NAME'];
+            // Remove /router.php or /index.php from script name to get base path
+            $script_name = str_replace(['/router.php', '/index.php'], '', $script_name);
+            $base_path = dirname($script_name);
+            if ($base_path === '.' || $base_path === '/') {
+                $base_path = '';
+            } else {
+                $base_path = rtrim($base_path, '/');
+            }
         }
     }
     

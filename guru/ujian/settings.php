@@ -32,16 +32,16 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acak_soal = isset($_POST['acak_soal']) ? 1 : 0;
     $acak_opsi = isset($_POST['acak_opsi']) ? 1 : 0;
-    $anti_contek = isset($_POST['anti_contek']) ? 1 : 0;
+    $anti_contek_enabled = isset($_POST['anti_contek']) ? 1 : 0;
     $min_submit_minutes = intval($_POST['min_submit_minutes'] ?? 0);
-    $ai_correction = isset($_POST['ai_correction']) ? 1 : 0;
+    $ai_correction_enabled = isset($_POST['ai_correction']) ? 1 : 0;
     
     try {
         $stmt = $pdo->prepare("UPDATE ujian SET 
-                              acak_soal = ?, acak_opsi = ?, anti_contek = ?, 
-                              min_submit_minutes = ?, ai_correction = ?
+                              acak_soal = ?, acak_opsi = ?, anti_contek_enabled = ?, 
+                              min_submit_minutes = ?, ai_correction_enabled = ?
                               WHERE id = ?");
-        $stmt->execute([$acak_soal, $acak_opsi, $anti_contek, $min_submit_minutes, $ai_correction, $ujian_id]);
+        $stmt->execute([$acak_soal, $acak_opsi, $anti_contek_enabled, $min_submit_minutes, $ai_correction_enabled, $ujian_id]);
         
         $success = 'Pengaturan berhasil disimpan';
         log_activity('update_ujian_settings', 'ujian', $ujian_id);
@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h5>Pengaturan Keamanan</h5>
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" id="anti_contek" name="anti_contek" 
-                           <?php echo ($ujian['anti_contek'] ?? 0) ? 'checked' : ''; ?>>
+                           <?php echo ($ujian['anti_contek_enabled'] ?? 0) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="anti_contek">
                         Aktifkan Fitur Anti Contek
                     </label>
@@ -128,7 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h5>Pengaturan Koreksi</h5>
                 <div class="form-check form-switch mb-3">
                     <input class="form-check-input" type="checkbox" id="ai_correction" name="ai_correction" 
-                           <?php echo ($ujian['ai_correction'] ?? 0) ? 'checked' : ''; ?>>
+                           <?php echo ($ujian['ai_correction_enabled'] ?? 0) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="ai_correction">
                         Aktifkan Koreksi AI untuk Soal Esai
                     </label>

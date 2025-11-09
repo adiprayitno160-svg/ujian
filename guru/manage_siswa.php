@@ -29,7 +29,7 @@ $search = sanitize($_GET['search'] ?? '');
 $kelas_filter = intval($_GET['kelas'] ?? 0);
 
 // Build query - hanya siswa di kelas yang pernah di-assign ke ujian/PR yang dibuat oleh guru
-$tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+$tahun_ajaran = get_tahun_ajaran_aktif();
 
 // Get kelas IDs yang pernah di-assign ke ujian/PR yang dibuat oleh guru ini
 // 1. Dari ujian_kelas (jika ada)

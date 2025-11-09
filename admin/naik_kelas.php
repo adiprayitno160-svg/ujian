@@ -160,8 +160,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Get tahun ajaran saat ini
-$tahun_ajaran_sekarang = date('Y') . '/' . (date('Y') + 1);
-$tahun_ajaran_baru = (date('Y') + 1) . '/' . (date('Y') + 2);
+$tahun_ajaran_sekarang = get_tahun_ajaran_aktif();
+// Generate tahun ajaran baru (tahun selanjutnya)
+$current_year = (int)date('Y');
+$tahun_ajaran_baru = ($current_year + 1) . '/' . ($current_year + 2);
 
 // Get siswa per kelas untuk preview
 $stmt = $pdo->prepare("SELECT DISTINCT u.id, u.nama, u.username, uk.id_kelas, k.tingkat, k.nama_kelas

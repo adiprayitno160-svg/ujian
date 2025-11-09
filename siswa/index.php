@@ -23,16 +23,14 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $siswa_id = $_SESSION['user_id'];
-$tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+$tahun_ajaran = get_tahun_ajaran_aktif();
 
 // Get upcoming ujian
-// Hanya tampilkan ujian dengan durasi >= 2 jam (120 menit)
 $stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, m.nama_mapel
                       FROM sesi_ujian s
                       INNER JOIN ujian u ON s.id_ujian = u.id
                       INNER JOIN mapel m ON u.id_mapel = m.id
                       WHERE s.status = 'aktif'
-                      AND u.durasi >= 120
                       AND s.waktu_mulai > NOW()
                       AND EXISTS (
                           SELECT 1 FROM sesi_peserta sp
@@ -54,13 +52,11 @@ $stmt->execute([$siswa_id, $siswa_id, $tahun_ajaran]);
 $upcoming_ujian = $stmt->fetchAll();
 
 // Get active ujian
-// Hanya tampilkan ujian dengan durasi >= 2 jam (120 menit)
 $stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, m.nama_mapel
                       FROM sesi_ujian s
                       INNER JOIN ujian u ON s.id_ujian = u.id
                       INNER JOIN mapel m ON u.id_mapel = m.id
                       WHERE s.status = 'aktif'
-                      AND u.durasi >= 120
                       AND s.waktu_mulai <= NOW()
                       AND s.waktu_selesai >= NOW()
                       AND EXISTS (

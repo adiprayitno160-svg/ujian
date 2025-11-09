@@ -108,9 +108,11 @@ $routes = [
     // Admin routes
     'admin' => 'admin/index.php',
     'admin-index' => 'admin/index.php',
+    'admin-about' => 'admin/about.php',
     'admin-manage-users' => 'admin/manage_users.php',
     'admin-manage-kelas' => 'admin/manage_kelas.php',
     'admin-manage-mapel' => 'admin/manage_mapel.php',
+    'admin-manage-tahun-ajaran' => 'admin/manage_tahun_ajaran.php',
     'admin-sekolah-settings' => 'admin/sekolah_settings.php',
     'admin-migrasi-kelas' => 'admin/migrasi_kelas.php',
     

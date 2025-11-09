@@ -7,26 +7,46 @@ DirectoryIndex index.php index.html
     RewriteCond %{REQUEST_URI}::$1 ^(.*?/)(.*)::\2$
     RewriteRule ^(.*)$ - [E=BASE:%1]
     
-    # Skip rewrite for existing files and directories
+    # IMPORTANT: Block direct access to config, includes, backups folders FIRST
+    # This pattern matches /config/, /includes/, /backups/ anywhere in the URL
+    RewriteCond %{REQUEST_URI} /(config|includes|backups)(/|$) [NC]
+    RewriteRule ^(.*)$ - [F,L]
+    
+    # Skip rewrite for assets and API (allow access)
+    RewriteCond %{REQUEST_URI} \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|pdf|zip)$ [OR]
+    RewriteCond %{REQUEST_URI} /(assets|api)/ [NC]
+    RewriteRule ^ - [L]
+    
+    # Skip rewrite for existing files and directories (but not config/includes/backups)
+    # But don't skip if it's the root directory (empty path)
+    RewriteCond %{REQUEST_URI} !/(config|includes|backups)(/|$) [NC]
+    RewriteCond %{REQUEST_URI} !^/?$ [NC]
     RewriteCond %{REQUEST_FILENAME} -f [OR]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
     
-    # Skip rewrite for assets and API
-    RewriteCond %{REQUEST_URI} \.(css|js|jpg|jpeg|png|gif|ico|svg|woff|woff2|ttf|eot|pdf|zip)$ [OR]
-    RewriteCond %{REQUEST_URI} ^/(assets|config|includes|api|backups)/
-    RewriteRule ^ - [L]
-    
-    # Route to router.php for all other requests
+    # Route to router.php for all requests (including root)
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ router.php [L,QSA]
 </IfModule>
 
+# Prevent directory listing
 Options -Indexes
 
-# Security - Apache 2.4 syntax (with 2.2 fallback)
-<FilesMatch "\.(sql|log|ini|conf)$">
+# Security - Block access to sensitive file types
+<FilesMatch "\.(sql|log|ini|conf|env)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Block direct access to config files (if accessed directly)
+<FilesMatch "^(config|database|ai_config)\.php$">
     <IfModule mod_authz_core.c>
         Require all denied
     </IfModule>

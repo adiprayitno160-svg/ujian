@@ -569,3 +569,117 @@ function get_backup_files() {
     return $files;
 }
 
+/**
+ * Get tahun ajaran aktif
+ * Returns tahun ajaran string (e.g., "2024/2025") or null if not found
+ */
+function get_tahun_ajaran_aktif() {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->query("SELECT tahun_ajaran FROM tahun_ajaran WHERE is_active = 1 ORDER BY tahun_mulai DESC LIMIT 1");
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($result) {
+            return $result['tahun_ajaran'];
+        }
+        
+        // Fallback: generate from current date
+        $current_year = (int)date('Y');
+        return $current_year . '/' . ($current_year + 1);
+    } catch (PDOException $e) {
+        // If table doesn't exist, fallback to generated year
+        error_log("Get tahun ajaran aktif error: " . $e->getMessage());
+        $current_year = (int)date('Y');
+        return $current_year . '/' . ($current_year + 1);
+    }
+}
+
+/**
+ * Get tahun ajaran by ID
+ */
+function get_tahun_ajaran($id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT * FROM tahun_ajaran WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Get tahun ajaran error: " . $e->getMessage());
+        return null;
+    }
+}
+
+/**
+ * Get all tahun ajaran
+ */
+function get_all_tahun_ajaran($order_by = 'tahun_mulai DESC') {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->query("SELECT * FROM tahun_ajaran ORDER BY $order_by");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("Get all tahun ajaran error: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Set tahun ajaran aktif
+ * Deactivates all other tahun ajaran and activates the specified one
+ */
+function set_tahun_ajaran_aktif($tahun_ajaran_id) {
+    global $pdo;
+    
+    try {
+        $pdo->beginTransaction();
+        
+        // Deactivate all
+        $pdo->exec("UPDATE tahun_ajaran SET is_active = 0");
+        
+        // Activate specified
+        $stmt = $pdo->prepare("UPDATE tahun_ajaran SET is_active = 1 WHERE id = ?");
+        $stmt->execute([$tahun_ajaran_id]);
+        
+        $pdo->commit();
+        return true;
+    } catch (PDOException $e) {
+        $pdo->rollBack();
+        error_log("Set tahun ajaran aktif error: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Parse tahun ajaran string to tahun_mulai and tahun_selesai
+ * Supports formats: "2024/2025", "2024-2025", "2024 2025"
+ */
+function parse_tahun_ajaran($tahun_ajaran_str) {
+    // Remove spaces and normalize separators
+    $tahun_ajaran_str = trim($tahun_ajaran_str);
+    $tahun_ajaran_str = str_replace(['-', ' '], '/', $tahun_ajaran_str);
+    
+    // Extract years
+    if (preg_match('/(\d{4})\s*\/\s*(\d{4})/', $tahun_ajaran_str, $matches)) {
+        return [
+            'tahun_mulai' => (int)$matches[1],
+            'tahun_selesai' => (int)$matches[2],
+            'tahun_ajaran' => $matches[1] . '/' . $matches[2]
+        ];
+    }
+    
+    // If only one year is provided, assume it's the start year
+    if (preg_match('/(\d{4})/', $tahun_ajaran_str, $matches)) {
+        $tahun_mulai = (int)$matches[1];
+        return [
+            'tahun_mulai' => $tahun_mulai,
+            'tahun_selesai' => $tahun_mulai + 1,
+            'tahun_ajaran' => $tahun_mulai . '/' . ($tahun_mulai + 1)
+        ];
+    }
+    
+    return null;
+}
+

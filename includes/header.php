@@ -498,6 +498,10 @@ $current_user = get_logged_in_user();
                         <i class="fas fa-book"></i>
                         <span class="menu-label">Mata Pelajaran</span>
                     </a>
+                    <a href="<?php echo base_url('admin-manage-tahun-ajaran'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_tahun_ajaran.php') ? 'active' : ''; ?>">
+                        <i class="fas fa-calendar-alt"></i>
+                        <span class="menu-label">Tahun Ajaran</span>
+                    </a>
                     <a href="<?php echo base_url('admin/naik_kelas.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'naik_kelas.php') ? 'active' : ''; ?>">
                         <i class="fas fa-arrow-up"></i>
                         <span class="menu-label">Naik Kelas</span>

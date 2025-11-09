@@ -20,21 +20,44 @@ $action = $_GET['action'] ?? $_POST['action'] ?? '';
 try {
     switch ($action) {
         case 'get_current_version':
-            // Get current version
-            $stmt = $pdo->query("SELECT * FROM system_version WHERE is_current = 1 ORDER BY release_date DESC LIMIT 1");
-            $version = $stmt->fetch(PDO::FETCH_ASSOC);
-            
-            if ($version) {
-                // Get changelog for this version
-                $stmt = $pdo->prepare("SELECT * FROM system_changelog WHERE version_id = ? ORDER BY type, id");
-                $stmt->execute([$version['id']]);
-                $version['changelog'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Get current version from database
+            try {
+                $stmt = $pdo->query("SELECT * FROM system_version WHERE is_current = 1 ORDER BY release_date DESC LIMIT 1");
+                $version = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                if ($version) {
+                    // Get changelog for this version
+                    $stmt = $pdo->prepare("SELECT * FROM system_changelog WHERE version_id = ? ORDER BY type, id");
+                    $stmt->execute([$version['id']]);
+                    $version['changelog'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                } else {
+                    // If no version in database, use APP_VERSION as fallback
+                    $version = [
+                        'version' => APP_VERSION,
+                        'release_date' => date('Y-m-d'),
+                        'release_notes' => 'Versi dari konfigurasi sistem',
+                        'is_current' => 1,
+                        'changelog' => []
+                    ];
+                }
+                
+                echo json_encode([
+                    'success' => true,
+                    'version' => $version
+                ]);
+            } catch (Exception $e) {
+                // If table doesn't exist or error, use APP_VERSION
+                echo json_encode([
+                    'success' => true,
+                    'version' => [
+                        'version' => APP_VERSION,
+                        'release_date' => date('Y-m-d'),
+                        'release_notes' => 'Versi dari konfigurasi sistem',
+                        'is_current' => 1,
+                        'changelog' => []
+                    ]
+                ]);
             }
-            
-            echo json_encode([
-                'success' => true,
-                'version' => $version ?: null
-            ]);
             break;
             
         case 'get_all_versions':

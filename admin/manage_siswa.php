@@ -48,7 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $user_id = $pdo->lastInsertId();
                     
                     // Assign to kelas
-                    $tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+                    $tahun_ajaran = get_tahun_ajaran_aktif();
                     // Check if already exists
                     $stmt = $pdo->prepare("SELECT id FROM user_kelas WHERE id_user = ? AND tahun_ajaran = ?");
                     $stmt->execute([$user_id, $tahun_ajaran]);
@@ -102,7 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     
                     // Update kelas
-                    $tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+                    $tahun_ajaran = get_tahun_ajaran_aktif();
                     $stmt = $pdo->prepare("SELECT id FROM user_kelas WHERE id_user = ? AND tahun_ajaran = ?");
                     $stmt->execute([$id, $tahun_ajaran]);
                     $user_kelas = $stmt->fetch();
@@ -160,7 +160,7 @@ $search = sanitize($_GET['search'] ?? '');
 $kelas_filter = intval($_GET['kelas'] ?? 0);
 
 // Build query
-$tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+$tahun_ajaran = get_tahun_ajaran_aktif();
 $query = "SELECT u.id, u.username as nis, u.nama, u.status, u.created_at,
           k.id as id_kelas, k.nama_kelas
           FROM users u

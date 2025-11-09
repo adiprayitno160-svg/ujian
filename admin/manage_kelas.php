@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $filter_tingkat = $_GET['tingkat'] ?? '';
 
 // Get kelas dengan filter dan jumlah siswa
-$tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+$tahun_ajaran = get_tahun_ajaran_aktif();
 $sql = "SELECT k.*, 
         COUNT(DISTINCT uk.id_user) as jumlah_siswa
         FROM kelas k

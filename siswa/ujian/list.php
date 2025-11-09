@@ -22,18 +22,16 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 $siswa_id = $_SESSION['user_id'];
-$tahun_ajaran = date('Y') . '/' . (date('Y') + 1);
+$tahun_ajaran = get_tahun_ajaran_aktif();
 
 // Get available sesi
 // Check both individual assignment and kelas assignment
-// Hanya tampilkan ujian dengan durasi >= 2 jam (120 menit)
 $stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, m.nama_mapel,
                       (SELECT status FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) as status_nilai
                       FROM sesi_ujian s
                       INNER JOIN ujian u ON s.id_ujian = u.id
                       INNER JOIN mapel m ON u.id_mapel = m.id
                       WHERE s.status = 'aktif'
-                      AND u.durasi >= 120
                       AND EXISTS (
                           SELECT 1 FROM sesi_peserta sp
                           WHERE sp.id_sesi = s.id
