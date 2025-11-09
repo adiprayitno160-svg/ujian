@@ -132,8 +132,38 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                     </div>
                 </div>
                 
+                <!-- Version Check Alert -->
+                <div id="versionCheckAlert" class="alert alert-info d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-sync-alt fa-spin me-2"></i>
+                            <strong>Memeriksa versi terbaru...</strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Update Available Alert -->
+                <div id="updateAvailableAlert" class="alert alert-warning d-none mb-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Update Tersedia!</strong>
+                            <div class="small mt-1">
+                                Versi terbaru: <strong id="latestVersionDisplay"></strong>
+                                <br>
+                                <span id="updateReleaseNotes" class="text-muted"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-primary" onclick="startUpdate()">
+                                <i class="fas fa-download"></i> Update Sekarang
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- No Update Alert -->
-                <div id="noUpdateAlert" class="alert alert-secondary d-none mb-3">
+                <div id="noUpdateAlert" class="alert alert-success d-none mb-3">
                     <i class="fas fa-check-circle me-2"></i>
                     <strong>Sistem sudah up-to-date</strong>
                     <div class="small mt-1" id="noUpdateInfo">Tidak ada update tersedia</div>
@@ -145,6 +175,9 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                         <span class="badge bg-info me-2">Versi Saat Ini:</span>
                         <strong id="currentVersionBeforePull">v<?php echo APP_VERSION; ?></strong>
                         <small class="text-muted ms-2" id="versionSource">(dari config)</small>
+                        <button class="btn btn-sm btn-outline-secondary ms-2" onclick="checkVersionUpdate(true)">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
                     </div>
                 </div>
                 
@@ -391,6 +424,180 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
 <script>
 const apiUrl = '<?php echo base_url("api/github_sync.php"); ?>';
 const versionApiUrl = '<?php echo base_url("api/version_management.php"); ?>';
+
+// Check version update from GitHub Releases
+function checkVersionUpdate(forceRefresh = false) {
+    $('#versionCheckAlert').removeClass('d-none');
+    $('#updateAvailableAlert').addClass('d-none');
+    $('#noUpdateAlert').addClass('d-none');
+    
+    $.ajax({
+        url: apiUrl,
+        method: 'GET',
+        data: { 
+            action: 'check_version',
+            force_refresh: forceRefresh ? '1' : '0'
+        },
+        dataType: 'json',
+        timeout: 8000, // Reduced timeout to 8 seconds
+        success: function(response) {
+            $('#versionCheckAlert').addClass('d-none');
+            
+            if (response.success) {
+                // Update current version display
+                if (response.current_version) {
+                    $('#currentVersionBeforePull').text('v' + response.current_version);
+                    $('#versionSource').text('(dari sistem)');
+                }
+                
+                if (response.has_update) {
+                    // Update available
+                    $('#latestVersionDisplay').text('v' + response.latest_version);
+                    if (response.release_notes) {
+                        const notes = response.release_notes.substring(0, 200);
+                        $('#updateReleaseNotes').text(notes + (response.release_notes.length > 200 ? '...' : ''));
+                    }
+                    $('#updateAvailableAlert').removeClass('d-none');
+                    
+                    // Store update info for later use
+                    window.updateInfo = response;
+                } else {
+                    // No update
+                    let message = response.message || 'Tidak ada update tersedia';
+                    if (response.warning) {
+                        $('#noUpdateAlert').removeClass('d-none').removeClass('alert-success').addClass('alert-info');
+                        $('#noUpdateInfo').html('<i class="fas fa-info-circle"></i> ' + response.warning + '<br><small class="text-muted">' + message + '</small>');
+                    } else {
+                        $('#noUpdateInfo').text(message);
+                        $('#noUpdateAlert').removeClass('d-none');
+                    }
+                }
+            } else {
+                // Error checking
+                let errorMsg = response.error || 'Gagal memeriksa update';
+                let errorDetail = '';
+                
+                if (response.error_type === 'timeout') {
+                    errorMsg = 'Timeout saat memeriksa update';
+                    errorDetail = '<br><small class="text-muted">' + (response.suggestion || 'Cek koneksi internet atau gunakan fitur Pull dari GitHub untuk update manual.') + '</small>';
+                    $('#noUpdateAlert').removeClass('d-none').removeClass('alert-success').addClass('alert-warning');
+                    $('#noUpdateInfo').html('<i class="fas fa-clock"></i> ' + errorMsg + errorDetail);
+                } else if (response.error_code === 404) {
+                    errorMsg = 'Repository GitHub tidak ditemukan atau belum ada release';
+                    errorDetail = '<br><small class="text-muted">' + (response.suggestion || 'Gunakan fitur Pull dari GitHub untuk update manual.') + '</small>';
+                    $('#noUpdateAlert').removeClass('d-none').removeClass('alert-success').addClass('alert-warning');
+                    $('#noUpdateInfo').html('<i class="fas fa-exclamation-triangle"></i> ' + errorMsg + errorDetail);
+                } else if (response.warning) {
+                    $('#noUpdateAlert').removeClass('d-none').removeClass('alert-success').addClass('alert-info');
+                    $('#noUpdateInfo').html('<i class="fas fa-info-circle"></i> ' + response.warning + '<br><small class="text-muted">' + errorMsg + '</small>');
+                } else {
+                    if (response.error_code) {
+                        errorDetail = '<br><small class="text-muted">Error code: ' + response.error_code + '</small>';
+                    }
+                    $('#noUpdateAlert').removeClass('d-none').removeClass('alert-success').addClass('alert-warning');
+                    $('#noUpdateInfo').html('<i class="fas fa-exclamation-triangle"></i> ' + errorMsg + errorDetail);
+                }
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#versionCheckAlert').addClass('d-none');
+            
+            let errorMsg = 'Gagal memeriksa update';
+            let errorDetail = '';
+            
+            if (status === 'timeout') {
+                errorMsg = 'Timeout saat memeriksa update';
+                errorDetail = '<br><small class="text-muted">Request memakan waktu terlalu lama. Cek koneksi internet atau gunakan fitur Pull dari GitHub untuk update manual.</small>';
+                $('#noUpdateAlert').removeClass('d-none').removeClass('alert-success').addClass('alert-warning');
+                $('#noUpdateInfo').html('<i class="fas fa-clock"></i> ' + errorMsg + errorDetail);
+            } else {
+                errorDetail = '<br><small class="text-muted">' + error + '</small>';
+                $('#noUpdateAlert').removeClass('d-none').removeClass('alert-success').addClass('alert-warning');
+                $('#noUpdateInfo').html('<i class="fas fa-exclamation-triangle"></i> ' + errorMsg + errorDetail);
+            }
+            
+            console.error('Version check error:', status, error);
+        }
+    });
+}
+
+// Start update process
+function startUpdate() {
+    if (!window.updateInfo || !window.updateInfo.has_update) {
+        alert('Tidak ada update yang tersedia');
+        return;
+    }
+    
+    const confirmMsg = 'Update ke v' + window.updateInfo.latest_version + '?\n\n' +
+                      'Sistem akan:\n' +
+                      '1. Backup database otomatis\n' +
+                      '2. Pull update dari GitHub\n' +
+                      '3. Update versi sistem\n\n' +
+                      'Pastikan Anda telah membackup data penting sebelum melanjutkan.';
+    
+    if (!confirm(confirmMsg)) {
+        return;
+    }
+    
+    // Show loading
+    $('#updateAvailableAlert').html('<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i> Memproses update...</div>');
+    
+    // Start pull process
+    $.ajax({
+        url: apiUrl,
+        method: 'POST',
+        data: {
+            action: 'pull',
+            branch: 'main' // or get from current branch
+        },
+        dataType: 'json',
+        timeout: 60000,
+        success: function(response) {
+            if (response.success) {
+                // Pull successful, now update version
+                updateSystemVersion(window.updateInfo.latest_version, window.updateInfo.tag_name);
+            } else {
+                alert('Gagal melakukan update: ' + (response.message || 'Unknown error'));
+                $('#updateAvailableAlert').removeClass('d-none');
+                checkVersionUpdate(true);
+            }
+        },
+        error: function(xhr, status, error) {
+            alert('Error: ' + error);
+            $('#updateAvailableAlert').removeClass('d-none');
+            checkVersionUpdate(true);
+        }
+    });
+}
+
+// Update system version after successful pull
+function updateSystemVersion(version, tagName) {
+    $.ajax({
+        url: versionApiUrl,
+        method: 'POST',
+        data: {
+            action: 'create_version',
+            version: version,
+            release_date: new Date().toISOString().split('T')[0],
+            release_notes: window.updateInfo.release_notes || 'Update dari GitHub',
+            is_current: 1
+        },
+        dataType: 'json',
+        success: function(response) {
+            if (response.success) {
+                alert('Update berhasil! Sistem telah diupdate ke v' + version);
+                location.reload();
+            } else {
+                alert('Update berhasil, namun gagal menyimpan versi: ' + (response.message || 'Unknown error'));
+                location.reload();
+            }
+        },
+        error: function() {
+            alert('Update berhasil, namun gagal menyimpan versi. Silakan refresh halaman.');
+            location.reload();
+        }
+    });
+}
 const backupRestoreApiUrl = '<?php echo base_url("api/backup_restore.php"); ?>';
 
 // Load Git Status
@@ -1356,7 +1563,10 @@ $(document).ready(function() {
     loadVersions();
     loadCurrentVersionForPull();
     
-    // Auto-check for updates on page load
+    // Check version update on page load
+    checkVersionUpdate(false);
+    
+    // Auto-check for updates on page load (legacy function)
     checkForUpdate();
     
     // Auto-check for updates every 5 minutes

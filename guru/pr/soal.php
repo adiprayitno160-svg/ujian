@@ -58,9 +58,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'A' => sanitize($_POST['opsi_a'] ?? ''),
                     'B' => sanitize($_POST['opsi_b'] ?? ''),
                     'C' => sanitize($_POST['opsi_c'] ?? ''),
-                    'D' => sanitize($_POST['opsi_d'] ?? ''),
-                    'E' => sanitize($_POST['opsi_e'] ?? '')
+                    'D' => sanitize($_POST['opsi_d'] ?? '')
                 ];
+                // Remove empty options
+                $opsi = array_filter($opsi, function($value) {
+                    return !empty($value);
+                });
                 $opsi_json = json_encode($opsi);
             } elseif ($tipe_soal === 'benar_salah') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
@@ -203,17 +206,15 @@ include __DIR__ . '/../../includes/header.php';
                             <input type="text" class="form-control mb-2" name="opsi_b" placeholder="Opsi B">
                             <input type="text" class="form-control mb-2" name="opsi_c" placeholder="Opsi C">
                             <input type="text" class="form-control mb-2" name="opsi_d" placeholder="Opsi D">
-                            <input type="text" class="form-control mb-2" name="opsi_e" placeholder="Opsi E (opsional)">
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Kunci Jawaban</label>
-                            <select class="form-select" name="kunci_jawaban">
+                            <label class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
+                            <select class="form-select" name="kunci_jawaban" required>
                                 <option value="">Pilih</option>
                                 <option value="A">A</option>
                                 <option value="B">B</option>
                                 <option value="C">C</option>
                                 <option value="D">D</option>
-                                <option value="E">E</option>
                             </select>
                         </div>
                     </div>

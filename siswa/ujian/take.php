@@ -201,6 +201,7 @@ $page_title = 'Kerjakan Ujian';
 $role_css = 'siswa';
 $custom_js = ['auto_save', 'ragu_ragu', 'exam_security'];
 $hide_navbar = true; // Hide sidebar for fullscreen exam
+$fullscreen_exam = true; // Flag for fullscreen exam
 include __DIR__ . '/../../includes/header.php';
 
 // Show authentication form (token + tanggal lahir) if needed
@@ -373,6 +374,18 @@ if ($need_auth) {
 $saved = $saved_answers[$current_soal_data['id']] ?? null;
 $opsi = $current_soal_data['opsi_json'] ? json_decode($current_soal_data['opsi_json'], true) : [];
 
+// Filter opsi hanya A-D (remove E and above)
+if (is_array($opsi)) {
+    $filtered_opsi = [];
+    $allowed_keys = ['A', 'B', 'C', 'D'];
+    foreach ($allowed_keys as $key) {
+        if (isset($opsi[$key]) && !empty($opsi[$key])) {
+            $filtered_opsi[$key] = $opsi[$key];
+        }
+    }
+    $opsi = $filtered_opsi;
+}
+
 // Shuffle opsi if enabled
 if ($ujian['acak_opsi'] && is_array($opsi)) {
     $keys = array_keys($opsi);
@@ -393,32 +406,66 @@ if ($ujian['acak_opsi'] && is_array($opsi)) {
     }
     
     html, body {
-        height: 100%;
+        height: 100vh;
+        width: 100vw;
         overflow: hidden;
         background: #fff;
+        position: fixed;
+        top: 0;
+        left: 0;
     }
     
     body {
-        position: fixed;
-        width: 100%;
-        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+    
+    /* Hide all navigation and headers when fullscreen */
+    body.hide-navbar .app-wrapper,
+    body.hide-navbar .sidebar,
+    body.hide-navbar .main-content,
+    body.hide-navbar .content-header,
+    body.hide-navbar .content-body,
+    body.hide-navbar .sidebar-overlay,
+    body.hide-navbar .sidebar-toggle,
+    body.hide-navbar main.container {
+        display: none !important;
+    }
+    
+    /* Fullscreen exam wrapper */
+    body.hide-navbar {
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+    }
+    
+    body.hide-navbar html {
+        overflow: hidden;
     }
     
     .exam-wrapper {
         display: flex;
         height: 100vh;
         width: 100vw;
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 10000;
         background: #fff;
-        position: relative;
+    }
+    
+    body.hide-navbar .exam-wrapper {
+        display: flex !important;
     }
     
     .exam-main {
         flex: 1;
         padding: 20px;
         max-width: 100%;
-        margin: 0 auto;
+        margin: 0;
         overflow-y: auto;
         transition: margin-right 0.3s ease;
+        background: #fff;
     }
     
     .exam-main.sidebar-open {
@@ -678,7 +725,7 @@ if ($ujian['acak_opsi'] && is_array($opsi)) {
     }
 </style>
 
-<div class="exam-wrapper exam-container" data-sesi-id="<?php echo $sesi_id; ?>" data-ujian-id="<?php echo $sesi['id_ujian']; ?>">
+<div class="exam-wrapper" data-sesi-id="<?php echo $sesi_id; ?>" data-ujian-id="<?php echo $sesi['id_ujian']; ?>" style="display: flex;">
     <!-- Toggle Navigation Button -->
     <button class="nav-toggle-btn" id="navToggleBtn" onclick="toggleNavigation()" title="Toggle Navigasi Soal">
         <i class="fas fa-list" id="navToggleIcon"></i>
@@ -866,7 +913,12 @@ let canSubmit = false;
 
 // Request fullscreen on load
 document.addEventListener('DOMContentLoaded', () => {
-    // Try to enter fullscreen
+    // Ensure body has hide-navbar class
+    document.body.classList.add('hide-navbar');
+    
+    // Try to enter fullscreen (optional - user can press F11)
+    // Commented out to avoid browser blocking
+    /*
     if (document.documentElement.requestFullscreen) {
         document.documentElement.requestFullscreen().catch(() => {
             console.log('Fullscreen not available');
@@ -878,6 +930,7 @@ document.addEventListener('DOMContentLoaded', () => {
     } else if (document.documentElement.msRequestFullscreen) {
         document.documentElement.msRequestFullscreen();
     }
+    */
     
     // Initialize submit info
     const submitBtn = document.getElementById('submitBtn');
@@ -1053,4 +1106,21 @@ document.addEventListener('keydown', (e) => {
 });
 </script>
 
-<?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php 
+// For fullscreen exam, close exam-wrapper and add minimal scripts
+if (isset($hide_navbar) && $hide_navbar): 
+?>
+    </div>
+    <!-- Minimal scripts for exam page -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <?php if (isset($custom_js)): ?>
+        <?php foreach ($custom_js as $js): ?>
+            <script src="<?php echo asset_url('js/' . $js . '.js'); ?>"></script>
+        <?php endforeach; ?>
+    <?php endif; ?>
+</body>
+</html>
+<?php else: ?>
+    <?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php endif; ?>

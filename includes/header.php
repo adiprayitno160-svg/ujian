@@ -13,6 +13,38 @@ require_once __DIR__ . '/functions.php';
 
 $sekolah = get_sekolah_info();
 $current_user = get_logged_in_user();
+
+// Check for updates (only for admin, cached)
+$update_available = false;
+$update_info = null;
+if (is_logged_in() && $_SESSION['role'] === 'admin') {
+    // Only check on page load, use cache
+    if (!isset($_SESSION['update_check_time']) || (time() - $_SESSION['update_check_time']) > 3600) {
+        try {
+            require_once __DIR__ . '/version_check.php';
+            $update_check = check_update_available(false); // Use cache
+            // Only show notification if update is available and check was successful
+            if ($update_check['success'] && isset($update_check['has_update']) && $update_check['has_update']) {
+                $update_available = true;
+                $update_info = $update_check;
+            }
+            $_SESSION['update_check_time'] = time();
+            $_SESSION['update_available'] = $update_available;
+            $_SESSION['update_info'] = $update_info;
+            // Store error info for debugging but don't show notification for errors
+            if (!$update_check['success']) {
+                $_SESSION['update_check_error'] = $update_check['error'] ?? 'Unknown error';
+            }
+        } catch (Exception $e) {
+            error_log("Update check error: " . $e->getMessage());
+            $_SESSION['update_check_error'] = $e->getMessage();
+        }
+    } else {
+        // Use cached result
+        $update_available = $_SESSION['update_available'] ?? false;
+        $update_info = $_SESSION['update_info'] ?? null;
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -460,7 +492,7 @@ $current_user = get_logged_in_user();
         }
     </style>
 </head>
-<body>
+<body <?php echo (isset($hide_navbar) && $hide_navbar) ? 'class="hide-navbar"' : ''; ?>>
     <?php if (is_logged_in() && !isset($hide_navbar)): ?>
     <div class="app-wrapper">
         <!-- Sidebar -->
@@ -570,6 +602,10 @@ $current_user = get_logged_in_user();
                         <i class="fas fa-tasks"></i>
                         <span class="menu-label">PR</span>
                     </a>
+                    <a href="<?php echo base_url('siswa/profile.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'profile.php') ? 'active' : ''; ?>">
+                        <i class="fas fa-user"></i>
+                        <span class="menu-label">Profile</span>
+                    </a>
                 <?php endif; ?>
                 
                 <?php if ($_SESSION['role'] !== 'admin'): ?>
@@ -581,6 +617,15 @@ $current_user = get_logged_in_user();
             </nav>
             
             <div class="sidebar-footer">
+                <?php if ($update_available && isset($update_info) && $_SESSION['role'] === 'admin'): ?>
+                <div class="update-notification mb-2 px-3">
+                    <a href="<?php echo base_url('admin/about.php'); ?>" class="btn btn-sm btn-warning text-dark w-100" title="Update Available: v<?php echo escape($update_info['latest_version']); ?>">
+                        <i class="fas fa-download"></i>
+                        <span class="ms-2">Update v<?php echo escape($update_info['latest_version']); ?></span>
+                    </a>
+                </div>
+                <?php endif; ?>
+                
                 <div class="user-menu dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                     <div class="user-avatar">
                         <?php echo strtoupper(substr($current_user['nama'] ?? $_SESSION['nama'], 0, 1)); ?>
@@ -592,7 +637,11 @@ $current_user = get_logged_in_user();
                     <i class="fas fa-chevron-down" style="font-size: 0.75rem; color: rgba(255, 255, 255, 0.8);"></i>
                 </div>
                 <ul class="dropdown-menu" style="width: 100%; margin-top: 0.5rem; border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2); background: rgba(0, 102, 204, 0.95); backdrop-filter: blur(10px);">
-                    <li><a class="dropdown-item" href="#" style="color: #ffffff;"><i class="fas fa-user me-2"></i> Profile</a></li>
+                    <?php if ($_SESSION['role'] === 'siswa'): ?>
+                        <li><a class="dropdown-item" href="<?php echo base_url('siswa/profile.php'); ?>" style="color: #ffffff;"><i class="fas fa-user me-2"></i> Profile</a></li>
+                    <?php else: ?>
+                        <li><a class="dropdown-item" href="#" style="color: #ffffff;"><i class="fas fa-user me-2"></i> Profile</a></li>
+                    <?php endif; ?>
                 </ul>
             </div>
         </aside>

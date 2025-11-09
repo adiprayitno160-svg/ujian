@@ -50,9 +50,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'A' => sanitize($_POST['opsi_a'] ?? ''),
                     'B' => sanitize($_POST['opsi_b'] ?? ''),
                     'C' => sanitize($_POST['opsi_c'] ?? ''),
-                    'D' => sanitize($_POST['opsi_d'] ?? ''),
-                    'E' => sanitize($_POST['opsi_e'] ?? '')
+                    'D' => sanitize($_POST['opsi_d'] ?? '')
                 ];
+                // Remove empty options
+                $opsi = array_filter($opsi, function($value) {
+                    return !empty($value);
+                });
                 $opsi_json = json_encode($opsi);
             } elseif ($tipe_soal === 'benar_salah') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
@@ -165,18 +168,13 @@ $ujian_list = $stmt->fetchAll();
                         <input type="text" class="form-control" name="opsi_d">
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Opsi E (opsional)</label>
-                        <input type="text" class="form-control" name="opsi_e">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Kunci Jawaban</label>
-                        <select class="form-select" name="kunci_jawaban">
+                        <label class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
+                        <select class="form-select" name="kunci_jawaban" required>
                             <option value="">Pilih</option>
                             <option value="A">A</option>
                             <option value="B">B</option>
                             <option value="C">C</option>
                             <option value="D">D</option>
-                            <option value="E">E</option>
                         </select>
                     </div>
                 </div>

@@ -129,6 +129,18 @@ include __DIR__ . '/../../includes/header.php';
 
 $saved = $saved_answers[$current_soal_data['id']] ?? null;
 $opsi = $current_soal_data['opsi_json'] ? json_decode($current_soal_data['opsi_json'], true) : [];
+
+// Filter opsi hanya A-D (remove E and above)
+if (is_array($opsi)) {
+    $filtered_opsi = [];
+    $allowed_keys = ['A', 'B', 'C', 'D'];
+    foreach ($allowed_keys as $key) {
+        if (isset($opsi[$key]) && !empty($opsi[$key])) {
+            $filtered_opsi[$key] = $opsi[$key];
+        }
+    }
+    $opsi = $filtered_opsi;
+}
 ?>
 
 <style>

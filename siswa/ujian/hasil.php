@@ -96,6 +96,19 @@ $soal_list = $stmt->fetchAll();
     <div class="card-body">
         <?php foreach ($soal_list as $index => $soal): 
             $opsi = $soal['opsi_json'] ? json_decode($soal['opsi_json'], true) : [];
+            
+            // Filter opsi hanya A-D (remove E and above)
+            if (is_array($opsi)) {
+                $filtered_opsi = [];
+                $allowed_keys = ['A', 'B', 'C', 'D'];
+                foreach ($allowed_keys as $key) {
+                    if (isset($opsi[$key]) && !empty($opsi[$key])) {
+                        $filtered_opsi[$key] = $opsi[$key];
+                    }
+                }
+                $opsi = $filtered_opsi;
+            }
+            
             $jawaban = $soal['jawaban'] ?? '';
             $kunci = $soal['kunci_jawaban'] ?? '';
             $is_correct = false;

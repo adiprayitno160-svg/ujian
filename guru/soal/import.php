@@ -197,9 +197,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'C' => $opsi_c,
                                 'D' => $opsi_d
                             ];
-                            if (!empty($opsi_e)) {
-                                $opsi['E'] = $opsi_e;
-                            }
+                            // Remove empty options
+                            $opsi = array_filter($opsi, function($value) {
+                                return !empty($value);
+                            });
                             $opsi_json = json_encode($opsi);
                         } elseif ($tipe_soal === 'benar_salah') {
                             $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);

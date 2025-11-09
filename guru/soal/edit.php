@@ -57,9 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'A' => sanitize($_POST['opsi_a'] ?? ''),
                     'B' => sanitize($_POST['opsi_b'] ?? ''),
                     'C' => sanitize($_POST['opsi_c'] ?? ''),
-                    'D' => sanitize($_POST['opsi_d'] ?? ''),
-                    'E' => sanitize($_POST['opsi_e'] ?? '')
+                    'D' => sanitize($_POST['opsi_d'] ?? '')
                 ];
+                // Remove empty options
+                $opsi = array_filter($opsi, function($value) {
+                    return !empty($value);
+                });
                 $opsi_json = json_encode($opsi);
             } elseif ($soal['tipe_soal'] === 'benar_salah') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
@@ -162,18 +165,13 @@ $opsi = $soal['opsi_json'] ? json_decode($soal['opsi_json'], true) : [];
                         <input type="text" class="form-control" name="opsi_d" value="<?php echo escape($opsi['D'] ?? ''); ?>">
                     </div>
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Opsi E (opsional)</label>
-                        <input type="text" class="form-control" name="opsi_e" value="<?php echo escape($opsi['E'] ?? ''); ?>">
-                    </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">Kunci Jawaban</label>
-                        <select class="form-select" name="kunci_jawaban">
+                        <label class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
+                        <select class="form-select" name="kunci_jawaban" required>
                             <option value="">Pilih</option>
                             <option value="A" <?php echo $soal['kunci_jawaban'] === 'A' ? 'selected' : ''; ?>>A</option>
                             <option value="B" <?php echo $soal['kunci_jawaban'] === 'B' ? 'selected' : ''; ?>>B</option>
                             <option value="C" <?php echo $soal['kunci_jawaban'] === 'C' ? 'selected' : ''; ?>>C</option>
                             <option value="D" <?php echo $soal['kunci_jawaban'] === 'D' ? 'selected' : ''; ?>>D</option>
-                            <option value="E" <?php echo $soal['kunci_jawaban'] === 'E' ? 'selected' : ''; ?>>E</option>
                         </select>
                     </div>
                 </div>

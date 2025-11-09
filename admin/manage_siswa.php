@@ -28,6 +28,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nama = sanitize($_POST['nama'] ?? '');
         $nis = sanitize($_POST['nis'] ?? '');
         $id_kelas = intval($_POST['id_kelas'] ?? 0);
+        $tanggal_lahir = $_POST['tanggal_lahir'] ?? '';
+        $no_hp = sanitize($_POST['no_hp'] ?? '');
         
         if (empty($nama) || empty($nis) || empty($id_kelas)) {
             $error = 'Semua field wajib harus diisi';
@@ -43,8 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $hashed_password = password_hash($nis, PASSWORD_DEFAULT);
                     
                     // Create user siswa
-                    $stmt = $pdo->prepare("INSERT INTO users (username, password, role, nama, status) VALUES (?, ?, 'siswa', ?, 'active')");
-                    $stmt->execute([$nis, $hashed_password, $nama]);
+                    $stmt = $pdo->prepare("INSERT INTO users (username, password, role, nama, tanggal_lahir, no_hp, status) VALUES (?, ?, 'siswa', ?, ?, ?, 'active')");
+                    $stmt->execute([$nis, $hashed_password, $nama, $tanggal_lahir ?: null, $no_hp ?: null]);
                     $user_id = $pdo->lastInsertId();
                     
                     // Assign to kelas
@@ -76,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $nama = sanitize($_POST['nama'] ?? '');
         $nis = sanitize($_POST['nis'] ?? '');
         $id_kelas = intval($_POST['id_kelas'] ?? 0);
+        $tanggal_lahir = $_POST['tanggal_lahir'] ?? '';
+        $no_hp = sanitize($_POST['no_hp'] ?? '');
         
         if (empty($nama) || empty($nis) || empty($id_kelas)) {
             $error = 'Semua field wajib harus diisi';
@@ -88,8 +92,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'NIS sudah digunakan oleh siswa lain';
                 } else {
                     // Update user
-                    $stmt = $pdo->prepare("UPDATE users SET username = ?, nama = ? WHERE id = ? AND role = 'siswa'");
-                    $stmt->execute([$nis, $nama, $id]);
+                    $stmt = $pdo->prepare("UPDATE users SET username = ?, nama = ?, tanggal_lahir = ?, no_hp = ? WHERE id = ? AND role = 'siswa'");
+                    $stmt->execute([$nis, $nama, $tanggal_lahir ?: null, $no_hp ?: null, $id]);
                     
                     // Update password jika NIS berubah
                     $stmt = $pdo->prepare("SELECT username FROM users WHERE id = ?");
@@ -161,7 +165,7 @@ $kelas_filter = intval($_GET['kelas'] ?? 0);
 
 // Build query
 $tahun_ajaran = get_tahun_ajaran_aktif();
-$query = "SELECT u.id, u.username as nis, u.nama, u.status, u.created_at,
+$query = "SELECT u.id, u.username as nis, u.nama, u.status, u.created_at, u.tanggal_lahir, u.no_hp,
           k.id as id_kelas, k.nama_kelas
           FROM users u
           LEFT JOIN user_kelas uk ON u.id = uk.id_user AND uk.tahun_ajaran = ?
@@ -194,11 +198,12 @@ $kelas_list = $stmt->fetchAll();
 $edit_siswa = null;
 if (isset($_GET['edit'])) {
     $edit_id = intval($_GET['edit']);
+    $tahun_ajaran = get_tahun_ajaran_aktif();
     $stmt = $pdo->prepare("SELECT u.*, k.id as id_kelas FROM users u
                           LEFT JOIN user_kelas uk ON u.id = uk.id_user AND uk.tahun_ajaran = ?
                           LEFT JOIN kelas k ON uk.id_kelas = k.id
                           WHERE u.id = ? AND u.role = 'siswa'");
-    $stmt->execute([date('Y') . '/' . (date('Y') + 1), $edit_id]);
+    $stmt->execute([$tahun_ajaran, $edit_id]);
     $edit_siswa = $stmt->fetch();
 }
 ?>
@@ -357,6 +362,26 @@ if (isset($_GET['edit'])) {
                                 </option>
                             <?php endforeach; ?>
                         </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="tanggal_lahir" class="form-label">
+                            Tanggal Lahir <span class="text-danger">*</span>
+                        </label>
+                        <input type="date" class="form-control" id="tanggal_lahir" 
+                               name="tanggal_lahir" 
+                               value="<?php echo ($edit_siswa && isset($edit_siswa['tanggal_lahir']) && $edit_siswa['tanggal_lahir']) ? date('Y-m-d', strtotime($edit_siswa['tanggal_lahir'])) : ''; ?>" 
+                               required>
+                        <small class="text-muted">Tanggal lahir diperlukan untuk verifikasi saat mengerjakan ujian</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="no_hp" class="form-label">Nomor Handphone</label>
+                        <input type="text" class="form-control" id="no_hp" 
+                               name="no_hp" 
+                               value="<?php echo escape($edit_siswa['no_hp'] ?? ''); ?>" 
+                               placeholder="08xxxxxxxxxx">
+                        <small class="text-muted">Nomor handphone (opsional)</small>
                     </div>
                 </div>
                 <div class="modal-footer">

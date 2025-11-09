@@ -77,9 +77,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     'A' => sanitize($soal['opsi_a'] ?? ''),
                                     'B' => sanitize($soal['opsi_b'] ?? ''),
                                     'C' => sanitize($soal['opsi_c'] ?? ''),
-                                    'D' => sanitize($soal['opsi_d'] ?? ''),
-                                    'E' => sanitize($soal['opsi_e'] ?? '')
+                                    'D' => sanitize($soal['opsi_d'] ?? '')
                                 ];
+                                // Remove empty options
+                                $opsi = array_filter($opsi, function($value) {
+                                    return !empty($value);
+                                });
                                 $opsi_json = json_encode($opsi);
                             } elseif ($tipe_soal === 'benar_salah') {
                                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);

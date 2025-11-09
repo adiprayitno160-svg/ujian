@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/version_check.php';
 
 header('Content-Type: application/json');
 
@@ -500,6 +501,33 @@ try {
             $branch = $_GET['branch'] ?? $_POST['branch'] ?? null;
             $update_info = checkUpdateAvailable($repo_path, $branch);
             echo json_encode($update_info);
+            break;
+            
+        case 'check_version':
+            // Check version from GitHub Releases API
+            // Set execution time limit to prevent long waits
+            @set_time_limit(10);
+            $force_refresh = isset($_GET['force_refresh']) && $_GET['force_refresh'] === '1';
+            try {
+                $update_check = check_update_available($force_refresh);
+                echo json_encode($update_check);
+            } catch (Exception $e) {
+                error_log("Version check exception: " . $e->getMessage());
+                echo json_encode([
+                    'success' => false,
+                    'has_update' => false,
+                    'error' => 'Error: ' . $e->getMessage(),
+                    'error_type' => 'exception',
+                    'message' => 'Terjadi kesalahan saat memeriksa update.'
+                ]);
+            }
+            break;
+            
+        case 'get_all_releases':
+            // Get all releases from GitHub
+            $limit = intval($_GET['limit'] ?? 10);
+            $releases = get_all_releases($limit);
+            echo json_encode($releases);
             break;
             
         default:

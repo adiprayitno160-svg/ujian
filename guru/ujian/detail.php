@@ -214,11 +214,6 @@ $sesi_list = $stmt->fetchAll();
                         </a>
                     </div>
                     <div class="col-md-3">
-                        <a href="<?php echo base_url('guru/plagiarisme/check.php?ujian_id=' . $id); ?>" class="btn btn-outline-warning w-100">
-                            <i class="fas fa-search"></i> Check Plagiarisme
-                        </a>
-                    </div>
-                    <div class="col-md-3">
                         <a href="<?php echo base_url('guru/nilai/list.php?ujian_id=' . $id); ?>" class="btn btn-outline-success w-100">
                             <i class="fas fa-list"></i> Daftar Nilai
                         </a>
