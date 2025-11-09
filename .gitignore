@@ -76,7 +76,11 @@ push_to_github.ps1
 migrate_*.php
 cleanup_*.php
 cleanup_*.ps1
-*.ps1
+
+# Keep update scripts
+!scripts/update.sh
+!scripts/update.ps1
+!scripts/README_UPDATE.md
 
 # Documentation (keep only README.md)
 *.md
