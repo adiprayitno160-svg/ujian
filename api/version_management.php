@@ -283,6 +283,60 @@ try {
             ]);
             break;
             
+        case 'create_or_update_version':
+            // Create or update version automatically (for auto-update)
+            $version = trim($_POST['version'] ?? '');
+            $release_date = $_POST['release_date'] ?? date('Y-m-d');
+            $release_notes = trim($_POST['release_notes'] ?? '');
+            
+            if (empty($version)) {
+                throw new Exception('Versi harus diisi');
+            }
+            
+            // Validate version format (X.Y.Z)
+            if (!preg_match('/^\d+\.\d+\.\d+$/', $version)) {
+                throw new Exception('Format versi tidak valid. Gunakan format X.Y.Z (contoh: 1.0.1)');
+            }
+            
+            $pdo->beginTransaction();
+            
+            try {
+                // Check if version already exists
+                $stmt = $pdo->prepare("SELECT id FROM system_version WHERE version = ?");
+                $stmt->execute([$version]);
+                $existing = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                // Set all versions to not current
+                $pdo->exec("UPDATE system_version SET is_current = 0");
+                
+                if ($existing) {
+                    // Update existing version
+                    $stmt = $pdo->prepare("UPDATE system_version 
+                                         SET release_date = ?, release_notes = ?, is_current = 1
+                                         WHERE id = ?");
+                    $stmt->execute([$release_date, $release_notes, $existing['id']]);
+                    $version_id = $existing['id'];
+                } else {
+                    // Insert new version
+                    $stmt = $pdo->prepare("INSERT INTO system_version (version, release_date, release_notes, is_current, created_by) 
+                                         VALUES (?, ?, ?, 1, ?)");
+                    $stmt->execute([$version, $release_date, $release_notes, $_SESSION['user_id']]);
+                    $version_id = $pdo->lastInsertId();
+                }
+                
+                $pdo->commit();
+                
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'Versi berhasil dibuat/diupdate',
+                    'version_id' => $version_id
+                ]);
+            } catch (Exception $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+            break;
+            
         default:
             throw new Exception('Action tidak valid');
     }

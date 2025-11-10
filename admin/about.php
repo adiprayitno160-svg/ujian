@@ -132,9 +132,12 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-primary" onclick="startUpdate()">
+                            <button class="btn btn-sm btn-primary" onclick="startUpdate()" id="manualUpdateBtn" style="display:none;">
                                 <i class="fas fa-download"></i> Update Sekarang
                             </button>
+                            <span id="autoUpdateStatus" class="badge bg-info" style="display:none;">
+                                <i class="fas fa-sync fa-spin"></i> Update otomatis dimulai...
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -472,6 +475,14 @@ function checkVersionUpdate(forceRefresh = false) {
                     // Store update info for later use (for startUpdate function)
                     window.updateInfo = response;
                     console.log('Update info stored:', window.updateInfo);
+                    
+                    // Auto-update: Start update automatically when version is detected
+                    console.log('Auto-update: Memulai update otomatis ke v' + response.latest_version);
+                    $('#manualUpdateBtn').hide();
+                    $('#autoUpdateStatus').show();
+                    setTimeout(function() {
+                        startUpdate();
+                    }, 1000); // Wait 1 second before starting auto-update
                 } else {
                     // No update - show success message
                     let message = response.message || 'Tidak ada update tersedia';
@@ -539,45 +550,34 @@ function checkVersionUpdate(forceRefresh = false) {
     });
 }
 
-// Start update process
+// Start update process (automatic, no backup, no confirmation)
 function startUpdate() {
     if (!window.updateInfo || !window.updateInfo.has_update) {
         alert('Tidak ada update yang tersedia');
         return;
     }
     
-    const confirmMsg = 'Update ke v' + window.updateInfo.latest_version + '?\n\n' +
-                      'Sistem akan:\n' +
-                      '1. Backup database otomatis\n' +
-                      '2. Pull update dari GitHub\n' +
-                      '3. Update versi sistem\n\n' +
-                      'Pastikan Anda telah membackup data penting sebelum melanjutkan.';
-    
-    if (!confirm(confirmMsg)) {
-        return;
-    }
-    
     // Show loading
-    $('#updateAvailableAlert').html('<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i> Memproses update...</div>');
+    $('#updateAvailableAlert').html('<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i> Memproses update otomatis...</div>');
     
     // Get branch from selector or use current branch
     const selectedBranch = $('#pullBranch').val() || 'master';
     
-    // Start pull process
+    // Start pull process (skip backup, automatic update)
     $.ajax({
         url: apiUrl,
         method: 'POST',
         data: {
             action: 'pull',
             branch: selectedBranch,
-            skip_backup: '0' // Always backup
+            skip_backup: '1' // Skip backup for automatic update
         },
         dataType: 'json',
         timeout: 300000, // 5 minutes timeout for pull operation
         success: function(response) {
             if (response.success) {
-                // Pull successful, now update version and config.php
-                updateSystemVersion(window.updateInfo.latest_version, window.updateInfo.tag_name);
+                // Pull successful, now update version and config.php automatically
+                updateSystemVersionAuto(window.updateInfo.latest_version, window.updateInfo.tag_name);
             } else {
                 alert('Gagal melakukan update: ' + (response.message || 'Unknown error'));
                 $('#updateAvailableAlert').removeClass('d-none');
@@ -596,50 +596,47 @@ function startUpdate() {
     });
 }
 
-// Update system version after successful pull
-function updateSystemVersion(version, tagName) {
-    // First, update version in database
+// Auto-update when version is detected (called automatically)
+function autoUpdateIfAvailable() {
+    if (window.updateInfo && window.updateInfo.has_update) {
+        console.log('Auto-update: Versi baru terdeteksi, memulai update otomatis...');
+        startUpdate();
+    }
+}
+
+// Update system version after successful pull (automatic version)
+function updateSystemVersionAuto(version, tagName) {
+    // Try to create or update version in database automatically
     $.ajax({
         url: versionApiUrl,
         method: 'POST',
         data: {
-            action: 'create_version',
+            action: 'create_or_update_version',
             version: version,
             release_date: new Date().toISOString().split('T')[0],
-            release_notes: window.updateInfo.release_notes || 'Update dari GitHub',
+            release_notes: window.updateInfo.release_notes || 'Update otomatis dari GitHub',
             is_current: 1
         },
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                // Version saved to database, now update config.php
-                updateConfigVersion(version);
+                // Version saved to database, now update config.php (silent for auto-update)
+                updateConfigVersion(version, true);
             } else {
-                // Check if version already exists
-                if (response.message && response.message.includes('sudah ada')) {
-                    // Version exists, just update it to current
-                    updateExistingVersionToCurrent(version);
-                } else {
-                    alert('Update berhasil, namun gagal menyimpan versi: ' + (response.message || 'Unknown error'));
-                    location.reload();
-                }
+                // If create fails, try to update existing version
+                updateExistingVersionToCurrent(version);
             }
         },
         error: function(xhr) {
-            let message = 'Update berhasil, namun gagal menyimpan versi.';
-            try {
-                const response = JSON.parse(xhr.responseText);
-                if (response.message && response.message.includes('sudah ada')) {
-                    // Version exists, try to update it to current
-                    updateExistingVersionToCurrent(version);
-                    return;
-                }
-                message = response.message || message;
-            } catch(e) {}
-            alert(message + ' Silakan refresh halaman.');
-            location.reload();
+            // If API doesn't support create_or_update_version, try update existing
+            updateExistingVersionToCurrent(version);
         }
     });
+}
+
+// Update system version after successful pull (manual version - kept for compatibility)
+function updateSystemVersion(version, tagName) {
+    updateSystemVersionAuto(version, tagName);
 }
 
 // Update existing version to current
@@ -687,8 +684,8 @@ function updateExistingVersionToCurrent(version) {
     });
 }
 
-// Update APP_VERSION in config.php
-function updateConfigVersion(version) {
+// Update APP_VERSION in config.php (automatic, silent for auto-update)
+function updateConfigVersion(version, silent = true) {
     $.ajax({
         url: apiUrl,
         method: 'POST',
@@ -699,27 +696,34 @@ function updateConfigVersion(version) {
         dataType: 'json',
         success: function(response) {
             if (response.success) {
-                alert('Update berhasil! Sistem telah diupdate ke v' + version + '\n\nHalaman akan di-refresh.');
+                if (!silent) {
+                    alert('Update berhasil! Sistem telah diupdate ke v' + version + '\n\nHalaman akan di-refresh.');
+                }
+                // Auto-reload after update
                 setTimeout(function() {
                     location.reload();
-                }, 1000);
+                }, silent ? 500 : 1000);
             } else {
                 // Config update failed, but database update succeeded
-                alert('Update berhasil! Versi di database: v' + version + '\n\n' + 
-                      (response.message || 'Gagal mengupdate config.php, tetapi versi di database sudah diupdate.') +
-                      '\n\nHalaman akan di-refresh.');
+                if (!silent) {
+                    alert('Update berhasil! Versi di database: v' + version + '\n\n' + 
+                          (response.message || 'Gagal mengupdate config.php, tetapi versi di database sudah diupdate.') +
+                          '\n\nHalaman akan di-refresh.');
+                }
                 setTimeout(function() {
                     location.reload();
-                }, 1000);
+                }, silent ? 500 : 1000);
             }
         },
         error: function() {
             // Config update failed, but database update succeeded
-            alert('Update berhasil! Versi di database: v' + version + 
-                  '\n\nGagal mengupdate config.php, tetapi versi di database sudah diupdate.\n\nHalaman akan di-refresh.');
+            if (!silent) {
+                alert('Update berhasil! Versi di database: v' + version + 
+                      '\n\nGagal mengupdate config.php, tetapi versi di database sudah diupdate.\n\nHalaman akan di-refresh.');
+            }
             setTimeout(function() {
                 location.reload();
-            }, 1000);
+            }, silent ? 500 : 1000);
         }
     });
 }
