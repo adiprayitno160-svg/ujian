@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pertanyaan = $_POST['pertanyaan'] ?? '';
     $tipe_soal = sanitize($_POST['tipe_soal'] ?? '');
     $bobot = floatval($_POST['bobot'] ?? 1.0);
-    $kunci_jawaban = sanitize($_POST['kunci_jawaban'] ?? '');
+    $kunci_jawaban_raw = $_POST['kunci_jawaban'] ?? '';
     $media_path = sanitize($_POST['media_path'] ?? '');
     $media_type = sanitize($_POST['media_type'] ?? '');
     
@@ -53,8 +53,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $max = $stmt->fetch();
             $urutan = ($max['max_urutan'] ?? 0) + 1;
             
-            // Prepare opsi_json
+            // Prepare opsi_json and kunci_jawaban based on tipe
             $opsi_json = null;
+            $kunci_jawaban = '';
+            
             if ($tipe_soal === 'pilihan_ganda') {
                 $opsi = [
                     'A' => sanitize($_POST['opsi_a'] ?? ''),
@@ -67,8 +69,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return !empty($value);
                 });
                 $opsi_json = json_encode($opsi);
+                $kunci_jawaban = sanitize($kunci_jawaban_raw);
             } elseif ($tipe_soal === 'benar_salah') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
+                $kunci_jawaban = sanitize($kunci_jawaban_raw);
+                // Validate kunci_jawaban for benar_salah
+                if (empty($kunci_jawaban) || !in_array($kunci_jawaban, ['Benar', 'Salah'])) {
+                    throw new Exception('Kunci jawaban untuk benar/salah harus dipilih');
+                }
+            } elseif ($tipe_soal === 'isian_singkat') {
+                // For isian_singkat, kunci_jawaban can be multiple values separated by comma
+                // Clean and trim each value
+                if (!empty($kunci_jawaban_raw)) {
+                    $answers = array_map('trim', explode(',', $kunci_jawaban_raw));
+                    $answers = array_filter($answers, function($value) {
+                        return !empty($value);
+                    });
+                    $kunci_jawaban = implode(', ', array_map('sanitize', $answers));
+                }
+            } elseif ($tipe_soal === 'esai') {
+                // For esai, kunci_jawaban is optional reference answer
+                $kunci_jawaban = !empty($kunci_jawaban_raw) ? sanitize($kunci_jawaban_raw) : '';
+            } elseif ($tipe_soal === 'matching') {
+                // For matching, kunci_jawaban is not used (stored in soal_matching table)
+                $kunci_jawaban = '';
             }
             
             // Validate media_type if media_path is provided
@@ -261,8 +285,8 @@ include __DIR__ . '/../../includes/header.php';
                     <!-- Benar/Salah Fields -->
                     <div id="benar_salah_fields" style="display:none;">
                         <div class="mb-3">
-                            <label class="form-label">Kunci Jawaban</label>
-                            <select class="form-select" name="kunci_jawaban">
+                            <label class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
+                            <select class="form-select" name="kunci_jawaban" required>
                                 <option value="">Pilih</option>
                                 <option value="Benar">Benar</option>
                                 <option value="Salah">Salah</option>
