@@ -14,7 +14,7 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.6');
+    define('APP_VERSION', '1.0.7');
     
     // Auto-detect APP_URL based on server environment
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 
@@ -135,7 +135,8 @@ define('AUTO_SAVE_INTERVAL', 30);
 define('DEFAULT_MIN_SUBMIT_MINUTES', 3);
 
 // Verifikasi Dokumen Settings
-define('VERIFIKASI_MAX_FILE_SIZE', 10485760); // 10MB in bytes
+define('VERIFIKASI_MIN_FILE_SIZE', 102400); // 100KB in bytes (minimum size)
+define('VERIFIKASI_MAX_FILE_SIZE', 204800); // 200KB in bytes (maximum size)
 define('VERIFIKASI_ALLOWED_TYPES', ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']);
 define('VERIFIKASI_MAX_UPLOAD_ULANG', 1); // Maksimal 1x upload ulang
 
