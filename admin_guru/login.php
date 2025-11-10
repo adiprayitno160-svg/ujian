@@ -10,7 +10,17 @@ require_once __DIR__ . '/../includes/functions.php';
 
 // Redirect if already logged in
 if (is_logged_in()) {
-    redirect($_SESSION['role']);
+    $role = $_SESSION['role'] ?? 'admin';
+    // Redirect to dashboard based on role
+    if ($role === 'admin') {
+        redirect('admin');
+    } elseif ($role === 'guru') {
+        redirect('guru');
+    } elseif ($role === 'operator') {
+        redirect('operator');
+    } else {
+        redirect('siswa');
+    }
 }
 
 $error = '';
@@ -31,8 +41,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Halaman ini hanya untuk admin, guru, dan operator';
                 logout();
             } else {
-                // Redirect based on role
-                redirect($role);
+                // Redirect based on role - use explicit routes to avoid redirect loop
+                if ($role === 'admin') {
+                    redirect('admin');
+                } elseif ($role === 'guru') {
+                    redirect('guru');
+                } elseif ($role === 'operator') {
+                    redirect('operator');
+                } else {
+                    redirect('siswa');
+                }
             }
         } else {
             $error = $result['message'];

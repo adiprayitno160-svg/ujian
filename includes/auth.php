@@ -23,14 +23,14 @@ function login($username, $password) {
             $stmt = $pdo->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
             $stmt->execute([$user['id']]);
             
-            // Set session
+            // Set session variables
             $_SESSION['user_id'] = $user['id'];
             $_SESSION['username'] = $user['username'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['nama'] = $user['nama'];
             $_SESSION['logged_in'] = true;
             
-            // Regenerate session ID for security
+            // Regenerate session ID for security (this also saves session)
             session_regenerate_id(true);
             
             return ['success' => true, 'user' => $user];
@@ -136,7 +136,7 @@ function check_session_timeout() {
 
 /**
  * Check if user has operator access
- * Operator access is a feature for guru, not a separate role
+ * Operator access: admin, role='operator', or guru with is_operator = 1
  */
 function has_operator_access($user_id = null) {
     global $pdo;
@@ -153,7 +153,13 @@ function has_operator_access($user_id = null) {
         return true;
     }
     
+    // User with role='operator' always has operator access
+    if (isset($_SESSION['role']) && $_SESSION['role'] === 'operator') {
+        return true;
+    }
+    
     try {
+        // Check if guru has is_operator = 1
         $stmt = $pdo->prepare("SELECT is_operator FROM users WHERE id = ? AND role = 'guru'");
         $stmt->execute([$user_id]);
         $result = $stmt->fetch();

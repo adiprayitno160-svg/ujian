@@ -14,7 +14,7 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.9');
+    define('APP_VERSION', '1.0.10');
     
     // Auto-detect APP_URL based on server environment
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 
@@ -82,7 +82,8 @@ date_default_timezone_set('Asia/Jakarta');
 ini_set('session.cookie_httponly', 1);
 ini_set('session.use_only_cookies', 1);
 ini_set('session.cookie_secure', 0); // Set to 1 if using HTTPS
-ini_set('session.cookie_samesite', 'Strict');
+// Use Lax instead of Strict to allow redirects after login
+ini_set('session.cookie_samesite', 'Lax');
 
 // Start output buffering to prevent header errors
 if (!ob_get_level()) {

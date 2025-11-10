@@ -79,10 +79,16 @@ function check_maintenance_mode() {
     // Allow access to login page and API endpoints
     $current_page = basename($_SERVER['PHP_SELF'] ?? '');
     $allowed_pages = ['login.php', 'index.php'];
-    $allowed_dirs = ['api'];
+    $allowed_dirs = ['api', 'admin_guru'];
     $current_dir = basename(dirname($_SERVER['PHP_SELF'] ?? ''));
+    $request_uri = $_SERVER['REQUEST_URI'] ?? '';
     
-    if (in_array($current_page, $allowed_pages) || in_array($current_dir, $allowed_dirs)) {
+    // Allow access to login pages (admin-login, siswa-login, etc.)
+    if (in_array($current_page, $allowed_pages) || 
+        in_array($current_dir, $allowed_dirs) || 
+        strpos($request_uri, 'login') !== false ||
+        strpos($request_uri, 'admin-login') !== false ||
+        strpos($request_uri, 'siswa-login') !== false) {
         return; // Allow login page and API
     }
     
