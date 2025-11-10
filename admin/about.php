@@ -665,21 +665,21 @@ function updateExistingVersionToCurrent(version) {
                         },
                         dataType: 'json',
                         success: function() {
-                            updateConfigVersion(version);
+                            updateConfigVersion(version, true); // Silent for auto-update
                         },
                         error: function() {
-                            updateConfigVersion(version);
+                            updateConfigVersion(version, true);
                         }
                     });
                 } else {
-                    updateConfigVersion(version);
+                    updateConfigVersion(version, true);
                 }
             } else {
-                updateConfigVersion(version);
+                updateConfigVersion(version, true);
             }
         },
         error: function() {
-            updateConfigVersion(version);
+            updateConfigVersion(version, true);
         }
     });
 }
