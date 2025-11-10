@@ -342,6 +342,14 @@ function quickUpdate() {
         timeout: 300000, // 5 minutes timeout
         success: function(response) {
             if (response.success) {
+                // Show migration info if available
+                if (response.migrations) {
+                    console.log('Database migrations executed:', response.migrations);
+                }
+                if (response.migration_error) {
+                    console.warn('Migration error:', response.migration_error);
+                }
+                
                 // Pull successful, now update version and config.php automatically
                 updateSystemVersionAuto(window.updateInfo.latest_version, window.updateInfo.tag_name);
             } else {

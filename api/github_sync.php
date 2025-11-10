@@ -463,6 +463,46 @@ try {
             $result = pullFromGitHub($repo_path, $branch);
             $result['backup'] = $backup;
             
+            // Run database migrations after successful pull
+            if ($result['success']) {
+                try {
+                    // Include database connection
+                    require_once __DIR__ . '/../config/database.php';
+                    
+                    // Run auto migrations
+                    $migration_results = [];
+                    
+                    // Check and run auto_migration.php if exists
+                    $auto_migration_file = __DIR__ . '/../includes/auto_migration.php';
+                    if (file_exists($auto_migration_file)) {
+                        require_once $auto_migration_file;
+                        if (function_exists('run_submission_text_fields_migration')) {
+                            $migration_results['submission_text'] = run_submission_text_fields_migration();
+                        }
+                    }
+                    
+                    // Run other auto migrations
+                    $migration_files = glob(__DIR__ . '/../includes/auto_migration_*.php');
+                    foreach ($migration_files as $migration_file) {
+                        if (basename($migration_file) !== 'auto_migration.php') {
+                            try {
+                                require_once $migration_file;
+                                $migration_results[basename($migration_file)] = true;
+                            } catch (Exception $e) {
+                                error_log("Migration error in " . basename($migration_file) . ": " . $e->getMessage());
+                                $migration_results[basename($migration_file)] = false;
+                            }
+                        }
+                    }
+                    
+                    $result['migrations'] = $migration_results;
+                    error_log("Database migrations executed after pull: " . json_encode($migration_results));
+                } catch (Exception $e) {
+                    error_log("Error running migrations after pull: " . $e->getMessage());
+                    $result['migration_error'] = $e->getMessage();
+                }
+            }
+            
             // Log the operation
             error_log("GitHub pull: branch=$branch, success=" . ($result['success'] ? 'true' : 'false'));
             
