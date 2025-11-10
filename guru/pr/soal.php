@@ -38,6 +38,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tipe_soal = sanitize($_POST['tipe_soal'] ?? '');
     $bobot = floatval($_POST['bobot'] ?? 1.0);
     $kunci_jawaban = sanitize($_POST['kunci_jawaban'] ?? '');
+    $media_path = sanitize($_POST['media_path'] ?? '');
+    $media_type = sanitize($_POST['media_type'] ?? '');
     
     if (empty($pertanyaan) || !$tipe_soal) {
         $error = 'Pertanyaan dan tipe soal harus diisi';
@@ -69,11 +71,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
             }
             
+            // Validate media_type if media_path is provided
+            if (!empty($media_path) && !in_array($media_type, ['gambar', 'video'])) {
+                $media_type = null;
+                $media_path = null;
+            }
+            
             // Insert soal
             $stmt = $pdo->prepare("INSERT INTO pr_soal 
-                                  (id_pr, pertanyaan, tipe_soal, opsi_json, kunci_jawaban, bobot, urutan) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$pr_id, $pertanyaan, $tipe_soal, $opsi_json, $kunci_jawaban, $bobot, $urutan]);
+                                  (id_pr, pertanyaan, tipe_soal, opsi_json, kunci_jawaban, bobot, urutan, gambar, media_type) 
+                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$pr_id, $pertanyaan, $tipe_soal, $opsi_json, $kunci_jawaban, $bobot, $urutan, $media_path, $media_type]);
             $soal_id = $pdo->lastInsertId();
             
             // Handle matching items
@@ -181,7 +189,7 @@ include __DIR__ . '/../../includes/header.php';
                 <h5 class="mb-0"><i class="fas fa-plus"></i> Tambah Soal</h5>
             </div>
             <div class="card-body">
-                <form method="POST" id="soalForm">
+                <form method="POST" id="soalForm" enctype="multipart/form-data">
                     <div class="mb-3">
                         <label for="tipe_soal" class="form-label">Tipe Soal <span class="text-danger">*</span></label>
                         <select class="form-select" id="tipe_soal" name="tipe_soal" required onchange="showTipeFields()">
@@ -197,6 +205,37 @@ include __DIR__ . '/../../includes/header.php';
                     <div class="mb-3">
                         <label for="pertanyaan" class="form-label">Pertanyaan <span class="text-danger">*</span></label>
                         <textarea class="form-control" id="pertanyaan" name="pertanyaan" rows="4" required></textarea>
+                    </div>
+                    
+                    <!-- Media Upload Section -->
+                    <div class="mb-3">
+                        <label for="soal_media" class="form-label">
+                            <i class="fas fa-image me-1"></i> Media Soal (Gambar/Video)
+                        </label>
+                        <input type="file" 
+                               class="form-control form-control-sm" 
+                               id="soal_media" 
+                               name="soal_media" 
+                               accept="image/*,video/*"
+                               onchange="handleMediaUpload(this)">
+                        <small class="text-muted d-block">
+                            Format: Gambar (JPG, PNG, GIF, WebP - maks. 10MB), Video (MP4, WebM, OGG - maks. 50MB)
+                        </small>
+                        <div id="media_preview" class="mt-2" style="display:none;">
+                            <div class="alert alert-info alert-sm d-flex justify-content-between align-items-center p-2">
+                                <div>
+                                    <i class="fas fa-check-circle me-1"></i>
+                                    <small id="media_filename"></small>
+                                    <span class="badge bg-primary ms-1" id="media_type_badge"></span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-danger btn-sm" onclick="removeMedia()">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                            <div id="media_preview_content" class="mt-1"></div>
+                        </div>
+                        <input type="hidden" id="media_path" name="media_path" value="">
+                        <input type="hidden" id="media_type" name="media_type" value="">
                     </div>
                     
                     <!-- Pilihan Ganda Fields -->
@@ -313,6 +352,76 @@ function addMatchingItem() {
 
 function removeMatchingItem(btn) {
     btn.closest('.matching-item').remove();
+}
+
+// Media upload handling
+function handleMediaUpload(input) {
+    const file = input.files[0];
+    if (!file) {
+        removeMedia();
+        return;
+    }
+    
+    // Validate file size
+    const maxSize = file.type.startsWith('video/') ? 52428800 : 10485760;
+    if (file.size > maxSize) {
+        alert('Ukuran file terlalu besar. Maksimal: ' + (maxSize / 1048576) + 'MB');
+        input.value = '';
+        removeMedia();
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('media_preview').style.display = 'block';
+    document.getElementById('media_filename').textContent = file.name;
+    document.getElementById('media_preview_content').innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Mengupload...</div>';
+    
+    // Create FormData
+    const formData = new FormData();
+    formData.append('media', file);
+    
+    // Upload file
+    fetch('<?php echo base_url("api/upload_soal_media.php"); ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('media_path').value = data.path;
+            document.getElementById('media_type').value = data.media_type;
+            document.getElementById('media_type_badge').textContent = data.media_type === 'gambar' ? 'Gambar' : 'Video';
+            
+            // Show preview
+            if (data.media_type === 'gambar') {
+                document.getElementById('media_preview_content').innerHTML = 
+                    '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">';
+            } else {
+                document.getElementById('media_preview_content').innerHTML = 
+                    '<video controls class="img-thumbnail" style="max-width: 200px; max-height: 150px;">' +
+                    '<source src="' + data.url + '" type="' + data.mime_type + '">' +
+                    '</video>';
+            }
+        } else {
+            alert('Error: ' + data.message);
+            input.value = '';
+            removeMedia();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Terjadi kesalahan saat mengupload file');
+        input.value = '';
+        removeMedia();
+    });
+}
+
+function removeMedia() {
+    document.getElementById('soal_media').value = '';
+    document.getElementById('media_path').value = '';
+    document.getElementById('media_type').value = '';
+    document.getElementById('media_preview').style.display = 'none';
+    document.getElementById('media_preview_content').innerHTML = '';
 }
 </script>
 

@@ -43,20 +43,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
     try {
         $pdo->beginTransaction();
         
-        // Get all soal with images to delete files
-        $stmt = $pdo->prepare("SELECT gambar FROM soal WHERE id_ujian = ? AND gambar IS NOT NULL AND gambar != ''");
-        $stmt->execute([$ujian_id]);
-        $soal_images = $stmt->fetchAll();
-        
-        // Delete soal images
-        foreach ($soal_images as $soal) {
-            if ($soal['gambar']) {
-                $file_path = UPLOAD_SOAL . '/' . $soal['gambar'];
-                if (file_exists($file_path)) {
-                    @unlink($file_path);
-                }
-            }
-        }
+        // Delete all media files for soal in this ujian (images and videos)
+        delete_ujian_soal_media($ujian_id);
         
         // Delete ujian (cascade will delete soal, sesi_ujian, dan semua data terkait)
         $stmt = $pdo->prepare("DELETE FROM ujian WHERE id = ?");
@@ -145,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
                 <i class="fas fa-info-circle"></i> 
                 <strong>Tindakan ini tidak dapat dibatalkan!</strong> Semua data ujian akan dihapus termasuk:
                 <ul class="mb-0 mt-2">
-                    <li>Semua soal dan gambar</li>
+                    <li>Semua soal, gambar, dan video media</li>
                     <li>Semua sesi ujian</li>
                     <li>Semua hasil ujian dan jawaban siswa</li>
                     <li>Semua token ujian</li>
@@ -169,4 +157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
     
     <?php include __DIR__ . '/../../includes/footer.php'; ?>
 <?php } ?>
+
+
 

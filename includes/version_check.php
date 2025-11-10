@@ -248,6 +248,10 @@ function check_github_releases($use_cache = true, $cache_duration = 3600) {
                     'success' => true,
                     'latest_version' => $git_tag_version,
                     'tag_name' => 'v' . $git_tag_version,
+                    'name' => 'v' . $git_tag_version,
+                    'body' => '',
+                    'html_url' => null,
+                    'published_at' => null,
                     'source' => 'git_tags',
                     'message' => 'Version from Git tags (GitHub API timeout)',
                     'warning' => 'GitHub API timeout, menggunakan Git tags lokal sebagai fallback.'
@@ -298,6 +302,10 @@ function check_github_releases($use_cache = true, $cache_duration = 3600) {
                     'success' => true,
                     'latest_version' => $git_tag_version,
                     'tag_name' => 'v' . $git_tag_version,
+                    'name' => 'v' . $git_tag_version,
+                    'body' => '',
+                    'html_url' => null,
+                    'published_at' => null,
                     'source' => 'git_tags',
                     'message' => 'Version from Git tags (GitHub Releases not available)'
                 ];
@@ -346,6 +354,10 @@ function check_github_releases($use_cache = true, $cache_duration = 3600) {
                 'success' => true,
                 'latest_version' => $git_tag_version,
                 'tag_name' => 'v' . $git_tag_version,
+                'name' => 'v' . $git_tag_version,
+                'body' => '',
+                'html_url' => null,
+                'published_at' => null,
                 'source' => 'git_tags',
                 'message' => 'Version from Git tags (GitHub API response invalid)'
             ];
@@ -368,6 +380,10 @@ function check_github_releases($use_cache = true, $cache_duration = 3600) {
                 'success' => true,
                 'latest_version' => $git_tag_version,
                 'tag_name' => 'v' . $git_tag_version,
+                'name' => 'v' . $git_tag_version,
+                'body' => '',
+                'html_url' => null,
+                'published_at' => null,
                 'source' => 'git_tags',
                 'message' => 'Version from Git tags (no version in GitHub release)'
             ];
@@ -427,6 +443,10 @@ function check_update_available($force_refresh = false) {
                 'current_version' => $current_version,
                 'latest_version' => $git_tag_version,
                 'tag_name' => 'v' . $git_tag_version,
+                'release_name' => 'v' . $git_tag_version,
+                'release_notes' => '',
+                'release_url' => null,
+                'published_at' => null,
                 'source' => 'git_tags',
                 'message' => $has_update ? "Update available: v{$git_tag_version} (from Git tags)" : "You are running the latest version (from Git tags)",
                 'warning' => $warning_msg . '. Versi yang ditampilkan dari Git tags lokal.'
@@ -490,11 +510,12 @@ function check_update_available($force_refresh = false) {
         'has_update' => $has_update,
         'current_version' => $current_version,
         'latest_version' => $latest_version,
-        'tag_name' => $latest_release['tag_name'],
-        'release_name' => $latest_release['name'],
-        'release_notes' => $latest_release['body'],
-        'release_url' => $latest_release['html_url'],
-        'published_at' => $latest_release['published_at'],
+        'tag_name' => $latest_release['tag_name'] ?? null,
+        'release_name' => $latest_release['name'] ?? $latest_release['tag_name'] ?? "v{$latest_version}",
+        'release_notes' => $latest_release['body'] ?? '',
+        'release_url' => $latest_release['html_url'] ?? null,
+        'published_at' => $latest_release['published_at'] ?? null,
+        'source' => $latest_release['source'] ?? 'unknown',
         'message' => $has_update ? "Update available: v{$latest_version}" : "You are running the latest version"
     ];
 }
@@ -549,12 +570,12 @@ function get_all_releases($limit = 10) {
         }
         
         $formatted_releases[] = [
-            'version' => ltrim($release['tag_name'], 'vV'),
-            'tag_name' => $release['tag_name'],
-            'name' => $release['name'],
-            'body' => $release['body'],
-            'published_at' => $release['published_at'],
-            'html_url' => $release['html_url'],
+            'version' => ltrim($release['tag_name'] ?? '', 'vV'),
+            'tag_name' => $release['tag_name'] ?? null,
+            'name' => $release['name'] ?? $release['tag_name'] ?? null,
+            'body' => $release['body'] ?? '',
+            'published_at' => $release['published_at'] ?? null,
+            'html_url' => $release['html_url'] ?? null,
         ];
     }
     

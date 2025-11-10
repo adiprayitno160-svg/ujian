@@ -8,7 +8,7 @@ require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
 
-require_role('guru');
+require_login();
 check_session_timeout();
 
 $page_title = 'Detail Ujian';
@@ -20,7 +20,14 @@ global $pdo;
 $id = intval($_GET['id'] ?? 0);
 $ujian = get_ujian($id);
 
-if (!$ujian || $ujian['id_guru'] != $_SESSION['user_id']) {
+// Block access to SUMATIP for non-operator
+if ($ujian && !empty($ujian['tipe_asesmen']) && in_array($ujian['tipe_asesmen'], ['sumatip', 'sumatip_tengah_semester', 'sumatip_akhir_semester', 'sumatip_akhir_tahun'])) {
+    if (!has_operator_access()) {
+        redirect('guru/ujian/list.php');
+    }
+}
+
+if (!$ujian || ($_SESSION['role'] === 'guru' && $ujian['id_guru'] != $_SESSION['user_id'])) {
     redirect('guru/ujian/list.php');
 }
 
@@ -68,6 +75,29 @@ $sesi_list = $stmt->fetchAll();
                         <td><?php echo $ujian['durasi']; ?> menit</td>
                     </tr>
                     <tr>
+                        <th>Jenis</th>
+                        <td>
+                            <?php if (!empty($ujian['tipe_asesmen']) && $ujian['tipe_asesmen'] !== 'regular'): ?>
+                                <?php
+                                // Only show SUMATIP info for operator
+                                if (has_operator_access()) {
+                                    require_once __DIR__ . '/../../includes/functions_sumatip.php';
+                                ?>
+                                    <span class="badge <?php echo get_sumatip_badge_class($ujian['tipe_asesmen']); ?>">
+                                        <?php echo get_sumatip_badge_label($ujian['tipe_asesmen']); ?>
+                                    </span>
+                                    <?php if ($ujian['is_mandatory']): ?>
+                                        <span class="badge bg-danger">Wajib</span>
+                                    <?php endif; ?>
+                                <?php } else { ?>
+                                    <span class="badge bg-secondary">Assessment</span>
+                                <?php } ?>
+                            <?php else: ?>
+                                <span class="badge bg-secondary">Regular</span>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+                    <tr>
                         <th>Status</th>
                         <td>
                             <span class="badge bg-<?php 
@@ -78,6 +108,12 @@ $sesi_list = $stmt->fetchAll();
                             </span>
                         </td>
                     </tr>
+                    <?php if (!empty($ujian['periode_sumatip']) && has_operator_access()): ?>
+                        <tr>
+                            <th>Periode SUMATIP</th>
+                            <td><?php echo escape($ujian['periode_sumatip']); ?></td>
+                        </tr>
+                    <?php endif; ?>
                     <tr>
                         <th>Deskripsi</th>
                         <td><?php echo escape($ujian['deskripsi'] ?? '-'); ?></td>

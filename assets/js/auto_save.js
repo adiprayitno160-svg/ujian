@@ -54,9 +54,34 @@ const AutoSave = {
     
     setupBlurSave: function() {
         // Save when leaving a question
-        document.addEventListener('blur', (e) => {
-            if (e.target.matches('input[type="radio"], input[type="checkbox"], textarea, input[type="text"]')) {
-                this.save();
+        // Use focusout event instead of blur (focusout bubbles, blur doesn't)
+        document.addEventListener('focusout', (e) => {
+            // Check if target exists and is a DOM element
+            if (e.target && e.target.nodeType === 1) {
+                // Check if it's an input element we care about
+                const tagName = e.target.tagName.toLowerCase();
+                const type = e.target.type ? e.target.type.toLowerCase() : '';
+                
+                if ((tagName === 'input' && (type === 'radio' || type === 'checkbox' || type === 'text')) || 
+                    tagName === 'textarea') {
+                    // Small delay to allow other handlers to process first
+                    setTimeout(() => {
+                        this.save();
+                    }, 100);
+                }
+            }
+        }, true);
+        
+        // Also handle change events for immediate feedback
+        document.addEventListener('change', (e) => {
+            if (e.target && e.target.nodeType === 1) {
+                const tagName = e.target.tagName.toLowerCase();
+                const type = e.target.type ? e.target.type.toLowerCase() : '';
+                
+                if ((tagName === 'input' && (type === 'radio' || type === 'checkbox')) || 
+                    tagName === 'textarea') {
+                    this.save();
+                }
             }
         }, true);
     },
@@ -70,6 +95,12 @@ const AutoSave = {
     
     save: function(silent = false) {
         if (this.isSaving) return;
+        
+        // Check if UJAN is available
+        if (typeof UJAN === 'undefined' || !UJAN || !UJAN.ajax) {
+            console.warn('UJAN.ajax is not available, skipping save');
+            return;
+        }
         
         const sesiId = document.querySelector('[data-sesi-id]')?.getAttribute('data-sesi-id');
         const ujianId = document.querySelector('[data-ujian-id]')?.getAttribute('data-ujian-id');
@@ -165,13 +196,25 @@ const AutoSave = {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    if (document.querySelector('[data-sesi-id]')) {
-        AutoSave.init();
+    // Wait for UJAN to be available
+    function initAutoSave() {
+        if (typeof UJAN === 'undefined' || !UJAN) {
+            // Wait a bit more if UJAN is not yet available
+            setTimeout(initAutoSave, 100);
+            return;
+        }
         
-        // Also save to localStorage periodically
-        setInterval(() => {
-            AutoSave.saveToLocalStorage();
-        }, 10000); // Every 10 seconds
+        if (document.querySelector('[data-sesi-id]')) {
+            AutoSave.init();
+            
+            // Also save to localStorage periodically
+            setInterval(() => {
+                AutoSave.saveToLocalStorage();
+            }, 10000); // Every 10 seconds
+        }
     }
+    
+    // Start initialization
+    initAutoSave();
 });
 

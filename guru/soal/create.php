@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/functions_sumatip.php';
 
 require_role('guru');
 check_session_timeout();
@@ -30,6 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tipe_soal = sanitize($_POST['tipe_soal'] ?? '');
     $bobot = floatval($_POST['bobot'] ?? 1.0);
     $kunci_jawaban = $_POST['kunci_jawaban'] ?? '';
+    $media_path = sanitize($_POST['media_path'] ?? '');
+    $media_type = sanitize($_POST['media_type'] ?? '');
     
     if (empty($pertanyaan) || !$id_ujian || !$tipe_soal) {
         $error = 'Pertanyaan, ujian, dan tipe soal harus diisi';
@@ -61,11 +64,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
             }
             
+            // Validate media_type if media_path is provided
+            if (!empty($media_path) && !in_array($media_type, ['gambar', 'video'])) {
+                $media_type = null;
+                $media_path = null;
+            }
+            
             // Insert soal
             $stmt = $pdo->prepare("INSERT INTO soal 
-                                  (id_ujian, pertanyaan, tipe_soal, opsi_json, kunci_jawaban, bobot, urutan) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$id_ujian, $pertanyaan, $tipe_soal, $opsi_json, $kunci_jawaban, $bobot, $urutan]);
+                                  (id_ujian, pertanyaan, tipe_soal, opsi_json, kunci_jawaban, bobot, urutan, gambar, media_type) 
+                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->execute([$id_ujian, $pertanyaan, $tipe_soal, $opsi_json, $kunci_jawaban, $bobot, $urutan, $media_path, $media_type]);
             $soal_id = $pdo->lastInsertId();
             
             // Handle matching items
@@ -79,6 +88,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $stmt->execute([$soal_id, sanitize($kiri), sanitize($items_kanan[$idx]), $idx + 1]);
                     }
                 }
+            }
+            
+            // Get ujian info untuk tingkat_kelas
+            $stmt_ujian = $pdo->prepare("SELECT id_mapel, tingkat_kelas FROM ujian WHERE id = ?");
+            $stmt_ujian->execute([$id_ujian]);
+            $ujian_info = $stmt_ujian->fetch();
+            
+            // Auto-add soal to bank_soal
+            if ($ujian_info) {
+                add_soal_to_bank($soal_id, $ujian_info['id_mapel'], $ujian_info['tingkat_kelas']);
             }
             
             $pdo->commit();
@@ -118,7 +137,7 @@ $ujian_list = $stmt->fetchAll();
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <form method="POST" id="soalForm">
+        <form method="POST" id="soalForm" enctype="multipart/form-data">
             <div class="mb-3">
                 <label for="id_ujian" class="form-label">Ujian <span class="text-danger">*</span></label>
                 <select class="form-select" id="id_ujian" name="id_ujian" required>
@@ -146,6 +165,37 @@ $ujian_list = $stmt->fetchAll();
             <div class="mb-3">
                 <label for="pertanyaan" class="form-label">Pertanyaan <span class="text-danger">*</span></label>
                 <textarea class="form-control" id="pertanyaan" name="pertanyaan" rows="4" required></textarea>
+            </div>
+            
+            <!-- Media Upload Section -->
+            <div class="mb-3">
+                <label for="soal_media" class="form-label">
+                    <i class="fas fa-image me-1"></i> Media Soal (Gambar/Video)
+                </label>
+                <input type="file" 
+                       class="form-control" 
+                       id="soal_media" 
+                       name="soal_media" 
+                       accept="image/*,video/*"
+                       onchange="handleMediaUpload(this)">
+                <small class="text-muted">
+                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 10MB), Video (MP4, WebM, OGG - maks. 50MB)
+                </small>
+                <div id="media_preview" class="mt-2" style="display:none;">
+                    <div class="alert alert-info d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="fas fa-check-circle me-2"></i>
+                            <span id="media_filename"></span>
+                            <span class="badge bg-primary ms-2" id="media_type_badge"></span>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-danger" onclick="removeMedia()">
+                            <i class="fas fa-times"></i> Hapus
+                        </button>
+                    </div>
+                    <div id="media_preview_content" class="mt-2"></div>
+                </div>
+                <input type="hidden" id="media_path" name="media_path" value="">
+                <input type="hidden" id="media_type" name="media_type" value="">
             </div>
             
             <!-- Pilihan Ganda Fields -->
@@ -302,6 +352,77 @@ function addMatchingItem() {
 
 function removeMatchingItem(btn) {
     btn.closest('.matching-item').remove();
+}
+
+// Media upload handling
+function handleMediaUpload(input) {
+    const file = input.files[0];
+    if (!file) {
+        removeMedia();
+        return;
+    }
+    
+    // Validate file size
+    const maxSize = file.type.startsWith('video/') ? 52428800 : 10485760; // 50MB for video, 10MB for image
+    if (file.size > maxSize) {
+        alert('Ukuran file terlalu besar. Maksimal: ' + (maxSize / 1048576) + 'MB');
+        input.value = '';
+        removeMedia();
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('media_preview').style.display = 'block';
+    document.getElementById('media_filename').textContent = file.name;
+    document.getElementById('media_preview_content').innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin"></i> Mengupload...</div>';
+    
+    // Create FormData
+    const formData = new FormData();
+    formData.append('media', file);
+    
+    // Upload file
+    fetch('<?php echo base_url("api/upload_soal_media.php"); ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('media_path').value = data.path;
+            document.getElementById('media_type').value = data.media_type;
+            document.getElementById('media_type_badge').textContent = data.media_type === 'gambar' ? 'Gambar' : 'Video';
+            
+            // Show preview
+            if (data.media_type === 'gambar') {
+                document.getElementById('media_preview_content').innerHTML = 
+                    '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
+            } else {
+                document.getElementById('media_preview_content').innerHTML = 
+                    '<video controls class="img-thumbnail" style="max-width: 400px; max-height: 300px;">' +
+                    '<source src="' + data.url + '" type="' + data.mime_type + '">' +
+                    'Browser Anda tidak mendukung video tag.' +
+                    '</video>';
+            }
+        } else {
+            alert('Error: ' + data.message);
+            input.value = '';
+            removeMedia();
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Terjadi kesalahan saat mengupload file');
+        input.value = '';
+        removeMedia();
+    });
+}
+
+function removeMedia() {
+    document.getElementById('soal_media').value = '';
+    document.getElementById('media_path').value = '';
+    document.getElementById('media_type').value = '';
+    document.getElementById('media_preview').style.display = 'none';
+    document.getElementById('media_preview_content').innerHTML = '';
 }
 </script>
 

@@ -7,9 +7,16 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/functions_sumatip.php';
 
 require_role('siswa');
 check_session_timeout();
+
+// Check if student is in exam mode - but allow list page (students need to see available exams)
+// The restriction will redirect them to the exam if they try to access other pages
+if (function_exists('check_exam_mode_restriction')) {
+    check_exam_mode_restriction(['list.php']); // Explicitly allow list.php
+}
 
 $page_title = 'Daftar Ujian';
 $role_css = 'siswa';
@@ -26,7 +33,7 @@ $tahun_ajaran = get_tahun_ajaran_aktif();
 
 // Get available sesi
 // Check both individual assignment and kelas assignment
-$stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, m.nama_mapel,
+$stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, u.tipe_asesmen, u.is_mandatory, m.nama_mapel,
                       (SELECT status FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) as status_nilai
                       FROM sesi_ujian s
                       INNER JOIN ujian u ON s.id_ujian = u.id
@@ -89,7 +96,17 @@ $sesi_list = $stmt->fetchAll();
                     <tbody>
                         <?php foreach ($sesi_list as $sesi): ?>
                         <tr>
-                            <td><?php echo escape($sesi['judul']); ?></td>
+                            <td>
+                                <?php echo escape($sesi['judul']); ?>
+                                <?php if (!empty($sesi['tipe_asesmen']) && $sesi['tipe_asesmen'] !== 'regular'): ?>
+                                    <span class="badge <?php echo get_sumatip_badge_class($sesi['tipe_asesmen']); ?> ms-1">
+                                        <?php echo get_sumatip_badge_label($sesi['tipe_asesmen']); ?>
+                                    </span>
+                                    <?php if ($sesi['is_mandatory']): ?>
+                                        <span class="badge bg-danger">Wajib</span>
+                                    <?php endif; ?>
+                                <?php endif; ?>
+                            </td>
                             <td><?php echo escape($sesi['nama_mapel']); ?></td>
                             <td><?php echo escape($sesi['nama_sesi']); ?></td>
                             <td><?php echo format_date($sesi['waktu_mulai']); ?></td>

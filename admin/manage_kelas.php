@@ -104,6 +104,31 @@ foreach ($kelas_list as $kelas) {
     $siswa_per_kelas[$kelas['id']] = $stmt->fetchAll();
 }
 
+// Get guru-mapel assignments per kelas
+$guru_mapel_per_kelas = [];
+foreach ($kelas_list as $kelas) {
+    try {
+        // Check if table exists
+        $stmt = $pdo->prepare("SELECT DISTINCT 
+                              u.id as guru_id, 
+                              u.nama as guru_nama,
+                              m.id as mapel_id,
+                              m.nama_mapel,
+                              m.kode_mapel
+                              FROM guru_mapel_kelas gmk
+                              INNER JOIN users u ON gmk.id_guru = u.id
+                              INNER JOIN mapel m ON gmk.id_mapel = m.id
+                              WHERE gmk.id_kelas = ?
+                              AND u.status = 'active'
+                              ORDER BY m.kode_mapel ASC, u.nama ASC");
+        $stmt->execute([$kelas['id']]);
+        $guru_mapel_per_kelas[$kelas['id']] = $stmt->fetchAll();
+    } catch (PDOException $e) {
+        // Table might not exist yet, return empty array
+        $guru_mapel_per_kelas[$kelas['id']] = [];
+    }
+}
+
 // Get count per tingkat
 $stmt = $pdo->query("SELECT tingkat, COUNT(*) as total FROM kelas WHERE status = 'active' GROUP BY tingkat");
 $count_per_tingkat = [];
@@ -177,6 +202,7 @@ $total_all = $stmt->fetch()['total'];
                         <th>Tingkat</th>
                         <th>Tahun Ajaran</th>
                         <th>Jumlah Siswa</th>
+                        <th>Guru & Mata Pelajaran</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -184,13 +210,29 @@ $total_all = $stmt->fetch()['total'];
                 <tbody>
                     <?php if (empty($kelas_list)): ?>
                         <tr>
-                            <td colspan="7" class="text-center py-4">
+                            <td colspan="8" class="text-center py-4">
                                 <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
                                 <p class="text-muted mb-0">Tidak ada kelas<?php echo $filter_tingkat ? ' untuk tingkat ' . $filter_tingkat : ''; ?></p>
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($kelas_list as $kelas): ?>
+                        <?php
+                        $guru_mapel_data = $guru_mapel_per_kelas[$kelas['id']] ?? [];
+                        // Group by mapel
+                        $mapel_guru = [];
+                        foreach ($guru_mapel_data as $item) {
+                            $mapel_key = $item['mapel_id'];
+                            if (!isset($mapel_guru[$mapel_key])) {
+                                $mapel_guru[$mapel_key] = [
+                                    'mapel' => $item['nama_mapel'],
+                                    'kode' => $item['kode_mapel'],
+                                    'gurus' => []
+                                ];
+                            }
+                            $mapel_guru[$mapel_key]['gurus'][] = $item['guru_nama'];
+                        }
+                        ?>
                         <tr>
                             <td><?php echo $kelas['id']; ?></td>
                             <td><?php echo escape($kelas['nama_kelas']); ?></td>
@@ -200,6 +242,22 @@ $total_all = $stmt->fetch()['total'];
                                 <span class="badge bg-info">
                                     <i class="fas fa-users"></i> <?php echo intval($kelas['jumlah_siswa'] ?? 0); ?> siswa
                                 </span>
+                            </td>
+                            <td>
+                                <?php if (!empty($mapel_guru)): ?>
+                                    <div class="d-flex flex-column gap-1" style="max-width: 300px;">
+                                        <?php foreach ($mapel_guru as $mapel_data): ?>
+                                            <div>
+                                                <small class="text-muted fw-bold"><?php echo escape($mapel_data['kode']); ?>:</small>
+                                                <?php foreach ($mapel_data['gurus'] as $guru_nama): ?>
+                                                    <span class="badge bg-info me-1"><?php echo escape($guru_nama); ?></span>
+                                                <?php endforeach; ?>
+                                            </div>
+                                        <?php endforeach; ?>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="text-muted small">Belum ada guru</span>
+                                <?php endif; ?>
                             </td>
                             <td>
                                 <span class="badge bg-<?php echo $kelas['status'] === 'active' ? 'success' : 'secondary'; ?>">

@@ -164,3 +164,33 @@ function has_operator_access($user_id = null) {
     }
 }
 
+/**
+ * Check if guru can create assessment soal
+ * Only guru with can_create_assessment_soal = 1 can create assessment questions
+ */
+function can_create_assessment_soal($user_id = null) {
+    global $pdo;
+    
+    if ($user_id === null) {
+        if (!isset($_SESSION['user_id'])) {
+            return false;
+        }
+        $user_id = $_SESSION['user_id'];
+    }
+    
+    // Admin always can create assessment soal
+    if (isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
+        return true;
+    }
+    
+    try {
+        $stmt = $pdo->prepare("SELECT can_create_assessment_soal FROM users WHERE id = ? AND role = 'guru'");
+        $stmt->execute([$user_id]);
+        $result = $stmt->fetch();
+        return $result && (bool)$result['can_create_assessment_soal'];
+    } catch (PDOException $e) {
+        error_log("Check can create assessment soal error: " . $e->getMessage());
+        return false;
+    }
+}
+

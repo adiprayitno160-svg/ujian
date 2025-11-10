@@ -31,12 +31,22 @@ if (!$soal) {
 }
 
 try {
+    $pdo->beginTransaction();
+    
+    // Delete media file if exists
+    if (!empty($soal['gambar'])) {
+        delete_soal_media($soal['gambar']);
+    }
+    
+    // Delete soal (cascade will delete matching items if any)
     $stmt = $pdo->prepare("DELETE FROM pr_soal WHERE id = ?");
     $stmt->execute([$soal_id]);
     
+    $pdo->commit();
     log_activity('delete_pr_soal', 'pr_soal', $soal_id);
     $_SESSION['success_message'] = 'Soal berhasil dihapus';
 } catch (PDOException $e) {
+    $pdo->rollBack();
     error_log("Delete PR soal error: " . $e->getMessage());
     $_SESSION['error_message'] = 'Terjadi kesalahan saat menghapus soal';
 }

@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
     try {
         $pdo->beginTransaction();
         
-        // Delete file if exists
+        // Delete PR attachment file if exists
         if ($pr['file_lampiran']) {
             $file_path = UPLOAD_PR . '/' . $pr['file_lampiran'];
             if (file_exists($file_path)) {
@@ -38,7 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
             }
         }
         
-        // Delete PR (cascade will delete pr_kelas and pr_submission)
+        // Delete all media files for soal in this PR (images and videos)
+        delete_pr_soal_media($pr_id);
+        
+        // Delete PR (cascade will delete pr_kelas, pr_submission, and pr_soal)
         $stmt = $pdo->prepare("DELETE FROM pr WHERE id = ? AND id_guru = ?");
         $stmt->execute([$pr_id, $_SESSION['user_id']]);
         
@@ -81,7 +84,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
             
             <div class="alert alert-danger">
                 <i class="fas fa-info-circle"></i> 
-                Tindakan ini tidak dapat dibatalkan. Semua data PR, kelas assignment, dan submission siswa akan dihapus.
+                <strong>Tindakan ini tidak dapat dibatalkan!</strong> Semua data PR akan dihapus termasuk:
+                <ul class="mb-0 mt-2">
+                    <li>Semua soal, gambar, dan video media</li>
+                    <li>Kelas assignment</li>
+                    <li>Submission siswa</li>
+                    <li>File lampiran PR</li>
+                </ul>
             </div>
             
             <form method="POST">

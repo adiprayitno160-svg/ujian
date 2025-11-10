@@ -52,8 +52,7 @@ try {
 
 <div class="row mb-4">
     <div class="col-12">
-        <h2 class="fw-bold">Dashboard Guru</h2>
-        <p class="text-muted">Selamat datang, <?php echo escape($_SESSION['nama']); ?>!</p>
+        <p class="text-muted mb-0">Selamat datang, <strong><?php echo escape($_SESSION['nama']); ?></strong>!</p>
     </div>
 </div>
 
@@ -130,7 +129,6 @@ try {
         </div>
     </div>
 </div>
-
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 

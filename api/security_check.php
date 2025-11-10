@@ -29,6 +29,72 @@ if (!$sesi_id) {
 global $pdo;
 
 try {
+    // Handle specific actions
+    if ($action === 'check_ip') {
+        // Check if IP address has changed
+        $current_ip = get_client_ip();
+        
+        // Get ujian_id from sesi if not provided
+        if (!$ujian_id) {
+            $stmt = $pdo->prepare("SELECT id_ujian FROM sesi_ujian WHERE id = ?");
+            $stmt->execute([$sesi_id]);
+            $sesi = $stmt->fetch();
+            $ujian_id = $sesi['id_ujian'] ?? 0;
+        }
+        
+        // Get initial IP from nilai record
+        $stmt = $pdo->prepare("SELECT ip_address FROM nilai 
+                              WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+        $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
+        $nilai = $stmt->fetch();
+        
+        $ip_changed = false;
+        if ($nilai && $nilai['ip_address'] && $nilai['ip_address'] !== $current_ip) {
+            $ip_changed = true;
+            log_security_event(
+                $_SESSION['user_id'],
+                $sesi_id,
+                'ip_change',
+                "IP changed from {$nilai['ip_address']} to {$current_ip}",
+                true
+            );
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'ip_changed' => $ip_changed,
+            'current_ip' => $current_ip
+        ]);
+        exit;
+    }
+    
+    if ($action === 'validate_session') {
+        // Get ujian_id from sesi if not provided
+        if (!$ujian_id) {
+            $stmt = $pdo->prepare("SELECT id_ujian FROM sesi_ujian WHERE id = ?");
+            $stmt->execute([$sesi_id]);
+            $sesi = $stmt->fetch();
+            $ujian_id = $sesi['id_ujian'] ?? 0;
+        }
+        
+        // Validate session
+        $validation = validate_exam_session($sesi_id, $_SESSION['user_id']);
+        
+        // Also check if session is still active
+        $stmt = $pdo->prepare("SELECT status FROM nilai 
+                              WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+        $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
+        $nilai = $stmt->fetch();
+        
+        $valid = $validation['valid'] && $nilai && $nilai['status'] === 'sedang_mengerjakan';
+        
+        echo json_encode([
+            'success' => true,
+            'valid' => $valid
+        ]);
+        exit;
+    }
+    
     // Log security event if action provided
     if ($action && $ujian_id) {
         log_security_event(

@@ -208,7 +208,7 @@ $history = $stmt->fetchAll();
 <div class="row mb-4">
     <div class="col-12">
         <h2 class="fw-bold">Naik Kelas</h2>
-        <p class="text-muted">Proses naik kelas otomatis untuk semua siswa. Tandai siswa yang tinggal kelas.</p>
+        <p class="text-muted">Tandai siswa yang tinggal kelas. Siswa yang tidak ditandai akan naik kelas otomatis.</p>
     </div>
 </div>
 
@@ -227,7 +227,7 @@ $history = $stmt->fetchAll();
 <!-- Form Naik Kelas -->
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-header bg-primary text-white">
-        <h5 class="mb-0"><i class="fas fa-arrow-up"></i> Proses Naik Kelas</h5>
+        <h5 class="mb-0"><i class="fas fa-user-times"></i> Tinggal Kelas</h5>
     </div>
     <div class="card-body">
         <form method="POST" id="naikKelasForm">
@@ -252,10 +252,10 @@ $history = $stmt->fetchAll();
                 <i class="fas fa-info-circle"></i> 
                 <strong>Informasi:</strong>
                 <ul class="mb-0 mt-2">
-                    <li>Semua siswa akan naik kelas secara otomatis (VII → VIII, VIII → IX)</li>
+                    <li><strong>Tandai checkbox</strong> untuk siswa yang <strong>tinggal kelas</strong> (tidak naik kelas)</li>
+                    <li>Siswa yang <strong>tidak ditandai</strong> akan naik kelas secara otomatis (VII → VIII, VIII → IX)</li>
                     <li>Siswa kelas IX akan tetap di kelas IX</li>
-                    <li>Tandai checkbox untuk siswa yang <strong>tinggal kelas</strong></li>
-                    <li>Siswa yang ditandai tinggal kelas akan tetap di kelas yang sama</li>
+                    <li>Siswa yang ditandai tinggal kelas akan tetap di kelas yang sama di tahun ajaran baru</li>
                 </ul>
             </div>
             
@@ -281,6 +281,7 @@ $history = $stmt->fetchAll();
                                 <th>Kelas Saat Ini</th>
                                 <th>Tingkat</th>
                                 <th>Kelas Baru</th>
+                                <th>Tinggal Kelas</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -301,11 +302,12 @@ $history = $stmt->fetchAll();
                                         $new_kelas_text = 'IX (tetap)';
                                     }
                             ?>
-                            <tr>
+                            <tr id="row-<?php echo $siswa['id']; ?>">
                                 <td>
                                     <input type="checkbox" name="tinggal_kelas[]" 
                                            value="<?php echo $siswa['id']; ?>" 
                                            class="tinggal-kelas-checkbox"
+                                           data-siswa-id="<?php echo $siswa['id']; ?>"
                                            title="Centang jika siswa ini tinggal kelas">
                                 </td>
                                 <td><?php echo $no++; ?></td>
@@ -317,12 +319,15 @@ $history = $stmt->fetchAll();
                                 </td>
                                 <td>
                                     <?php if ($new_tingkat): ?>
-                                        <span class="badge bg-<?php echo $new_tingkat === 'IX' ? 'warning' : 'success'; ?>">
+                                        <span class="badge bg-<?php echo $new_tingkat === 'IX' ? 'warning' : 'success'; ?>" id="kelas-baru-<?php echo $siswa['id']; ?>">
                                             <?php echo $new_kelas_text; ?>
                                         </span>
                                     <?php else: ?>
                                         <span class="text-muted">-</span>
                                     <?php endif; ?>
+                                </td>
+                                <td>
+                                    <span class="badge bg-success" id="status-<?php echo $siswa['id']; ?>">Naik Kelas</span>
                                 </td>
                             </tr>
                             <?php 
@@ -343,8 +348,8 @@ $history = $stmt->fetchAll();
             
             <div class="mt-4">
                 <button type="submit" class="btn btn-primary btn-lg" 
-                        onclick="return confirm('Yakin proses naik kelas? Pastikan tahun ajaran sudah benar.')">
-                    <i class="fas fa-arrow-up"></i> Proses Naik Kelas
+                        onclick="return confirm('Yakin proses naik/tinggal kelas? Pastikan tahun ajaran sudah benar.')">
+                    <i class="fas fa-user-times"></i> Tinggal Kelas
                 </button>
                 <button type="button" class="btn btn-secondary btn-lg" onclick="clearAll()">
                     <i class="fas fa-times"></i> Hapus Semua Tanda
@@ -404,34 +409,107 @@ $history = $stmt->fetchAll();
 </div>
 
 <script>
-// Select all checkbox
-document.getElementById('selectAll')?.addEventListener('change', function() {
-    const checkboxes = document.querySelectorAll('.tinggal-kelas-checkbox');
-    checkboxes.forEach(cb => cb.checked = this.checked);
-    updateTinggalCount();
-});
-
 // Update count
 function updateTinggalCount() {
     const checked = document.querySelectorAll('.tinggal-kelas-checkbox:checked').length;
-    document.getElementById('tinggalCount').textContent = checked;
+    const tinggalCountEl = document.getElementById('tinggalCount');
+    if (tinggalCountEl) {
+        tinggalCountEl.textContent = checked;
+    }
 }
 
-// Add event listeners to all checkboxes
-document.querySelectorAll('.tinggal-kelas-checkbox').forEach(cb => {
-    cb.addEventListener('change', updateTinggalCount);
+// Update status badge when checkbox changes
+function updateTinggalStatus(siswaId, isChecked) {
+    const statusBadge = document.getElementById('status-' + siswaId);
+    const kelasBaruBadge = document.getElementById('kelas-baru-' + siswaId);
+    const row = document.getElementById('row-' + siswaId);
+    
+    if (!statusBadge || !row) return;
+    
+    if (isChecked) {
+        statusBadge.className = 'badge bg-danger';
+        statusBadge.textContent = 'Tinggal Kelas';
+        if (kelasBaruBadge) {
+            // Update kelas baru to show akan tetap di kelas yang sama
+            const currentKelas = row.querySelector('td:nth-child(5)').textContent.trim();
+            kelasBaruBadge.className = 'badge bg-warning';
+            kelasBaruBadge.textContent = currentKelas + ' (tetap)';
+        }
+        row.style.backgroundColor = '#fff5f5';
+    } else {
+        statusBadge.className = 'badge bg-success';
+        statusBadge.textContent = 'Naik Kelas';
+        if (kelasBaruBadge) {
+            // Restore original kelas baru
+            const tingkatEl = row.querySelector('.badge.bg-primary');
+            if (tingkatEl) {
+                const tingkat = tingkatEl.textContent.trim();
+                if (tingkat === 'VII') {
+                    kelasBaruBadge.className = 'badge bg-success';
+                    kelasBaruBadge.textContent = 'VIII (akan ditentukan)';
+                } else if (tingkat === 'VIII') {
+                    kelasBaruBadge.className = 'badge bg-success';
+                    kelasBaruBadge.textContent = 'IX (akan ditentukan)';
+                } else if (tingkat === 'IX') {
+                    kelasBaruBadge.className = 'badge bg-warning';
+                    kelasBaruBadge.textContent = 'IX (tetap)';
+                }
+            }
+        }
+        row.style.backgroundColor = '';
+    }
+    updateTinggalCount();
+}
+
+// Select all checkbox
+document.getElementById('selectAll')?.addEventListener('change', function() {
+    const checkboxes = document.querySelectorAll('.tinggal-kelas-checkbox');
+    checkboxes.forEach(cb => {
+        const siswaId = cb.getAttribute('data-siswa-id');
+        if (siswaId) {
+            cb.checked = this.checked;
+            updateTinggalStatus(parseInt(siswaId), this.checked);
+        }
+    });
 });
 
 function clearAll() {
     if (confirm('Hapus semua tanda tinggal kelas?')) {
-        document.querySelectorAll('.tinggal-kelas-checkbox').forEach(cb => cb.checked = false);
-        document.getElementById('selectAll').checked = false;
-        updateTinggalCount();
+        document.querySelectorAll('.tinggal-kelas-checkbox').forEach(cb => {
+            const siswaId = cb.getAttribute('data-siswa-id');
+            if (siswaId) {
+                cb.checked = false;
+                updateTinggalStatus(parseInt(siswaId), false);
+            }
+        });
+        const selectAll = document.getElementById('selectAll');
+        if (selectAll) {
+            selectAll.checked = false;
+        }
     }
 }
 
-// Initialize count
-updateTinggalCount();
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize count
+    updateTinggalCount();
+    
+    // Add event listeners to all checkboxes
+    document.querySelectorAll('.tinggal-kelas-checkbox').forEach(cb => {
+        const siswaId = cb.getAttribute('data-siswa-id');
+        if (siswaId) {
+            // Initialize status for already checked boxes
+            if (cb.checked) {
+                updateTinggalStatus(parseInt(siswaId), true);
+            }
+            
+            // Add change event listener
+            cb.addEventListener('change', function() {
+                updateTinggalStatus(parseInt(siswaId), this.checked);
+            });
+        }
+    });
+});
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>

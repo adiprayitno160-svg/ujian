@@ -2,7 +2,11 @@
 /**
  * Manage Siswa - Guru
  * Sistem Ujian dan Pekerjaan Rumah (UJAN)
- * Hanya menampilkan siswa di kelas yang pernah di-assign ke ujian/PR yang dibuat oleh guru
+ * 
+ * CATATAN: Sistem menggunakan guru mata pelajaran (bukan guru kelas)
+ * - Guru hanya bisa melihat siswa di kelas yang pernah di-assign ke ujian/PR/tugas yang dibuat oleh guru tersebut
+ * - Guru mengajar mata pelajaran tertentu ke berbagai kelas
+ * - Siswa ditampilkan berdasarkan kelas yang relevan dengan mata pelajaran yang diajar oleh guru
  */
 
 require_once __DIR__ . '/../config/config.php';

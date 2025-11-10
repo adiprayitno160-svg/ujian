@@ -110,6 +110,80 @@ function delete_file($filepath) {
 }
 
 /**
+ * Delete media file for soal (image or video)
+ * 
+ * @param string $media_path Path to media file (filename only)
+ * @return bool True if file deleted successfully or doesn't exist
+ */
+function delete_soal_media($media_path) {
+    if (empty($media_path)) {
+        return true;
+    }
+    
+    $file_path = UPLOAD_SOAL . '/' . $media_path;
+    if (file_exists($file_path)) {
+        return @unlink($file_path);
+    }
+    return true; // File doesn't exist, consider it successful
+}
+
+/**
+ * Delete all media files for soal in an ujian
+ * 
+ * @param int $ujian_id ID of ujian
+ * @return int Number of files deleted
+ */
+function delete_ujian_soal_media($ujian_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT gambar FROM soal WHERE id_ujian = ? AND gambar IS NOT NULL AND gambar != ''");
+        $stmt->execute([$ujian_id]);
+        $soal_list = $stmt->fetchAll();
+        
+        $deleted_count = 0;
+        foreach ($soal_list as $soal) {
+            if (!empty($soal['gambar']) && delete_soal_media($soal['gambar'])) {
+                $deleted_count++;
+            }
+        }
+        
+        return $deleted_count;
+    } catch (PDOException $e) {
+        error_log("Delete ujian soal media error: " . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Delete all media files for soal in a PR
+ * 
+ * @param int $pr_id ID of PR
+ * @return int Number of files deleted
+ */
+function delete_pr_soal_media($pr_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT gambar FROM pr_soal WHERE id_pr = ? AND gambar IS NOT NULL AND gambar != ''");
+        $stmt->execute([$pr_id]);
+        $soal_list = $stmt->fetchAll();
+        
+        $deleted_count = 0;
+        foreach ($soal_list as $soal) {
+            if (!empty($soal['gambar']) && delete_soal_media($soal['gambar'])) {
+                $deleted_count++;
+            }
+        }
+        
+        return $deleted_count;
+    } catch (PDOException $e) {
+        error_log("Delete PR soal media error: " . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
  * Get sekolah info
  */
 function get_sekolah_info() {
@@ -169,6 +243,130 @@ function get_mapel($id) {
     } catch (PDOException $e) {
         error_log("Get mapel error: " . $e->getMessage());
         return null;
+    }
+}
+
+/**
+ * Get mata pelajaran yang diajar oleh guru
+ * Sistem menggunakan guru mata pelajaran (bukan guru kelas)
+ * Untuk SMP: Guru mengajar mata pelajaran tertentu ke berbagai kelas
+ * 
+ * @param int $guru_id ID guru
+ * @return array List of mata pelajaran
+ */
+function get_mapel_by_guru($guru_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT m.* FROM mapel m
+                              INNER JOIN guru_mapel gm ON m.id = gm.id_mapel
+                              WHERE gm.id_guru = ?
+                              ORDER BY m.nama_mapel ASC");
+        $stmt->execute([$guru_id]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Get mapel by guru error: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Check if guru teaches a specific mata pelajaran
+ * Validasi untuk memastikan guru hanya bisa mengakses mata pelajaran yang dia ajar
+ * 
+ * @param int $guru_id ID guru
+ * @param int $mapel_id ID mata pelajaran
+ * @return bool True if guru teaches the mata pelajaran
+ */
+function guru_mengajar_mapel($guru_id, $mapel_id) {
+    global $pdo;
+    
+    try {
+        // Check in guru_mapel_kelas first (new structure)
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM guru_mapel_kelas 
+                              WHERE id_guru = ? AND id_mapel = ?");
+        $stmt->execute([$guru_id, $mapel_id]);
+        if ($stmt->fetchColumn() > 0) {
+            return true;
+        }
+        
+        // Fallback to guru_mapel for backward compatibility
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM guru_mapel 
+                              WHERE id_guru = ? AND id_mapel = ?");
+        $stmt->execute([$guru_id, $mapel_id]);
+        return $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        error_log("Check guru mapel error: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Get kelas yang diajar oleh guru untuk mata pelajaran tertentu
+ * 
+ * @param int $guru_id ID guru
+ * @param int $mapel_id ID mata pelajaran
+ * @return array List of kelas
+ */
+function get_kelas_by_guru_mapel($guru_id, $mapel_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT k.* FROM kelas k
+                              INNER JOIN guru_mapel_kelas gmk ON k.id = gmk.id_kelas
+                              WHERE gmk.id_guru = ? AND gmk.id_mapel = ?
+                              AND k.status = 'active'
+                              ORDER BY k.tingkat ASC, k.nama_kelas ASC");
+        $stmt->execute([$guru_id, $mapel_id]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Get kelas by guru mapel error: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Check if guru teaches a specific kelas for a mata pelajaran
+ * 
+ * @param int $guru_id ID guru
+ * @param int $mapel_id ID mata pelajaran
+ * @param int $kelas_id ID kelas
+ * @return bool True if guru teaches the kelas for the mata pelajaran
+ */
+function guru_mengajar_mapel_kelas($guru_id, $mapel_id, $kelas_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) FROM guru_mapel_kelas 
+                              WHERE id_guru = ? AND id_mapel = ? AND id_kelas = ?");
+        $stmt->execute([$guru_id, $mapel_id, $kelas_id]);
+        return $stmt->fetchColumn() > 0;
+    } catch (PDOException $e) {
+        error_log("Check guru mapel kelas error: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Get all kelas yang diajar oleh guru (across all mata pelajaran)
+ * 
+ * @param int $guru_id ID guru
+ * @return array List of unique kelas
+ */
+function get_kelas_by_guru($guru_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT DISTINCT k.* FROM kelas k
+                              INNER JOIN guru_mapel_kelas gmk ON k.id = gmk.id_kelas
+                              WHERE gmk.id_guru = ?
+                              AND k.status = 'active'
+                              ORDER BY k.tingkat ASC, k.nama_kelas ASC");
+        $stmt->execute([$guru_id]);
+        return $stmt->fetchAll();
+    } catch (PDOException $e) {
+        error_log("Get kelas by guru error: " . $e->getMessage());
+        return [];
     }
 }
 
@@ -682,4 +880,23 @@ function parse_tahun_ajaran($tahun_ajaran_str) {
     
     return null;
 }
+
+/**
+ * Format file size
+ */
+function format_file_size($bytes) {
+    if ($bytes >= 1073741824) {
+        return number_format($bytes / 1073741824, 2) . ' GB';
+    } elseif ($bytes >= 1048576) {
+        return number_format($bytes / 1048576, 2) . ' MB';
+    } elseif ($bytes >= 1024) {
+        return number_format($bytes / 1024, 2) . ' KB';
+    } else {
+        return $bytes . ' bytes';
+    }
+}
+
+// Include PR and Tugas functions
+require_once __DIR__ . '/pr_functions.php';
+require_once __DIR__ . '/tugas_functions.php';
 

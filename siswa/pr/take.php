@@ -8,6 +8,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/functions_sumatip.php';
 
 require_role('siswa');
 check_session_timeout();
@@ -60,6 +61,9 @@ $submission = $stmt->fetch();
 if (!$submission) {
     $stmt = $pdo->prepare("INSERT INTO pr_submission (id_pr, id_siswa, status) VALUES (?, ?, 'draft')");
     $stmt->execute([$pr_id, $_SESSION['user_id']]);
+    
+    // Auto-absensi: create absensi record for PR
+    create_absensi(null, $_SESSION['user_id'], $pr_id, 'hadir', 'auto', null);
     
     $stmt = $pdo->prepare("SELECT * FROM pr_submission WHERE id_pr = ? AND id_siswa = ?");
     $stmt->execute([$pr_id, $_SESSION['user_id']]);
@@ -404,6 +408,27 @@ if (is_array($opsi)) {
                         <?php echo nl2br(escape($current_soal_data['pertanyaan'])); ?>
                     </div>
                     
+                    <?php if (!empty($current_soal_data['gambar'])): ?>
+                        <div class="question-media mt-3 mb-3">
+                            <?php 
+                            $media_url = UPLOAD_URL . '/soal/' . $current_soal_data['gambar'];
+                            $media_type = $current_soal_data['media_type'] ?? 'gambar';
+                            if ($media_type === 'gambar'): 
+                            ?>
+                                <img src="<?php echo $media_url; ?>" 
+                                     alt="Media Soal" 
+                                     class="img-fluid rounded shadow-sm" 
+                                     style="max-width: 100%; max-height: 500px; cursor: pointer;"
+                                     onclick="openMediaModal('<?php echo $media_url; ?>', 'gambar')">
+                            <?php else: ?>
+                                <video controls class="w-100 rounded shadow-sm" style="max-width: 100%; max-height: 500px;">
+                                    <source src="<?php echo $media_url; ?>" type="video/mp4">
+                                    Browser Anda tidak mendukung video tag.
+                                </video>
+                            <?php endif; ?>
+                        </div>
+                    <?php endif; ?>
+                    
                     <?php if ($current_soal_data['tipe_soal'] === 'pilihan_ganda'): ?>
                         <div class="options-container">
                             <?php foreach ($opsi as $key => $value): 
@@ -652,6 +677,30 @@ updateTimer();
 
 // Auto-save every 30 seconds
 setInterval(saveAnswer, 30000);
+
+// Media modal for image viewing
+function openMediaModal(url, type) {
+    if (type === 'gambar') {
+        const modal = document.createElement('div');
+        modal.className = 'media-modal';
+        modal.style.cssText = 'position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 9999; display: flex; align-items: center; justify-content: center; cursor: pointer;';
+        modal.onclick = function() { document.body.removeChild(modal); };
+        
+        const img = document.createElement('img');
+        img.src = url;
+        img.style.cssText = 'max-width: 90%; max-height: 90%; object-fit: contain;';
+        img.onclick = function(e) { e.stopPropagation(); };
+        
+        const closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.cssText = 'position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; font-weight: bold; background: none; border: none; cursor: pointer; z-index: 10000;';
+        closeBtn.onclick = function() { document.body.removeChild(modal); };
+        
+        modal.appendChild(img);
+        modal.appendChild(closeBtn);
+        document.body.appendChild(modal);
+    }
+}
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

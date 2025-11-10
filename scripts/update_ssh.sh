@@ -147,3 +147,5 @@ echo "  2. Set permissions: chmod -R 777 cache assets/uploads"
 echo "  3. Test aplikasi"
 echo ""
 
+
+

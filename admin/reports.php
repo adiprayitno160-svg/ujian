@@ -175,3 +175,5 @@ $recent_activities = $stmt->fetchAll();
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 
+
+

@@ -118,9 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         Minimum Waktu Submit (menit)
                     </label>
                     <input type="number" class="form-control" id="min_submit_minutes" 
-                           name="min_submit_minutes" value="<?php echo $ujian['min_submit_minutes'] ?? 0; ?>" 
+                           name="min_submit_minutes" value="<?php echo $ujian['min_submit_minutes'] ?? DEFAULT_MIN_SUBMIT_MINUTES; ?>" 
                            min="0" max="60">
-                    <small class="text-muted">Siswa harus menunggu X menit sebelum bisa submit (0 = tidak ada batasan)</small>
+                    <small class="text-muted">Siswa harus menunggu minimal X menit setelah mulai ujian sebelum bisa submit. Default: <?php echo DEFAULT_MIN_SUBMIT_MINUTES; ?> menit (0 = tidak ada batasan)</small>
                 </div>
             </div>
             

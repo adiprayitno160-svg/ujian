@@ -49,6 +49,8 @@ $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $komentar = sanitize($_POST['komentar'] ?? '');
+    $tipe_submission = sanitize($_POST['tipe_submission'] ?? 'file');
+    $jawaban_text = isset($_POST['jawaban_text']) ? $_POST['jawaban_text'] : ''; // Allow HTML from editor
     
     // Check deadline
     $deadline = new DateTime($pr['deadline']);
@@ -58,46 +60,97 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Deadline sudah lewat';
     } else {
         try {
-            // Handle file upload
             $file_jawaban = null;
-            if (isset($_FILES['file_jawaban']) && $_FILES['file_jawaban']['error'] === UPLOAD_ERR_OK) {
-                $upload_result = upload_file($_FILES['file_jawaban'], UPLOAD_PR, ALLOWED_DOC_TYPES);
-                if ($upload_result['success']) {
-                    $file_jawaban = $upload_result['filename'];
+            $has_file = false;
+            $has_text = false;
+            
+            // Handle file upload (if file type is selected)
+            if ($tipe_submission === 'file' || $tipe_submission === 'both') {
+                if (isset($_FILES['file_jawaban']) && $_FILES['file_jawaban']['error'] === UPLOAD_ERR_OK) {
+                    $upload_result = upload_file($_FILES['file_jawaban'], UPLOAD_PR, ALLOWED_DOC_TYPES);
+                    if ($upload_result['success']) {
+                        $file_jawaban = $upload_result['filename'];
+                        $has_file = true;
+                    } else {
+                        $error = $upload_result['message'];
+                    }
+                } elseif (!$submission || ($submission && !$submission['file_jawaban'])) {
+                    // Only require file if it's file type and no existing submission
+                    if ($tipe_submission === 'file') {
+                        $error = 'File jawaban harus diupload';
+                    }
                 } else {
-                    $error = $upload_result['message'];
+                    // Keep existing file if updating
+                    $file_jawaban = $submission['file_jawaban'];
+                    $has_file = true;
                 }
-            } elseif ($submission && !$submission['file_jawaban']) {
-                $error = 'File jawaban harus diupload';
+            } elseif ($submission && $submission['file_jawaban']) {
+                // Keep existing file if switching to text-only
+                $file_jawaban = $submission['file_jawaban'];
+                $has_file = true;
+            }
+            
+            // Handle text submission (if text type is selected)
+            if ($tipe_submission === 'text' || $tipe_submission === 'both') {
+                if (!empty(trim(strip_tags($jawaban_text)))) {
+                    $has_text = true;
+                } elseif ($tipe_submission === 'text' && (!$submission || empty($submission['jawaban_text']))) {
+                    $error = 'Jawaban harus diisi';
+                }
+            } elseif ($submission && $submission['jawaban_text']) {
+                // Keep existing text if switching to file-only
+                $jawaban_text = $submission['jawaban_text'];
+                $has_text = true;
+            }
+            
+            // Determine actual submission type
+            if ($has_file && $has_text) {
+                $tipe_submission = 'both';
+            } elseif ($has_file) {
+                $tipe_submission = 'file';
+            } elseif ($has_text) {
+                $tipe_submission = 'text';
+            } else {
+                $error = 'Harus mengupload file atau mengisi jawaban';
             }
             
             if (!$error) {
                 if ($submission) {
                     // Update
-                    if ($file_jawaban) {
-                        // Delete old file
+                    if ($file_jawaban && $file_jawaban !== $submission['file_jawaban']) {
+                        // Delete old file if new one is uploaded
                         if ($submission['file_jawaban']) {
-                            $old_file = UPLOAD_DIR . '/pr/' . $submission['file_jawaban'];
+                            $old_file = UPLOAD_PR . '/' . $submission['file_jawaban'];
                             if (file_exists($old_file)) {
                                 unlink($old_file);
                             }
                         }
-                        $stmt = $pdo->prepare("UPDATE pr_submission SET 
-                                              file_jawaban = ?, komentar = ?, waktu_submit = NOW(), status = 'sudah_dikumpulkan'
-                                              WHERE id = ?");
-                        $stmt->execute([$file_jawaban, $komentar, $submission['id']]);
-                    } else {
-                        $stmt = $pdo->prepare("UPDATE pr_submission SET 
-                                              komentar = ?, waktu_submit = NOW(), status = 'sudah_dikumpulkan'
-                                              WHERE id = ?");
-                        $stmt->execute([$komentar, $submission['id']]);
                     }
+                    
+                    $stmt = $pdo->prepare("UPDATE pr_submission SET 
+                                          file_jawaban = ?, jawaban_text = ?, komentar = ?, tipe_submission = ?, 
+                                          waktu_submit = NOW(), status = 'sudah_dikumpulkan'
+                                          WHERE id = ?");
+                    $stmt->execute([
+                        $file_jawaban, 
+                        $jawaban_text, 
+                        $komentar, 
+                        $tipe_submission, 
+                        $submission['id']
+                    ]);
                 } else {
                     // Insert
                     $stmt = $pdo->prepare("INSERT INTO pr_submission 
-                                          (id_pr, id_siswa, file_jawaban, komentar, status, waktu_submit) 
-                                          VALUES (?, ?, ?, ?, 'sudah_dikumpulkan', NOW())");
-                    $stmt->execute([$pr_id, $_SESSION['user_id'], $file_jawaban, $komentar]);
+                                          (id_pr, id_siswa, file_jawaban, jawaban_text, komentar, tipe_submission, status, waktu_submit) 
+                                          VALUES (?, ?, ?, ?, ?, ?, 'sudah_dikumpulkan', NOW())");
+                    $stmt->execute([
+                        $pr_id, 
+                        $_SESSION['user_id'], 
+                        $file_jawaban, 
+                        $jawaban_text, 
+                        $komentar, 
+                        $tipe_submission
+                    ]);
                 }
                 
                 $success = 'PR berhasil dikumpulkan';
@@ -207,6 +260,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <td><?php echo nl2br(escape($submission['feedback'])); ?></td>
             </tr>
             <?php endif; ?>
+            <?php if ($submission && $submission['tipe_submission']): ?>
+            <tr>
+                <th>Tipe Submission</th>
+                <td>
+                    <span class="badge bg-info">
+                        <?php 
+                        echo $submission['tipe_submission'] === 'file' ? 'File' : 
+                            ($submission['tipe_submission'] === 'text' ? 'Text' : 'File & Text'); 
+                        ?>
+                    </span>
+                </td>
+            </tr>
+            <?php endif; ?>
+            <?php if ($submission && $submission['jawaban_text']): ?>
+            <tr>
+                <th>Jawaban Text</th>
+                <td>
+                    <div class="border p-3 bg-light rounded" style="max-height: 300px; overflow-y: auto;">
+                        <?php echo $submission['jawaban_text']; ?>
+                    </div>
+                </td>
+            </tr>
+            <?php endif; ?>
+            <?php if ($submission && $submission['file_jawaban']): ?>
+            <tr>
+                <th>File Jawaban</th>
+                <td>
+                    <a href="<?php echo asset_url('uploads/pr/' . $submission['file_jawaban']); ?>" target="_blank" class="btn btn-sm btn-outline-primary">
+                        <i class="fas fa-download"></i> <?php echo escape($submission['file_jawaban']); ?>
+                    </a>
+                </td>
+            </tr>
+            <?php endif; ?>
         </table>
     </div>
 </div>
@@ -214,24 +300,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="card border-0 shadow-sm">
     <div class="card-body">
-        <form method="POST" enctype="multipart/form-data">
-            <div class="mb-3">
+        <form method="POST" enctype="multipart/form-data" id="submitForm">
+            <!-- Submission Type Selection -->
+            <div class="mb-4">
+                <label class="form-label fw-bold">Pilih Tipe Submission <span class="text-danger">*</span></label>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <div class="card border-2 h-100 submission-type-option" data-type="file" style="cursor: pointer;">
+                            <div class="card-body text-center">
+                                <input type="radio" name="tipe_submission" id="tipe_file" value="file" 
+                                       class="form-check-input" 
+                                       <?php echo (!$submission || ($submission['tipe_submission'] ?? 'file') === 'file') ? 'checked' : ''; ?>>
+                                <label for="tipe_file" class="form-check-label w-100" style="cursor: pointer;">
+                                    <i class="fas fa-file-upload fa-2x text-primary mb-2"></i>
+                                    <h6 class="mb-1">Upload File</h6>
+                                    <small class="text-muted">Upload file jawaban (PDF, DOC, DOCX, ZIP)</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-2 h-100 submission-type-option" data-type="text" style="cursor: pointer;">
+                            <div class="card-body text-center">
+                                <input type="radio" name="tipe_submission" id="tipe_text" value="text" 
+                                       class="form-check-input"
+                                       <?php echo ($submission && ($submission['tipe_submission'] ?? '') === 'text') ? 'checked' : ''; ?>>
+                                <label for="tipe_text" class="form-check-label w-100" style="cursor: pointer;">
+                                    <i class="fas fa-keyboard fa-2x text-success mb-2"></i>
+                                    <h6 class="mb-1">Kerjakan Langsung</h6>
+                                    <small class="text-muted">Tulis jawaban langsung di sistem</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="card border-2 h-100 submission-type-option" data-type="both" style="cursor: pointer;">
+                            <div class="card-body text-center">
+                                <input type="radio" name="tipe_submission" id="tipe_both" value="both" 
+                                       class="form-check-input"
+                                       <?php echo ($submission && ($submission['tipe_submission'] ?? '') === 'both') ? 'checked' : ''; ?>>
+                                <label for="tipe_both" class="form-check-label w-100" style="cursor: pointer;">
+                                    <i class="fas fa-file-alt fa-2x text-info mb-2"></i>
+                                    <h6 class="mb-1">Kedua-duanya</h6>
+                                    <small class="text-muted">Upload file dan tulis jawaban</small>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- File Upload Section -->
+            <div class="mb-3" id="file-upload-section">
                 <label for="file_jawaban" class="form-label">
-                    File Jawaban <?php echo $submission && $submission['file_jawaban'] ? '(Update)' : ''; ?>
-                    <span class="text-danger">*</span>
+                    File Jawaban 
+                    <?php if ($submission && $submission['file_jawaban']): ?>
+                        <span class="badge bg-success">Sudah ada file</span>
+                    <?php else: ?>
+                        <span class="text-danger">*</span>
+                    <?php endif; ?>
                 </label>
                 <input type="file" class="form-control" id="file_jawaban" name="file_jawaban" 
-                       accept=".pdf,.doc,.docx,.zip" <?php echo !$submission || !$submission['file_jawaban'] ? 'required' : ''; ?>>
+                       accept=".pdf,.doc,.docx,.zip">
                 <small class="text-muted">Format: PDF, DOC, DOCX, ZIP. Max: 10MB</small>
                 <?php if ($submission && $submission['file_jawaban']): ?>
                 <div class="mt-2">
-                    <small>File saat ini: 
-                        <a href="<?php echo asset_url('uploads/pr/' . $submission['file_jawaban']); ?>" target="_blank">
+                    <div class="alert alert-info">
+                        <i class="fas fa-file"></i> File saat ini: 
+                        <a href="<?php echo asset_url('uploads/pr/' . $submission['file_jawaban']); ?>" target="_blank" class="fw-bold">
                             <?php echo escape($submission['file_jawaban']); ?>
                         </a>
-                    </small>
+                        <br><small class="text-muted">Upload file baru untuk mengganti file yang sudah ada</small>
+                    </div>
                 </div>
                 <?php endif; ?>
+            </div>
+            
+            <!-- Text Answer Section -->
+            <div class="mb-3" id="text-answer-section">
+                <label for="jawaban_text" class="form-label">
+                    Jawaban 
+                    <?php if ($submission && $submission['jawaban_text']): ?>
+                        <span class="badge bg-success">Sudah ada jawaban</span>
+                    <?php else: ?>
+                        <span class="text-danger">*</span>
+                    <?php endif; ?>
+                </label>
+                <div id="editor-wrapper">
+                    <textarea class="form-control" id="jawaban_text" name="jawaban_text" rows="10" style="min-height: 400px;"><?php echo htmlspecialchars($submission['jawaban_text'] ?? '', ENT_QUOTES, 'UTF-8'); ?></textarea>
+                </div>
+                <small class="text-muted">Tulis jawaban Anda di sini. Anda dapat menggunakan formatting seperti bold, italic, list, dll.</small>
             </div>
             
             <div class="mb-3">
@@ -251,4 +409,186 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 </div>
 
+<!-- Include Quill Editor -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+<script>
+// Initialize Quill Editor
+let quill = null;
+
+// Handle submission type change
+function updateSubmissionSections() {
+    const selectedType = document.querySelector('input[name="tipe_submission"]:checked').value;
+    const fileSection = document.getElementById('file-upload-section');
+    const textSection = document.getElementById('text-answer-section');
+    const fileInput = document.getElementById('file_jawaban');
+    const textEditor = document.getElementById('jawaban_text');
+    
+    // Update card borders
+    document.querySelectorAll('.submission-type-option').forEach(card => {
+        card.classList.remove('border-primary');
+        card.style.borderColor = '';
+    });
+    document.querySelector(`.submission-type-option[data-type="${selectedType}"]`).classList.add('border-primary');
+    document.querySelector(`.submission-type-option[data-type="${selectedType}"]`).style.borderWidth = '3px';
+    
+    if (selectedType === 'file') {
+        fileSection.style.display = 'block';
+        textSection.style.display = 'none';
+        fileInput.removeAttribute('required');
+        if (!fileInput.hasAttribute('data-has-file')) {
+            fileInput.setAttribute('required', 'required');
+        }
+    } else if (selectedType === 'text') {
+        fileSection.style.display = 'none';
+        textSection.style.display = 'block';
+        fileInput.removeAttribute('required');
+    } else if (selectedType === 'both') {
+        fileSection.style.display = 'block';
+        textSection.style.display = 'block';
+        fileInput.removeAttribute('required');
+    }
+}
+
+// Initialize Quill editor
+function initQuillEditor() {
+    const textSection = document.getElementById('text-answer-section');
+    const textarea = document.getElementById('jawaban_text');
+    
+    if (textSection && textSection.style.display !== 'none') {
+        // Create editor container
+        const editorContainer = document.createElement('div');
+        editorContainer.id = 'editor-container';
+        editorContainer.style.height = '400px';
+        editorContainer.style.marginBottom = '10px';
+        
+        // Hide textarea and insert editor
+        textarea.style.display = 'none';
+        textarea.parentNode.insertBefore(editorContainer, textarea);
+        
+        // Initialize Quill
+        quill = new Quill('#editor-container', {
+            theme: 'snow',
+            modules: {
+                toolbar: [
+                    [{ 'header': [1, 2, 3, false] }],
+                    ['bold', 'italic', 'underline', 'strike'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    [{ 'align': [] }],
+                    ['link', 'image'],
+                    ['clean']
+                ]
+            },
+            placeholder: 'Tulis jawaban Anda di sini...'
+        });
+        
+        // Set initial content if exists
+        <?php if ($submission && $submission['jawaban_text']): ?>
+        quill.root.innerHTML = <?php echo json_encode($submission['jawaban_text']); ?>;
+        <?php endif; ?>
+        
+        // Update textarea on text change
+        quill.on('text-change', function() {
+            textarea.value = quill.root.innerHTML;
+        });
+        
+        // Set initial value
+        textarea.value = quill.root.innerHTML;
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    updateSubmissionSections();
+    initQuillEditor();
+    
+    // Add event listeners to radio buttons
+    document.querySelectorAll('input[name="tipe_submission"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            updateSubmissionSections();
+            // Reinitialize editor if text section is shown
+            setTimeout(function() {
+                if (document.getElementById('text-answer-section').style.display !== 'none') {
+                    if (!quill) {
+                        initQuillEditor();
+                    }
+                } else {
+                    // Destroy editor if hidden
+                    if (quill) {
+                        const editorContainer = document.getElementById('editor-container');
+                        if (editorContainer) {
+                            editorContainer.remove();
+                            document.getElementById('jawaban_text').style.display = 'block';
+                            quill = null;
+                        }
+                    }
+                }
+            }, 100);
+        });
+    });
+    
+    // Check if file exists for required attribute
+    <?php if ($submission && $submission['file_jawaban']): ?>
+    document.getElementById('file_jawaban').setAttribute('data-has-file', '1');
+    <?php endif; ?>
+    
+    // Form validation
+    document.getElementById('submitForm').addEventListener('submit', function(e) {
+        const selectedType = document.querySelector('input[name="tipe_submission"]:checked').value;
+        const fileInput = document.getElementById('file_jawaban');
+        const textarea = document.getElementById('jawaban_text');
+        let textContent = '';
+        
+        if (quill) {
+            textContent = quill.root.innerHTML;
+            textarea.value = textContent; // Ensure textarea is updated
+        } else {
+            textContent = textarea.value;
+        }
+        
+        let hasError = false;
+        
+        if (selectedType === 'file' || selectedType === 'both') {
+            if (!fileInput.files.length && !fileInput.hasAttribute('data-has-file')) {
+                alert('Harap upload file jawaban');
+                hasError = true;
+            }
+        }
+        
+        if (selectedType === 'text' || selectedType === 'both') {
+            const plainText = textContent.replace(/<[^>]*>/g, '').trim();
+            if (!plainText || plainText === '') {
+                alert('Harap isi jawaban');
+                hasError = true;
+            }
+        }
+        
+        if (hasError) {
+            e.preventDefault();
+            return false;
+        }
+    });
+});
+</script>
+
+<style>
+.submission-type-option {
+    transition: all 0.3s ease;
+}
+.submission-type-option:hover {
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    transform: translateY(-2px);
+}
+.submission-type-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+}
+.submission-type-option.border-primary {
+    border-color: #0d6efd !important;
+    background-color: #f0f7ff;
+}
+</style>
+
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
+

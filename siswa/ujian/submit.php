@@ -37,6 +37,25 @@ if (!$nilai || $nilai['status'] === 'selesai') {
     redirect('siswa/ujian/list.php');
 }
 
+// Get ujian info
+$ujian = get_ujian($ujian_id);
+
+// Validate minimum submit time (server-side validation)
+$min_submit_minutes = $ujian['min_submit_minutes'] ?? DEFAULT_MIN_SUBMIT_MINUTES;
+if ($min_submit_minutes > 0 && $nilai['waktu_mulai']) {
+    $waktu_mulai = new DateTime($nilai['waktu_mulai']);
+    $now = new DateTime();
+    $elapsed_seconds = $now->getTimestamp() - $waktu_mulai->getTimestamp();
+    $min_submit_seconds = $min_submit_minutes * 60;
+    
+    if ($elapsed_seconds < $min_submit_seconds) {
+        $remaining_seconds = $min_submit_seconds - $elapsed_seconds;
+        $remaining_minutes = ceil($remaining_seconds / 60);
+        $_SESSION['error_message'] = "Anda harus menunggu minimal {$min_submit_minutes} menit setelah mulai ujian sebelum bisa menyelesaikan. Silakan tunggu {$remaining_minutes} menit lagi.";
+        redirect('siswa/ujian/take.php?id=' . $sesi_id);
+    }
+}
+
 try {
     $pdo->beginTransaction();
     
@@ -136,6 +155,11 @@ try {
     $stmt->execute([$nilai_akhir, $nilai['id']]);
     
     $pdo->commit();
+    
+    // Clear exam mode - exam is finished
+    if (function_exists('clear_exam_mode')) {
+        clear_exam_mode();
+    }
     
     log_activity('submit_ujian', 'nilai', $nilai['id']);
     

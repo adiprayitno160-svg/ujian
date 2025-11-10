@@ -3,8 +3,8 @@
  * Sistem Ujian dan Pekerjaan Rumah (UJAN)
  */
 
-// Utility functions
-const UJAN = {
+// Utility functions - make UJAN available globally
+var UJAN = window.UJAN || {
     // Show toast notification
     showToast: function(message, type = 'info') {
         if (typeof showToast === 'function') {
@@ -69,6 +69,9 @@ const UJAN = {
         return meta ? meta.getAttribute('content') : '';
     }
 };
+
+// Make UJAN available globally
+window.UJAN = UJAN;
 
 // Auto-hide alerts
 document.addEventListener('DOMContentLoaded', function() {

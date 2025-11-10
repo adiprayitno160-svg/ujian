@@ -530,6 +530,92 @@ try {
             echo json_encode($releases);
             break;
             
+        case 'update_config_version':
+            // Update APP_VERSION in config.php
+            $version = trim($_POST['version'] ?? '');
+            if (empty($version)) {
+                echo json_encode(['success' => false, 'message' => 'Version is required']);
+                break;
+            }
+            
+            // Validate version format
+            if (!preg_match('/^\d+\.\d+\.\d+$/', $version)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid version format']);
+                break;
+            }
+            
+            try {
+                $config_file = __DIR__ . '/../config/config.php';
+                if (!file_exists($config_file)) {
+                    echo json_encode(['success' => false, 'message' => 'config.php not found']);
+                    break;
+                }
+                
+                // Read config file
+                $config_content = file_get_contents($config_file);
+                if ($config_content === false) {
+                    echo json_encode(['success' => false, 'message' => 'Failed to read config.php']);
+                    break;
+                }
+                
+                // Update APP_VERSION
+                // Pattern: define('APP_VERSION', '1.0.1');
+                // Match: define('APP_VERSION', '1.0.1') or define("APP_VERSION", "1.0.1")
+                $pattern = "/(define\s*\(\s*['\"]APP_VERSION['\"]\s*,\s*['\"])([^'\"]+)(['\"]\s*\))/";
+                
+                if (preg_match($pattern, $config_content)) {
+                    // Replace version number while preserving quotes
+                    $new_content = preg_replace($pattern, '${1}' . $version . '${3}', $config_content);
+                    
+                    // Backup original file
+                    $backup_file = $config_file . '.backup.' . date('Y-m-d_H-i-s');
+                    @copy($config_file, $backup_file);
+                    
+                    // Write new content
+                    if (file_put_contents($config_file, $new_content) !== false) {
+                        echo json_encode([
+                            'success' => true, 
+                            'message' => 'APP_VERSION updated to ' . $version,
+                            'backup' => $backup_file
+                        ]);
+                    } else {
+                        echo json_encode(['success' => false, 'message' => 'Failed to write config.php']);
+                    }
+                } else {
+                    // APP_VERSION not found, try to add it after APP_NAME
+                    $pattern_app_name = "/define\s*\(\s*['\"]APP_NAME['\"][^)]+\)/";
+                    if (preg_match($pattern_app_name, $config_content)) {
+                        $new_line = "    define('APP_VERSION', '{$version}');\n";
+                        $new_content = preg_replace(
+                            $pattern_app_name,
+                            "$0\n" . $new_line,
+                            $config_content
+                        );
+                        
+                        // Backup original file
+                        $backup_file = $config_file . '.backup.' . date('Y-m-d_H-i-s');
+                        @copy($config_file, $backup_file);
+                        
+                        // Write new content
+                        if (file_put_contents($config_file, $new_content) !== false) {
+                            echo json_encode([
+                                'success' => true, 
+                                'message' => 'APP_VERSION added to config.php',
+                                'backup' => $backup_file
+                            ]);
+                        } else {
+                            echo json_encode(['success' => false, 'message' => 'Failed to write config.php']);
+                        }
+                    } else {
+                        echo json_encode(['success' => false, 'message' => 'Could not find APP_NAME or APP_VERSION in config.php']);
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Update config version error: " . $e->getMessage());
+                echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+            }
+            break;
+            
         default:
             echo json_encode(['success' => false, 'message' => 'Invalid action']);
     }

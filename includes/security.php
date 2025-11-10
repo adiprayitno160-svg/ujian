@@ -310,3 +310,147 @@ function validate_exam_session($sesi_id, $user_id) {
     }
 }
 
+/**
+ * Set exam mode in session (student is actively taking an exam)
+ */
+function set_exam_mode($sesi_id, $ujian_id) {
+    $_SESSION['exam_mode'] = true;
+    $_SESSION['exam_sesi_id'] = $sesi_id;
+    $_SESSION['exam_ujian_id'] = $ujian_id;
+    $_SESSION['exam_start_time'] = time();
+}
+
+/**
+ * Clear exam mode from session (exam finished or cancelled)
+ */
+function clear_exam_mode() {
+    unset($_SESSION['exam_mode']);
+    unset($_SESSION['exam_sesi_id']);
+    unset($_SESSION['exam_ujian_id']);
+    unset($_SESSION['exam_start_time']);
+}
+
+/**
+ * Check if student is currently in exam mode
+ */
+function is_in_exam_mode() {
+    if (!isset($_SESSION['exam_mode']) || !$_SESSION['exam_mode']) {
+        return false;
+    }
+    
+    // Verify that the exam session is still active
+    global $pdo;
+    try {
+        $sesi_id = $_SESSION['exam_sesi_id'] ?? 0;
+        $user_id = $_SESSION['user_id'] ?? 0;
+        
+        if (!$sesi_id || !$user_id) {
+            clear_exam_mode();
+            return false;
+        }
+        
+        // Check if nilai record exists and status is 'sedang_mengerjakan'
+        $stmt = $pdo->prepare("SELECT * FROM nilai 
+                              WHERE id_sesi = ? AND id_siswa = ? AND status = 'sedang_mengerjakan'");
+        $stmt->execute([$sesi_id, $user_id]);
+        $nilai = $stmt->fetch();
+        
+        if (!$nilai) {
+            // Exam finished or doesn't exist - clear exam mode
+            clear_exam_mode();
+            return false;
+        }
+        
+        // Check if exam session is still active
+        $stmt = $pdo->prepare("SELECT * FROM sesi_ujian WHERE id = ? AND status = 'aktif'");
+        $stmt->execute([$sesi_id]);
+        $sesi = $stmt->fetch();
+        
+        if (!$sesi) {
+            clear_exam_mode();
+            return false;
+        }
+        
+        // Check if time is still valid
+        $now = new DateTime();
+        $waktu_selesai = new DateTime($sesi['waktu_selesai']);
+        
+        if ($now > $waktu_selesai) {
+            clear_exam_mode();
+            return false;
+        }
+        
+        return true;
+    } catch (PDOException $e) {
+        error_log("Check exam mode error: " . $e->getMessage());
+        clear_exam_mode();
+        return false;
+    }
+}
+
+/**
+ * Get current exam session ID if in exam mode
+ */
+function get_current_exam_sesi_id() {
+    if (is_in_exam_mode()) {
+        return $_SESSION['exam_sesi_id'] ?? null;
+    }
+    return null;
+}
+
+/**
+ * Check and redirect if student tries to access other pages while in exam mode
+ * Call this function on student pages (except exam and submit pages)
+ */
+function check_exam_mode_restriction($allowed_pages = []) {
+    // If not in exam mode, allow access
+    if (!is_in_exam_mode()) {
+        return true;
+    }
+    
+    // Get current page
+    $current_page = $_SERVER['PHP_SELF'] ?? '';
+    $current_page = basename($current_page);
+    
+    // Pages that are always allowed even in exam mode
+    $always_allowed = [
+        'take.php',           // Exam page
+        'submit.php',         // Submit page
+        'hasil.php',          // Results page
+        'list.php',           // Exam list page (students need to see available exams)
+        'logout.php',         // Logout (should end exam mode)
+        'api'                 // API endpoints (for auto-save, etc.)
+    ];
+    
+    // Check if current page is allowed
+    $is_allowed = false;
+    foreach ($always_allowed as $allowed) {
+        if (strpos($current_page, $allowed) !== false) {
+            $is_allowed = true;
+            break;
+        }
+    }
+    
+    // Check additional allowed pages
+    foreach ($allowed_pages as $allowed) {
+        if (strpos($current_page, $allowed) !== false) {
+            $is_allowed = true;
+            break;
+        }
+    }
+    
+    // If not allowed, redirect back to exam
+    if (!$is_allowed) {
+        $sesi_id = get_current_exam_sesi_id();
+        if ($sesi_id) {
+            $_SESSION['error_message'] = 'Anda sedang dalam ujian. Silakan selesaikan ujian terlebih dahulu.';
+            redirect('siswa/ujian/take.php?id=' . $sesi_id);
+        } else {
+            // If sesi_id is not available, clear exam mode
+            clear_exam_mode();
+        }
+    }
+    
+    return $is_allowed;
+}
+

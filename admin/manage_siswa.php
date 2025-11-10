@@ -269,6 +269,7 @@ if (isset($_GET['edit'])) {
                         <th>NIS</th>
                         <th>Nama</th>
                         <th>Kelas</th>
+                        <th>Tanggal Lahir</th>
                         <th>Status</th>
                         <th>Aksi</th>
                     </tr>
@@ -276,7 +277,7 @@ if (isset($_GET['edit'])) {
                 <tbody>
                     <?php if (empty($siswa_list)): ?>
                         <tr>
-                            <td colspan="6" class="text-center text-muted">Tidak ada data siswa</td>
+                            <td colspan="7" class="text-center text-muted">Tidak ada data siswa</td>
                         </tr>
                     <?php else: ?>
                         <?php $no = 1; foreach ($siswa_list as $siswa): ?>
@@ -285,6 +286,13 @@ if (isset($_GET['edit'])) {
                                 <td><strong><?php echo escape($siswa['nis']); ?></strong></td>
                                 <td><?php echo escape($siswa['nama']); ?></td>
                                 <td><?php echo escape($siswa['nama_kelas'] ?? '-'); ?></td>
+                                <td>
+                                    <?php if ($siswa['tanggal_lahir']): ?>
+                                        <?php echo format_date($siswa['tanggal_lahir'], 'd/m/Y'); ?>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
                                 <td>
                                     <span class="badge bg-<?php echo $siswa['status'] == 'active' ? 'success' : 'secondary'; ?>">
                                         <?php echo ucfirst($siswa['status']); ?>

@@ -11,6 +11,11 @@ require_once __DIR__ . '/../includes/functions.php';
 require_role('siswa');
 check_session_timeout();
 
+// Check if student is in exam mode - redirect to exam if they try to access other pages
+if (function_exists('check_exam_mode_restriction')) {
+    check_exam_mode_restriction();
+}
+
 $page_title = 'Dashboard Siswa';
 $role_css = 'siswa';
 include __DIR__ . '/../includes/header.php';
@@ -94,8 +99,7 @@ $pr_list = $stmt->fetchAll();
 
 <div class="row mb-4">
     <div class="col-12">
-        <h2 class="fw-bold">Dashboard</h2>
-        <p class="text-muted">Selamat datang, <?php echo escape($_SESSION['nama']); ?>!</p>
+        <p class="text-muted mb-0">Selamat datang, <strong><?php echo escape($_SESSION['nama']); ?></strong>!</p>
     </div>
 </div>
 

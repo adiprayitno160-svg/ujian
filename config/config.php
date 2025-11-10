@@ -2,6 +2,13 @@
 /**
  * Main Configuration File
  * Sistem Ujian dan Pekerjaan Rumah (UJAN)
+ * 
+ * CATATAN SISTEM:
+ * - Sistem menggunakan guru mata pelajaran (bukan guru kelas)
+ * - Untuk SMP: Guru mengajar mata pelajaran tertentu ke berbagai kelas
+ * - Satu guru bisa mengajar beberapa mata pelajaran
+ * - Satu mata pelajaran bisa diajar oleh beberapa guru
+ * - Guru bisa membuat ujian/PR/tugas untuk semua kelas yang relevan dengan mata pelajarannya
  */
 
 // Prevent direct access
@@ -96,16 +103,21 @@ define('UPLOAD_URL', APP_URL . '/assets/uploads');
 define('UPLOAD_SOAL', UPLOAD_PATH . '/soal');
 define('UPLOAD_PR', UPLOAD_PATH . '/pr');
 define('UPLOAD_PROFILE', UPLOAD_PATH . '/profile');
+define('UPLOAD_VERIFIKASI', UPLOAD_PATH . '/verifikasi');
 
 // Create upload directories if they don't exist
 if (!file_exists(UPLOAD_SOAL)) mkdir(UPLOAD_SOAL, 0755, true);
 if (!file_exists(UPLOAD_PR)) mkdir(UPLOAD_PR, 0755, true);
 if (!file_exists(UPLOAD_PROFILE)) mkdir(UPLOAD_PROFILE, 0755, true);
+if (!file_exists(UPLOAD_VERIFIKASI)) mkdir(UPLOAD_VERIFIKASI, 0755, true);
 
 // File upload settings
 define('MAX_FILE_SIZE', 10485760); // 10MB in bytes
+define('MAX_VIDEO_SIZE', 52428800); // 50MB in bytes for videos
 define('ALLOWED_IMAGE_TYPES', ['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+define('ALLOWED_VIDEO_TYPES', ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime']);
 define('ALLOWED_DOC_TYPES', ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip']);
+define('ALLOWED_SOAL_MEDIA_TYPES', array_merge(ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES));
 
 // Security settings
 define('SESSION_TIMEOUT', 3600); // 1 hour in seconds
@@ -119,7 +131,13 @@ define('ITEMS_PER_PAGE', 20);
 define('AUTO_SAVE_INTERVAL', 30);
 
 // Minimum submit minutes (default)
-define('DEFAULT_MIN_SUBMIT_MINUTES', 0);
+// Siswa harus menunggu minimal 3 menit setelah mulai ujian sebelum bisa submit
+define('DEFAULT_MIN_SUBMIT_MINUTES', 3);
+
+// Verifikasi Dokumen Settings
+define('VERIFIKASI_MAX_FILE_SIZE', 10485760); // 10MB in bytes
+define('VERIFIKASI_ALLOWED_TYPES', ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']);
+define('VERIFIKASI_MAX_UPLOAD_ULANG', 1); // Maksimal 1x upload ulang
 
 // Roles
 define('ROLE_ADMIN', 'admin');
@@ -190,12 +208,32 @@ function asset_url($path = '') {
 
 // Helper function to redirect
 function redirect($url) {
+    // Clear all output buffers first
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    
     // If URL contains .php or /, convert to clean URL
     if (strpos($url, '.php') !== false || (strpos($url, '/') !== false && strpos($url, 'http') === false && strpos($url, 'assets') === false)) {
         $url = path_to_url($url);
     }
     
-    header("Location: " . base_url($url));
+    $redirect_url = base_url($url);
+    
+    // Check if headers already sent
+    if (headers_sent($file, $line)) {
+        // Headers already sent - output JavaScript redirect as fallback
+        echo "<!DOCTYPE html><html><head><title>Redirecting...</title><meta charset='UTF-8'>";
+        echo "<script>window.location.href = '" . htmlspecialchars($redirect_url, ENT_QUOTES, 'UTF-8') . "';</script>";
+        echo "<noscript><meta http-equiv='refresh' content='0;url=" . htmlspecialchars($redirect_url, ENT_QUOTES, 'UTF-8') . "'></noscript>";
+        echo "</head><body>";
+        echo "<p>Redirecting... <a href='" . htmlspecialchars($redirect_url, ENT_QUOTES, 'UTF-8') . "'>Click here if you are not redirected</a></p>";
+        echo "</body></html>";
+        exit();
+    }
+    
+    // Send redirect header
+    header("Location: " . $redirect_url);
     exit();
 }
 

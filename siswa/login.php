@@ -299,7 +299,6 @@ include __DIR__ . '/../includes/header.php';
                                placeholder="Masukkan password" 
                                required>
                     </div>
-                    <small class="form-text">Password default: NIS Anda</small>
                 </div>
                 
                 <div class="mb-4 form-check">
