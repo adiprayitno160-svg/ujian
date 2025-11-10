@@ -81,21 +81,6 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
         </div>
     </div>
     
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-info text-white">
-                <h5 class="mb-0"><i class="fas fa-code-branch"></i> Git Status</h5>
-            </div>
-            <div class="card-body" id="gitStatus">
-                <div class="text-center">
-                    <div class="spinner-border text-primary" role="status">
-                        <span class="visually-hidden">Loading...</span>
-                    </div>
-                    <p class="mt-2">Memuat status Git...</p>
-                </div>
-            </div>
-        </div>
-    </div>
 </div>
 
 <!-- GitHub Operations -->
@@ -153,16 +138,6 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                         <button type="button" class="btn btn-sm btn-light" onclick="checkVersionUpdate(true)">
                             <i class="fas fa-sync"></i> Refresh
                         </button>
-                    </div>
-                </div>
-                
-                <!-- Git Status Alert (Secondary - Git Commit Check, hidden by default) -->
-                <div id="gitUpdateStatusAlert" class="alert alert-secondary d-none mb-3" style="display: none !important;">
-                    <div class="d-flex align-items-center justify-content-between">
-                        <div>
-                            <i class="fas fa-code-branch me-2"></i>
-                            <small id="gitUpdateStatusText">Git status check (informational)</small>
-                        </div>
                     </div>
                 </div>
                 
@@ -340,7 +315,7 @@ function quickUpdate() {
                      '3. Update file dan database\n' +
                      '4. Rollback otomatis jika gagal\n\n' +
                      'Lanjutkan update?')) {
-            return;
+        return;
         }
     }
     
@@ -533,114 +508,6 @@ function updateConfigVersion(version, silent = true) {
         }
     });
 }
-// Load Git Status (simplified)
-function loadGitStatus() {
-    console.log('Loading Git status from:', apiUrl);
-    
-    $.ajax({
-        url: apiUrl,
-        method: 'GET',
-        data: { action: 'status' },
-        dataType: 'json',
-        timeout: 10000, // 10 seconds timeout
-        success: function(response) {
-            console.log('Git status response:', response);
-            
-            if (response && response.success) {
-                let html = '<table class="table table-sm table-borderless">';
-                
-                if (!response.git_available) {
-                    html += '<tr><td colspan="2"><div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> Git tidak tersedia di server</div></td></tr>';
-                } else {
-                    html += '<tr><th>Repository</th><td><a href="' + (response.github_url || 'https://github.com/adiprayitno160-svg/ujian') + '" target="_blank"><i class="fab fa-github"></i> ' + (response.github_url || 'GitHub Repository') + '</a></td></tr>';
-                    
-                    if (response.git_info && response.git_info.is_repo) {
-                        html += '<tr><th>Branch</th><td><span class="badge bg-primary">' + (response.git_info.branch || 'N/A') + '</span></td></tr>';
-                        html += '<tr><th>Commit</th><td><code>' + (response.git_info.commit || 'N/A') + '</code></td></tr>';
-                        if (response.git_info.remote) {
-                            html += '<tr><th>Remote</th><td><small>' + response.git_info.remote + '</small></td></tr>';
-                        }
-                        
-                        if (response.git_status && response.git_status.has_changes) {
-                            html += '<tr><th>Status</th><td><span class="badge bg-warning">Modified</span></td></tr>';
-                            if (response.git_status.changes && response.git_status.changes.length > 0) {
-                                html += '<tr><th>Changes</th><td><small><ul class="mb-0">';
-                                response.git_status.changes.slice(0, 5).forEach(function(change) {
-                                    html += '<li>' + escapeHtml(change) + '</li>';
-                                });
-                                if (response.git_status.changes.length > 5) {
-                                    html += '<li>... dan ' + (response.git_status.changes.length - 5) + ' file lainnya</li>';
-                                }
-                                html += '</ul></small></td></tr>';
-                            }
-                        } else {
-                            html += '<tr><th>Status</th><td><span class="badge bg-success">Clean</span></td></tr>';
-                        }
-                    } else {
-                        html += '<tr><td colspan="2"><div class="alert alert-info">';
-                        html += '<i class="fas fa-info-circle"></i> Repository belum diinisialisasi. ';
-                        html += '<button class="btn btn-sm btn-primary mt-2" onclick="initRepo()">Initialize Repository</button>';
-                        html += '</div></td></tr>';
-                    }
-                }
-                
-                html += '</table>';
-                $('#gitStatus').html(html);
-            } else {
-                $('#gitStatus').html('<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> ' + (response && response.message ? response.message : 'Gagal memuat status Git') + '</div>');
-            }
-        },
-        error: function(xhr, status, error) {
-            console.error('Git status error:', status, error, xhr);
-            let message = 'Gagal memuat status Git';
-            
-            if (status === 'timeout') {
-                message = 'Request timeout. Git mungkin tidak tersedia atau server tidak merespons.';
-            } else if (xhr.status === 0) {
-                message = 'Tidak dapat terhubung ke server. Pastikan API endpoint tersedia.';
-            } else {
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    message = response.message || message;
-                } catch(e) {
-                    if (xhr.responseText) {
-                        message = 'Error: ' + xhr.status + ' - ' + error;
-                    }
-                }
-            }
-            
-            $('#gitStatus').html('<div class="alert alert-danger">' +
-                '<i class="fas fa-exclamation-triangle"></i> ' + message + 
-                '<br><small class="mt-2 d-block">Cek console browser (F12) untuk detail error.</small>' +
-                '</div>');
-        }
-    });
-}
-
-// Initialize Repository
-function initRepo() {
-    if (!confirm('Inisialisasi repository Git? Ini akan membuat folder .git di project.')) {
-        return;
-    }
-    
-    $.ajax({
-        url: apiUrl,
-        method: 'POST',
-        data: { action: 'init' },
-        dataType: 'json',
-        success: function(response) {
-            if (response.success) {
-                alert('Repository berhasil diinisialisasi!');
-                loadGitStatus();
-            } else {
-                alert('Error: ' + response.message);
-            }
-        },
-        error: function() {
-            alert('Terjadi kesalahan');
-        }
-    });
-}
 
 // Load current version for display
 function loadCurrentVersionForPull() {
@@ -728,7 +595,6 @@ function loadVersionFromGit() {
 $(document).ready(function() {
     console.log('About page initialized');
     
-    loadGitStatus();
     loadCurrentVersionForPull();
     
     // Check version update on page load
