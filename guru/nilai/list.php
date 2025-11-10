@@ -45,9 +45,14 @@ $nilai_list = $stmt->fetchAll();
                 <h2 class="fw-bold">Daftar Nilai</h2>
                 <p class="text-muted mb-0">Ujian: <?php echo escape($ujian['judul']); ?></p>
             </div>
-            <a href="<?php echo base_url('guru/nilai/export.php?ujian_id=' . $ujian_id); ?>" class="btn btn-success">
-                <i class="fas fa-file-excel"></i> Export Excel
-            </a>
+            <div class="btn-group">
+                <a href="<?php echo base_url('guru/nilai/export.php?ujian_id=' . $ujian_id); ?>" class="btn btn-success">
+                    <i class="fas fa-file-excel"></i> Export Excel
+                </a>
+                <a href="<?php echo base_url('guru/nilai/export_pdf.php?ujian_id=' . $ujian_id); ?>" class="btn btn-danger" target="_blank">
+                    <i class="fas fa-file-pdf"></i> Export PDF
+                </a>
+            </div>
         </div>
     </div>
 </div>

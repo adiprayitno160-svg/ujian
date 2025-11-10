@@ -58,16 +58,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $kunci_jawaban = '';
             
             if ($tipe_soal === 'pilihan_ganda') {
-                $opsi = [
-                    'A' => sanitize($_POST['opsi_a'] ?? ''),
-                    'B' => sanitize($_POST['opsi_b'] ?? ''),
-                    'C' => sanitize($_POST['opsi_c'] ?? ''),
-                    'D' => sanitize($_POST['opsi_d'] ?? '')
-                ];
+                // Build options with support for images
+                $opsi = [];
+                $option_keys = ['A', 'B', 'C', 'D'];
+                
+                foreach ($option_keys as $key) {
+                    $text = sanitize($_POST['opsi_' . strtolower($key)] ?? '');
+                    $image_path = sanitize($_POST['opsi_' . strtolower($key) . '_image_path'] ?? '');
+                    
+                    // Only add option if text or image is provided
+                    if (!empty($text) || !empty($image_path)) {
+                        if (!empty($image_path)) {
+                            // New format: object with text and image
+                            $opsi[$key] = [
+                                'text' => $text,
+                                'image' => $image_path
+                            ];
+                        } else {
+                            // Old format: just text (backward compatible)
+                            $opsi[$key] = $text;
+                        }
+                    }
+                }
+                
                 // Remove empty options
                 $opsi = array_filter($opsi, function($value) {
+                    if (is_array($value)) {
+                        return !empty($value['text']) || !empty($value['image']);
+                    }
                     return !empty($value);
                 });
+                
                 $opsi_json = json_encode($opsi);
                 $kunci_jawaban = sanitize($kunci_jawaban_raw);
             } elseif ($tipe_soal === 'benar_salah') {
@@ -241,16 +262,16 @@ include __DIR__ . '/../../includes/header.php';
                     <!-- Media Upload Section -->
                     <div class="mb-3">
                         <label for="soal_media" class="form-label">
-                            <i class="fas fa-image me-1"></i> Media Soal (Gambar/Video)
+                            <i class="fas fa-image me-1"></i> Media Soal (Gambar)
                         </label>
                         <input type="file" 
                                class="form-control form-control-sm" 
                                id="soal_media" 
                                name="soal_media" 
-                               accept="image/*,video/*"
+                               accept="image/*"
                                onchange="handleMediaUpload(this)">
                         <small class="text-muted d-block">
-                            Format: Gambar (JPG, PNG, GIF, WebP - maks. 10MB), Video (MP4, WebM, OGG - maks. 50MB)
+                            Format: Gambar (JPG, PNG, GIF, WebP - maks. 500KB)
                         </small>
                         <div id="media_preview" class="mt-2" style="display:none;">
                             <div class="alert alert-info alert-sm d-flex justify-content-between align-items-center p-2">
@@ -272,10 +293,93 @@ include __DIR__ . '/../../includes/header.php';
                     <!-- Pilihan Ganda Fields -->
                     <div id="pilihan_ganda_fields" style="display:none;">
                         <div class="mb-2">
-                            <input type="text" class="form-control mb-2" name="opsi_a" placeholder="Opsi A">
-                            <input type="text" class="form-control mb-2" name="opsi_b" placeholder="Opsi B">
-                            <input type="text" class="form-control mb-2" name="opsi_c" placeholder="Opsi C">
-                            <input type="text" class="form-control mb-2" name="opsi_d" placeholder="Opsi D">
+                            <!-- Opsi A -->
+                            <div class="mb-3 p-2 border rounded">
+                                <label class="form-label fw-bold">Opsi A</label>
+                                <input type="text" class="form-control mb-2" name="opsi_a" id="opsi_a" placeholder="Teks Opsi A">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <input type="file" class="form-control form-control-sm" 
+                                           id="opsi_a_image" name="opsi_a_image" 
+                                           accept="image/*" 
+                                           onchange="handleOptionImageUpload(this, 'opsi_a')">
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            id="remove_opsi_a_image" 
+                                            onclick="removeOptionImage('opsi_a')" 
+                                            style="display:none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div id="opsi_a_preview" class="mt-2" style="display:none;">
+                                    <img id="opsi_a_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                                </div>
+                                <input type="hidden" id="opsi_a_image_path" name="opsi_a_image_path" value="">
+                            </div>
+                            
+                            <!-- Opsi B -->
+                            <div class="mb-3 p-2 border rounded">
+                                <label class="form-label fw-bold">Opsi B</label>
+                                <input type="text" class="form-control mb-2" name="opsi_b" id="opsi_b" placeholder="Teks Opsi B">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <input type="file" class="form-control form-control-sm" 
+                                           id="opsi_b_image" name="opsi_b_image" 
+                                           accept="image/*" 
+                                           onchange="handleOptionImageUpload(this, 'opsi_b')">
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            id="remove_opsi_b_image" 
+                                            onclick="removeOptionImage('opsi_b')" 
+                                            style="display:none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div id="opsi_b_preview" class="mt-2" style="display:none;">
+                                    <img id="opsi_b_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                                </div>
+                                <input type="hidden" id="opsi_b_image_path" name="opsi_b_image_path" value="">
+                            </div>
+                            
+                            <!-- Opsi C -->
+                            <div class="mb-3 p-2 border rounded">
+                                <label class="form-label fw-bold">Opsi C</label>
+                                <input type="text" class="form-control mb-2" name="opsi_c" id="opsi_c" placeholder="Teks Opsi C">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <input type="file" class="form-control form-control-sm" 
+                                           id="opsi_c_image" name="opsi_c_image" 
+                                           accept="image/*" 
+                                           onchange="handleOptionImageUpload(this, 'opsi_c')">
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            id="remove_opsi_c_image" 
+                                            onclick="removeOptionImage('opsi_c')" 
+                                            style="display:none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div id="opsi_c_preview" class="mt-2" style="display:none;">
+                                    <img id="opsi_c_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                                </div>
+                                <input type="hidden" id="opsi_c_image_path" name="opsi_c_image_path" value="">
+                            </div>
+                            
+                            <!-- Opsi D -->
+                            <div class="mb-3 p-2 border rounded">
+                                <label class="form-label fw-bold">Opsi D</label>
+                                <input type="text" class="form-control mb-2" name="opsi_d" id="opsi_d" placeholder="Teks Opsi D">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <input type="file" class="form-control form-control-sm" 
+                                           id="opsi_d_image" name="opsi_d_image" 
+                                           accept="image/*" 
+                                           onchange="handleOptionImageUpload(this, 'opsi_d')">
+                                    <button type="button" class="btn btn-sm btn-danger" 
+                                            id="remove_opsi_d_image" 
+                                            onclick="removeOptionImage('opsi_d')" 
+                                            style="display:none;">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                                <div id="opsi_d_preview" class="mt-2" style="display:none;">
+                                    <img id="opsi_d_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                                </div>
+                                <input type="hidden" id="opsi_d_image_path" name="opsi_d_image_path" value="">
+                            </div>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
@@ -393,10 +497,10 @@ function handleMediaUpload(input) {
         return;
     }
     
-    // Validate file size
-    const maxSize = file.type.startsWith('video/') ? 52428800 : 10485760;
+    // Validate file size (max 500KB for images)
+    const maxSize = 512000; // 500KB
     if (file.size > maxSize) {
-        alert('Ukuran file terlalu besar. Maksimal: ' + (maxSize / 1048576) + 'MB');
+        alert('Ukuran file terlalu besar. Maksimal: 500KB');
         input.value = '';
         removeMedia();
         return;
@@ -423,16 +527,9 @@ function handleMediaUpload(input) {
             document.getElementById('media_type').value = data.media_type;
             document.getElementById('media_type_badge').textContent = data.media_type === 'gambar' ? 'Gambar' : 'Video';
             
-            // Show preview
-            if (data.media_type === 'gambar') {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">';
-            } else {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<video controls class="img-thumbnail" style="max-width: 200px; max-height: 150px;">' +
-                    '<source src="' + data.url + '" type="' + data.mime_type + '">' +
-                    '</video>';
-            }
+            // Show preview (only images)
+            document.getElementById('media_preview_content').innerHTML = 
+                '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">';
         } else {
             alert('Error: ' + data.message);
             input.value = '';
@@ -453,6 +550,78 @@ function removeMedia() {
     document.getElementById('media_type').value = '';
     document.getElementById('media_preview').style.display = 'none';
     document.getElementById('media_preview_content').innerHTML = '';
+}
+
+// Handle option image upload
+function handleOptionImageUpload(input, optionKey) {
+    const file = input.files[0];
+    if (!file) {
+        removeOptionImage(optionKey);
+        return;
+    }
+    
+    // Validate file size (max 100KB for images)
+    const maxSize = 102400; // 100KB
+    if (file.size > maxSize) {
+        alert('Ukuran file terlalu besar. Maksimal: 100KB');
+        input.value = '';
+        removeOptionImage(optionKey);
+        return;
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        alert('Hanya file gambar yang diizinkan');
+        input.value = '';
+        removeOptionImage(optionKey);
+        return;
+    }
+    
+    // Show loading
+    const previewDiv = document.getElementById(optionKey + '_preview');
+    const previewImg = document.getElementById(optionKey + '_preview_img');
+    const removeBtn = document.getElementById('remove_' + optionKey + '_image');
+    
+    previewDiv.style.display = 'block';
+    previewImg.src = '';
+    previewImg.alt = 'Loading...';
+    
+    // Create FormData
+    const formData = new FormData();
+    formData.append('media', file);
+    formData.append('is_option_image', '1'); // Mark as option image for 100KB limit
+    
+    // Upload file
+    fetch('<?php echo base_url("api/upload_soal_media.php"); ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById(optionKey + '_image_path').value = data.path;
+            previewImg.src = data.url;
+            previewImg.alt = file.name;
+            removeBtn.style.display = 'block';
+        } else {
+            alert('Error: ' + data.message);
+            input.value = '';
+            removeOptionImage(optionKey);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Terjadi kesalahan saat mengupload file');
+        input.value = '';
+        removeOptionImage(optionKey);
+    });
+}
+
+function removeOptionImage(optionKey) {
+    document.getElementById(optionKey + '_image').value = '';
+    document.getElementById(optionKey + '_image_path').value = '';
+    document.getElementById(optionKey + '_preview').style.display = 'none';
+    document.getElementById('remove_' + optionKey + '_image').style.display = 'none';
 }
 </script>
 

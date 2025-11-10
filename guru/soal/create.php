@@ -30,7 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pertanyaan = $_POST['pertanyaan'] ?? '';
     $tipe_soal = sanitize($_POST['tipe_soal'] ?? '');
     $bobot = floatval($_POST['bobot'] ?? 1.0);
-    $kunci_jawaban_raw = $_POST['kunci_jawaban'] ?? '';
     $media_path = sanitize($_POST['media_path'] ?? '');
     $media_type = sanitize($_POST['media_type'] ?? '');
     
@@ -47,31 +46,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $urutan = ($max['max_urutan'] ?? 0) + 1;
             
             // Prepare opsi_json and kunci_jawaban based on tipe
+            // IMPORTANT: Get kunci_jawaban based on tipe_soal to avoid conflict with multiple fields with same name
             $opsi_json = null;
             $kunci_jawaban = '';
             
             if ($tipe_soal === 'pilihan_ganda') {
-                $opsi = [
-                    'A' => sanitize($_POST['opsi_a'] ?? ''),
-                    'B' => sanitize($_POST['opsi_b'] ?? ''),
-                    'C' => sanitize($_POST['opsi_c'] ?? ''),
-                    'D' => sanitize($_POST['opsi_d'] ?? '')
-                ];
+                // Build options with support for images
+                $opsi = [];
+                $option_keys = ['A', 'B', 'C', 'D'];
+                
+                foreach ($option_keys as $key) {
+                    $text = sanitize($_POST['opsi_' . strtolower($key)] ?? '');
+                    $image_path = sanitize($_POST['opsi_' . strtolower($key) . '_image_path'] ?? '');
+                    
+                    // Only add option if text or image is provided
+                    if (!empty($text) || !empty($image_path)) {
+                        if (!empty($image_path)) {
+                            // New format: object with text and image
+                            $opsi[$key] = [
+                                'text' => $text,
+                                'image' => $image_path
+                            ];
+                        } else {
+                            // Old format: just text (backward compatible)
+                            $opsi[$key] = $text;
+                        }
+                    }
+                }
+                
                 // Remove empty options
                 $opsi = array_filter($opsi, function($value) {
+                    if (is_array($value)) {
+                        return !empty($value['text']) || !empty($value['image']);
+                    }
                     return !empty($value);
                 });
+                
+                // Validate: minimal 2 opsi harus diisi
+                if (count($opsi) < 2) {
+                    throw new Exception('Pilihan ganda minimal harus memiliki 2 opsi yang diisi');
+                }
+                
+                // Get kunci_jawaban from specific field name for pilihan_ganda
+                $kunci_jawaban = sanitize($_POST['kunci_jawaban_pg'] ?? $_POST['kunci_jawaban'] ?? '');
+                
+                // Validate: kunci_jawaban harus ada di opsi yang diisi
+                if (empty($kunci_jawaban)) {
+                    throw new Exception('Kunci jawaban untuk pilihan ganda harus dipilih');
+                }
+                if (!isset($opsi[$kunci_jawaban])) {
+                    throw new Exception('Kunci jawaban "' . $kunci_jawaban . '" harus sesuai dengan opsi yang diisi. Opsi yang tersedia: ' . implode(', ', array_keys($opsi)));
+                }
+                
                 $opsi_json = json_encode($opsi);
-                $kunci_jawaban = sanitize($kunci_jawaban_raw);
             } elseif ($tipe_soal === 'benar_salah') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
+                // Get kunci_jawaban from specific field name for benar_salah
+                // Check both the specific field and the hidden field (for backward compatibility)
+                $kunci_jawaban_bs = isset($_POST['kunci_jawaban_bs']) ? trim($_POST['kunci_jawaban_bs']) : '';
+                $kunci_jawaban_hidden = isset($_POST['kunci_jawaban']) ? trim($_POST['kunci_jawaban']) : '';
+                $kunci_jawaban_raw = !empty($kunci_jawaban_bs) ? $kunci_jawaban_bs : $kunci_jawaban_hidden;
                 $kunci_jawaban = sanitize($kunci_jawaban_raw);
-                // Validate kunci_jawaban for benar_salah
-                if (empty($kunci_jawaban) || !in_array($kunci_jawaban, ['Benar', 'Salah'])) {
-                    throw new Exception('Kunci jawaban untuk benar/salah harus dipilih');
+                $kunci_jawaban = trim($kunci_jawaban);
+                
+                // Debug: Log received values
+                error_log("Create soal benar_salah - POST data: " . json_encode($_POST));
+                error_log("Create soal benar_salah - kunci_jawaban_bs raw: " . var_export($kunci_jawaban_bs, true));
+                error_log("Create soal benar_salah - kunci_jawaban hidden: " . var_export($kunci_jawaban_hidden, true));
+                error_log("Create soal benar_salah - kunci_jawaban (final): " . var_export($kunci_jawaban, true));
+                
+                // Validate kunci_jawaban for benar_salah - must be exactly 'Benar' or 'Salah'
+                if ($kunci_jawaban === '' || $kunci_jawaban === false || $kunci_jawaban === null) {
+                    throw new Exception('Kunci jawaban untuk benar/salah harus dipilih. Field yang diterima: kunci_jawaban_bs=' . var_export($kunci_jawaban_bs, true) . ', kunci_jawaban=' . var_export($kunci_jawaban_hidden, true));
+                }
+                if (!in_array($kunci_jawaban, ['Benar', 'Salah'])) {
+                    throw new Exception('Kunci jawaban untuk benar/salah harus Benar atau Salah. Nilai yang diterima: ' . var_export($kunci_jawaban, true));
                 }
             } elseif ($tipe_soal === 'isian_singkat') {
                 // For isian_singkat, kunci_jawaban can be multiple values separated by comma
+                // Get kunci_jawaban from specific field name for isian_singkat
+                $kunci_jawaban_raw = $_POST['kunci_jawaban_is'] ?? $_POST['kunci_jawaban'] ?? '';
                 // Clean and trim each value
                 if (!empty($kunci_jawaban_raw)) {
                     $answers = array_map('trim', explode(',', $kunci_jawaban_raw));
@@ -82,6 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             } elseif ($tipe_soal === 'esai') {
                 // For esai, kunci_jawaban is optional reference answer
+                // Get kunci_jawaban from specific field name for esai
+                $kunci_jawaban_raw = $_POST['kunci_jawaban_esai'] ?? $_POST['kunci_jawaban'] ?? '';
                 $kunci_jawaban = !empty($kunci_jawaban_raw) ? sanitize($kunci_jawaban_raw) : '';
             } elseif ($tipe_soal === 'matching') {
                 // For matching, kunci_jawaban is not used (stored in soal_matching table)
@@ -106,11 +162,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $items_kiri = $_POST['item_kiri'] ?? [];
                 $items_kanan = $_POST['item_kanan'] ?? [];
                 
+                $matching_count = 0;
                 foreach ($items_kiri as $idx => $kiri) {
                     if (!empty($kiri) && !empty($items_kanan[$idx])) {
                         $stmt = $pdo->prepare("INSERT INTO soal_matching (id_soal, item_kiri, item_kanan, urutan) VALUES (?, ?, ?, ?)");
                         $stmt->execute([$soal_id, sanitize($kiri), sanitize($items_kanan[$idx]), $idx + 1]);
+                        $matching_count++;
                     }
+                }
+                
+                // Validate: matching minimal harus memiliki 1 item
+                if ($matching_count === 0) {
+                    throw new Exception('Soal matching minimal harus memiliki 1 pasangan item (kiri-kanan)');
                 }
             }
             
@@ -119,12 +182,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_ujian->execute([$id_ujian]);
             $ujian_info = $stmt_ujian->fetch();
             
-            // Auto-add soal to bank_soal
-            if ($ujian_info) {
-                add_soal_to_bank($soal_id, $ujian_info['id_mapel'], $ujian_info['tingkat_kelas']);
-            }
-            
             $pdo->commit();
+            
+            // Auto-add soal to bank_soal (non-blocking, log error if fails)
+            // Do this after commit to avoid transaction issues
+            if ($ujian_info) {
+                try {
+                    add_soal_to_bank($soal_id, $ujian_info['id_mapel'], $ujian_info['tingkat_kelas']);
+                } catch (Exception $e) {
+                    // Log error but don't fail the transaction
+                    error_log("Failed to add soal to bank: " . $e->getMessage());
+                }
+            }
             log_activity('create_soal', 'soal', $soal_id);
             
             // Redirect back (before any output)
@@ -201,16 +270,16 @@ $ujian_list = $stmt->fetchAll();
             <!-- Media Upload Section -->
             <div class="mb-3">
                 <label for="soal_media" class="form-label">
-                    <i class="fas fa-image me-1"></i> Media Soal (Gambar/Video)
+                    <i class="fas fa-image me-1"></i> Media Soal (Gambar)
                 </label>
                 <input type="file" 
                        class="form-control" 
                        id="soal_media" 
                        name="soal_media" 
-                       accept="image/*,video/*"
+                       accept="image/*"
                        onchange="handleMediaUpload(this)">
                 <small class="text-muted">
-                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 10MB), Video (MP4, WebM, OGG - maks. 50MB)
+                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 500KB)
                 </small>
                 <div id="media_preview" class="mt-2" style="display:none;">
                     <div class="alert alert-info d-flex justify-content-between align-items-center">
@@ -232,25 +301,97 @@ $ujian_list = $stmt->fetchAll();
             <!-- Pilihan Ganda Fields -->
             <div id="pilihan_ganda_fields" style="display:none;">
                 <div class="row">
+                    <!-- Opsi A -->
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Opsi A</label>
-                        <input type="text" class="form-control" name="opsi_a">
+                        <label class="form-label fw-bold">Opsi A</label>
+                        <input type="text" class="form-control mb-2" name="opsi_a" id="opsi_a" placeholder="Teks Opsi A">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <input type="file" class="form-control form-control-sm" 
+                                   id="opsi_a_image" name="opsi_a_image" 
+                                   accept="image/*" 
+                                   onchange="handleOptionImageUpload(this, 'opsi_a')">
+                            <button type="button" class="btn btn-sm btn-danger" 
+                                    id="remove_opsi_a_image" 
+                                    onclick="removeOptionImage('opsi_a')" 
+                                    style="display:none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="opsi_a_preview" class="mt-2" style="display:none;">
+                            <img id="opsi_a_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                        </div>
+                        <input type="hidden" id="opsi_a_image_path" name="opsi_a_image_path" value="">
                     </div>
+                    
+                    <!-- Opsi B -->
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Opsi B</label>
-                        <input type="text" class="form-control" name="opsi_b">
+                        <label class="form-label fw-bold">Opsi B</label>
+                        <input type="text" class="form-control mb-2" name="opsi_b" id="opsi_b" placeholder="Teks Opsi B">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <input type="file" class="form-control form-control-sm" 
+                                   id="opsi_b_image" name="opsi_b_image" 
+                                   accept="image/*" 
+                                   onchange="handleOptionImageUpload(this, 'opsi_b')">
+                            <button type="button" class="btn btn-sm btn-danger" 
+                                    id="remove_opsi_b_image" 
+                                    onclick="removeOptionImage('opsi_b')" 
+                                    style="display:none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="opsi_b_preview" class="mt-2" style="display:none;">
+                            <img id="opsi_b_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                        </div>
+                        <input type="hidden" id="opsi_b_image_path" name="opsi_b_image_path" value="">
                     </div>
+                    
+                    <!-- Opsi C -->
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Opsi C</label>
-                        <input type="text" class="form-control" name="opsi_c">
+                        <label class="form-label fw-bold">Opsi C</label>
+                        <input type="text" class="form-control mb-2" name="opsi_c" id="opsi_c" placeholder="Teks Opsi C">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <input type="file" class="form-control form-control-sm" 
+                                   id="opsi_c_image" name="opsi_c_image" 
+                                   accept="image/*" 
+                                   onchange="handleOptionImageUpload(this, 'opsi_c')">
+                            <button type="button" class="btn btn-sm btn-danger" 
+                                    id="remove_opsi_c_image" 
+                                    onclick="removeOptionImage('opsi_c')" 
+                                    style="display:none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="opsi_c_preview" class="mt-2" style="display:none;">
+                            <img id="opsi_c_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                        </div>
+                        <input type="hidden" id="opsi_c_image_path" name="opsi_c_image_path" value="">
                     </div>
+                    
+                    <!-- Opsi D -->
                     <div class="col-md-6 mb-3">
-                        <label class="form-label">Opsi D</label>
-                        <input type="text" class="form-control" name="opsi_d">
+                        <label class="form-label fw-bold">Opsi D</label>
+                        <input type="text" class="form-control mb-2" name="opsi_d" id="opsi_d" placeholder="Teks Opsi D">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <input type="file" class="form-control form-control-sm" 
+                                   id="opsi_d_image" name="opsi_d_image" 
+                                   accept="image/*" 
+                                   onchange="handleOptionImageUpload(this, 'opsi_d')">
+                            <button type="button" class="btn btn-sm btn-danger" 
+                                    id="remove_opsi_d_image" 
+                                    onclick="removeOptionImage('opsi_d')" 
+                                    style="display:none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div id="opsi_d_preview" class="mt-2" style="display:none;">
+                            <img id="opsi_d_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
+                        </div>
+                        <input type="hidden" id="opsi_d_image_path" name="opsi_d_image_path" value="">
                     </div>
+                    
                     <div class="col-md-6 mb-3">
                         <label class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
-                        <select class="form-select" name="kunci_jawaban" required>
+                        <select class="form-select" name="kunci_jawaban_pg" id="kunci_jawaban_pg" required>
                             <option value="">Pilih</option>
                             <option value="A">A</option>
                             <option value="B">B</option>
@@ -264,12 +405,13 @@ $ujian_list = $stmt->fetchAll();
             <!-- Benar/Salah Fields -->
             <div id="benar_salah_fields" style="display:none;">
                 <div class="mb-3">
-                    <label class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
-                    <select class="form-select" name="kunci_jawaban" required>
-                        <option value="">Pilih</option>
+                    <label for="kunci_jawaban_bs" class="form-label">Kunci Jawaban <span class="text-danger">*</span></label>
+                    <select class="form-select" name="kunci_jawaban_bs" id="kunci_jawaban_bs" required>
+                        <option value="">-- Pilih Kunci Jawaban --</option>
                         <option value="Benar">Benar</option>
                         <option value="Salah">Salah</option>
                     </select>
+                    <small class="text-muted">Pilih salah satu: Benar atau Salah</small>
                 </div>
             </div>
             
@@ -277,7 +419,7 @@ $ujian_list = $stmt->fetchAll();
             <div id="isian_singkat_fields" style="display:none;">
                 <div class="mb-3">
                     <label class="form-label">Kunci Jawaban (bisa multiple, pisahkan dengan koma)</label>
-                    <input type="text" class="form-control" name="kunci_jawaban" placeholder="Contoh: Jakarta, DKI Jakarta">
+                    <input type="text" class="form-control" name="kunci_jawaban_is" id="kunci_jawaban_is" placeholder="Contoh: Jakarta, DKI Jakarta">
                 </div>
             </div>
             
@@ -311,9 +453,12 @@ $ujian_list = $stmt->fetchAll();
             <div id="esai_fields" style="display:none;">
                 <div class="mb-3">
                     <label class="form-label">Kunci Jawaban (opsional, sebagai referensi)</label>
-                    <textarea class="form-control" name="kunci_jawaban" rows="3"></textarea>
+                    <textarea class="form-control" name="kunci_jawaban_esai" id="kunci_jawaban_esai" rows="3"></textarea>
                 </div>
             </div>
+            
+            <!-- Hidden field to store kunci_jawaban based on tipe (for backward compatibility) -->
+            <input type="hidden" name="kunci_jawaban" id="kunci_jawaban_hidden" value="">
             
             <div class="mb-3">
                 <label for="bobot" class="form-label">Bobot</label>
@@ -321,7 +466,7 @@ $ujian_list = $stmt->fetchAll();
             </div>
             
             <div class="d-flex gap-2">
-                <button type="submit" class="btn btn-primary">
+                <button type="submit" class="btn btn-primary" id="submitBtn">
                     <i class="fas fa-save"></i> Simpan Soal
                 </button>
                 <a href="<?php echo base_url('guru/ujian/detail.php?id=' . ($ujian_id ?: '')); ?>" class="btn btn-secondary">
@@ -343,11 +488,34 @@ function showTipeFields() {
     document.getElementById('matching_fields').style.display = 'none';
     document.getElementById('esai_fields').style.display = 'none';
     
-    // Show selected
+    // Remove required attributes from all kunci_jawaban fields first
+    document.querySelectorAll('select[name="kunci_jawaban_pg"], select[name="kunci_jawaban_bs"]').forEach(el => {
+        el.removeAttribute('required');
+    });
+    
+    // Clear hidden field
+    document.getElementById('kunci_jawaban_hidden').value = '';
+    
+    // Show selected and set required if needed
     if (tipe === 'pilihan_ganda') {
         document.getElementById('pilihan_ganda_fields').style.display = 'block';
+        const kunciSelect = document.getElementById('kunci_jawaban_pg');
+        if (kunciSelect) {
+            kunciSelect.setAttribute('required', 'required');
+            kunciSelect.removeAttribute('disabled');
+        }
     } else if (tipe === 'benar_salah') {
         document.getElementById('benar_salah_fields').style.display = 'block';
+        const kunciSelect = document.getElementById('kunci_jawaban_bs');
+        if (kunciSelect) {
+            kunciSelect.setAttribute('required', 'required');
+            kunciSelect.removeAttribute('disabled');
+            kunciSelect.style.display = 'block';
+            // Reset value to ensure clean state
+            if (kunciSelect.value === '') {
+                kunciSelect.selectedIndex = 0;
+            }
+        }
     } else if (tipe === 'isian_singkat') {
         document.getElementById('isian_singkat_fields').style.display = 'block';
     } else if (tipe === 'matching') {
@@ -356,6 +524,134 @@ function showTipeFields() {
         document.getElementById('esai_fields').style.display = 'block';
     }
 }
+
+// Form validation before submit and sync kunci_jawaban to hidden field
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('soalForm');
+    if (form) {
+        // Sync kunci_jawaban to hidden field when tipe changes or before submit
+        function syncKunciJawaban() {
+            const tipe = document.getElementById('tipe_soal').value;
+            const hiddenField = document.getElementById('kunci_jawaban_hidden');
+            let kunciValue = '';
+            
+            if (tipe === 'pilihan_ganda') {
+                const kunciSelect = document.getElementById('kunci_jawaban_pg');
+                kunciValue = kunciSelect ? kunciSelect.value : '';
+            } else if (tipe === 'benar_salah') {
+                const kunciSelect = document.getElementById('kunci_jawaban_bs');
+                kunciValue = kunciSelect ? kunciSelect.value.trim() : '';
+                console.log('Sync benar_salah - kunci_jawaban_bs element:', kunciSelect);
+                console.log('Sync benar_salah - kunci_jawaban_bs value:', kunciValue);
+                // Also update hidden field for backward compatibility
+                if (hiddenField && kunciValue) {
+                    hiddenField.value = kunciValue;
+                }
+            } else if (tipe === 'isian_singkat') {
+                const kunciInput = document.getElementById('kunci_jawaban_is');
+                kunciValue = kunciInput ? kunciInput.value : '';
+            } else if (tipe === 'esai') {
+                const kunciTextarea = document.getElementById('kunci_jawaban_esai');
+                kunciValue = kunciTextarea ? kunciTextarea.value : '';
+            }
+            
+            if (hiddenField) {
+                hiddenField.value = kunciValue;
+            }
+        }
+        
+        // Sync on change
+        const tipeSelect = document.getElementById('tipe_soal');
+        if (tipeSelect) {
+            tipeSelect.addEventListener('change', syncKunciJawaban);
+        }
+        
+        // Add change listeners to all kunci_jawaban fields
+        ['kunci_jawaban_pg', 'kunci_jawaban_bs', 'kunci_jawaban_is', 'kunci_jawaban_esai'].forEach(id => {
+            const field = document.getElementById(id);
+            if (field) {
+                field.addEventListener('change', syncKunciJawaban);
+                field.addEventListener('input', syncKunciJawaban);
+            }
+        });
+        
+        form.addEventListener('submit', function(e) {
+            const tipe = document.getElementById('tipe_soal').value;
+            let isValid = true;
+            let errorMsg = '';
+            
+            // Sync kunci_jawaban before validation
+            syncKunciJawaban();
+            
+            // Validate based on tipe soal
+            if (tipe === 'pilihan_ganda') {
+                const opsi_a = document.getElementById('opsi_a').value.trim();
+                const opsi_b = document.getElementById('opsi_b').value.trim();
+                const opsi_c = document.getElementById('opsi_c').value.trim();
+                const opsi_d = document.getElementById('opsi_d').value.trim();
+                const kunciSelect = document.getElementById('kunci_jawaban_pg');
+                const kunci = kunciSelect ? kunciSelect.value : '';
+                
+                const opsiFilled = [opsi_a, opsi_b, opsi_c, opsi_d].filter(o => o !== '').length;
+                
+                if (opsiFilled < 2) {
+                    isValid = false;
+                    errorMsg = 'Pilihan ganda minimal harus memiliki 2 opsi yang diisi';
+                } else if (!kunci) {
+                    isValid = false;
+                    errorMsg = 'Kunci jawaban harus dipilih';
+                } else {
+                    // Check if selected kunci has filled option
+                    const opsiMap = {'A': opsi_a, 'B': opsi_b, 'C': opsi_c, 'D': opsi_d};
+                    if (!opsiMap[kunci] || opsiMap[kunci].trim() === '') {
+                        isValid = false;
+                        errorMsg = 'Kunci jawaban yang dipilih harus memiliki opsi yang diisi';
+                    }
+                }
+            } else if (tipe === 'benar_salah') {
+                const kunciSelect = document.getElementById('kunci_jawaban_bs');
+                if (!kunciSelect) {
+                    isValid = false;
+                    errorMsg = 'Field kunci jawaban tidak ditemukan. Silakan refresh halaman.';
+                    console.error('kunci_jawaban_bs element not found!');
+                } else {
+                    const kunci = kunciSelect.value.trim();
+                    console.log('Validation benar_salah - kunci value:', kunci, 'element:', kunciSelect);
+                    if (!kunci || kunci === '' || kunci === '-- Pilih Kunci Jawaban --') {
+                        isValid = false;
+                        errorMsg = 'Kunci jawaban untuk benar/salah harus dipilih (pilih Benar atau Salah)';
+                    } else if (kunci !== 'Benar' && kunci !== 'Salah') {
+                        isValid = false;
+                        errorMsg = 'Kunci jawaban untuk benar/salah harus Benar atau Salah (nilai tidak valid: ' + kunci + ')';
+                    }
+                }
+            } else if (tipe === 'matching') {
+                const itemsKiri = document.querySelectorAll('#matching_fields input[name="item_kiri[]"]');
+                const itemsKanan = document.querySelectorAll('#matching_fields input[name="item_kanan[]"]');
+                let validPairs = 0;
+                
+                itemsKiri.forEach((kiri, idx) => {
+                    if (itemsKanan[idx] && kiri.value.trim() !== '' && itemsKanan[idx].value.trim() !== '') {
+                        validPairs++;
+                    }
+                });
+                
+                if (validPairs === 0) {
+                    isValid = false;
+                    errorMsg = 'Soal matching minimal harus memiliki 1 pasangan item (kiri-kanan) yang diisi';
+                }
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                alert(errorMsg);
+                return false;
+            }
+            
+            return true;
+        });
+    }
+});
 
 function addMatchingItem() {
     const container = document.getElementById('matching_items');
@@ -393,10 +689,10 @@ function handleMediaUpload(input) {
         return;
     }
     
-    // Validate file size
-    const maxSize = file.type.startsWith('video/') ? 52428800 : 10485760; // 50MB for video, 10MB for image
+    // Validate file size (max 500KB for images)
+    const maxSize = 512000; // 500KB
     if (file.size > maxSize) {
-        alert('Ukuran file terlalu besar. Maksimal: ' + (maxSize / 1048576) + 'MB');
+        alert('Ukuran file terlalu besar. Maksimal: 500KB');
         input.value = '';
         removeMedia();
         return;
@@ -423,17 +719,9 @@ function handleMediaUpload(input) {
             document.getElementById('media_type').value = data.media_type;
             document.getElementById('media_type_badge').textContent = data.media_type === 'gambar' ? 'Gambar' : 'Video';
             
-            // Show preview
-            if (data.media_type === 'gambar') {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
-            } else {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<video controls class="img-thumbnail" style="max-width: 400px; max-height: 300px;">' +
-                    '<source src="' + data.url + '" type="' + data.mime_type + '">' +
-                    'Browser Anda tidak mendukung video tag.' +
-                    '</video>';
-            }
+            // Show preview (only images)
+            document.getElementById('media_preview_content').innerHTML = 
+                '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
         } else {
             alert('Error: ' + data.message);
             input.value = '';
@@ -454,6 +742,78 @@ function removeMedia() {
     document.getElementById('media_type').value = '';
     document.getElementById('media_preview').style.display = 'none';
     document.getElementById('media_preview_content').innerHTML = '';
+}
+
+// Handle option image upload
+function handleOptionImageUpload(input, optionKey) {
+    const file = input.files[0];
+    if (!file) {
+        removeOptionImage(optionKey);
+        return;
+    }
+    
+    // Validate file size (max 100KB for images)
+    const maxSize = 102400; // 100KB
+    if (file.size > maxSize) {
+        alert('Ukuran file terlalu besar. Maksimal: 100KB');
+        input.value = '';
+        removeOptionImage(optionKey);
+        return;
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+        alert('Hanya file gambar yang diizinkan');
+        input.value = '';
+        removeOptionImage(optionKey);
+        return;
+    }
+    
+    // Show loading
+    const previewDiv = document.getElementById(optionKey + '_preview');
+    const previewImg = document.getElementById(optionKey + '_preview_img');
+    const removeBtn = document.getElementById('remove_' + optionKey + '_image');
+    
+    previewDiv.style.display = 'block';
+    previewImg.src = '';
+    previewImg.alt = 'Loading...';
+    
+    // Create FormData
+    const formData = new FormData();
+    formData.append('media', file);
+    formData.append('is_option_image', '1'); // Mark as option image for 100KB limit
+    
+    // Upload file
+    fetch('<?php echo base_url("api/upload_soal_media.php"); ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById(optionKey + '_image_path').value = data.path;
+            previewImg.src = data.url;
+            previewImg.alt = file.name;
+            removeBtn.style.display = 'block';
+        } else {
+            alert('Error: ' + data.message);
+            input.value = '';
+            removeOptionImage(optionKey);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Terjadi kesalahan saat mengupload file');
+        input.value = '';
+        removeOptionImage(optionKey);
+    });
+}
+
+function removeOptionImage(optionKey) {
+    document.getElementById(optionKey + '_image').value = '';
+    document.getElementById(optionKey + '_image_path').value = '';
+    document.getElementById(optionKey + '_preview').style.display = 'none';
+    document.getElementById('remove_' + optionKey + '_image').style.display = 'none';
 }
 </script>
 

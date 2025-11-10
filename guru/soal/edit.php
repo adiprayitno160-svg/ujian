@@ -85,7 +85,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } elseif (!empty($media_path)) {
                 // New media uploaded
                 // Validate media_type
-                if (!in_array($media_type, ['gambar', 'video'])) {
+                if ($media_type !== 'gambar') {
                     $media_type = null;
                     $media_path = null;
                 } else {
@@ -221,10 +221,10 @@ $opsi = $soal['opsi_json'] ? json_decode($soal['opsi_json'], true) : [];
                        class="form-control" 
                        id="soal_media" 
                        name="soal_media" 
-                       accept="image/*,video/*"
+                       accept="image/*"
                        onchange="handleMediaUpload(this)">
                 <small class="text-muted">
-                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 10MB), Video (MP4, WebM, OGG - maks. 50MB)
+                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 500KB)
                 </small>
                 <div id="media_preview" class="mt-2" style="display:none;">
                     <div class="alert alert-success d-flex justify-content-between align-items-center">
@@ -391,10 +391,10 @@ function handleMediaUpload(input) {
         return;
     }
     
-    // Validate file size
-    const maxSize = file.type.startsWith('video/') ? 52428800 : 10485760; // 50MB for video, 10MB for image
+    // Validate file size (max 500KB for images)
+    const maxSize = 512000; // 500KB
     if (file.size > maxSize) {
-        alert('Ukuran file terlalu besar. Maksimal: ' + (maxSize / 1048576) + 'MB');
+        alert('Ukuran file terlalu besar. Maksimal: 500KB');
         input.value = '';
         removeMedia();
         return;
@@ -426,19 +426,11 @@ function handleMediaUpload(input) {
         if (data.success) {
             document.getElementById('media_path').value = data.path;
             document.getElementById('media_type').value = data.media_type;
-            document.getElementById('media_type_badge').textContent = data.media_type === 'gambar' ? 'Gambar' : 'Video';
+            document.getElementById('media_type_badge').textContent = 'Gambar';
             
-            // Show preview
-            if (data.media_type === 'gambar') {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
-            } else {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<video controls class="img-thumbnail" style="max-width: 400px; max-height: 300px;">' +
-                    '<source src="' + data.url + '" type="' + data.mime_type + '">' +
-                    'Browser Anda tidak mendukung video tag.' +
-                    '</video>';
-            }
+            // Show preview (only images)
+            document.getElementById('media_preview_content').innerHTML = 
+                '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
         } else {
             alert('Error: ' + data.message);
             input.value = '';

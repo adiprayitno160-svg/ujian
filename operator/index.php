@@ -14,7 +14,17 @@ check_session_timeout();
 
 // Check if user has operator access (admin or guru with is_operator = 1)
 if (!has_operator_access()) {
-    redirect('index.php');
+    // Redirect to dashboard based on user role to avoid redirect loop
+    $role = $_SESSION['role'] ?? 'admin';
+    if ($role === 'admin') {
+        redirect('admin');
+    } elseif ($role === 'guru') {
+        redirect('guru');
+    } elseif ($role === 'siswa') {
+        redirect('siswa');
+    } else {
+        redirect('admin-login');
+    }
 }
 
 $page_title = 'Dashboard Operator';

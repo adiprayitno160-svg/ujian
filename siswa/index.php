@@ -16,9 +16,9 @@ if (function_exists('check_exam_mode_restriction')) {
     check_exam_mode_restriction();
 }
 
-$page_title = 'Dashboard Siswa';
-$role_css = 'siswa';
-include __DIR__ . '/../includes/header.php';
+// Redirect to new dashboard
+redirect('siswa-dashboard');
+exit;
 
 // Get statistics
 global $pdo;

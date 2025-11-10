@@ -7,6 +7,7 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/ai_correction.php';
 
 require_role('guru');
 check_session_timeout();
@@ -142,7 +143,7 @@ $soal_list = $stmt->fetchAll();
                     <strong>Kunci Jawaban:</strong> 
                     <span class="text-success"><?php echo escape($kunci); ?></span>
                 </div>
-            <?php elseif ($soal['tipe_soal'] === 'esai'): ?>
+            <?php elseif (in_array($soal['tipe_soal'], ['esai', 'uraian_singkat', 'rangkuman', 'ringkasan', 'cerita', 'narasi'])): ?>
                 <div class="mb-2">
                     <strong>Jawaban Siswa:</strong>
                     <div class="p-3 bg-light rounded">
@@ -155,6 +156,63 @@ $soal_list = $stmt->fetchAll();
                     <div class="p-3 bg-light rounded">
                         <?php echo nl2br(escape($kunci)); ?>
                     </div>
+                </div>
+                <?php endif; ?>
+                
+                <?php 
+                // Get AI feedback if available
+                $ai_feedback = get_ai_feedback($nilai['id_ujian'], $soal['id'], $nilai['id_siswa'], $nilai['id_sesi']);
+                if ($ai_feedback && isset($ai_feedback['nilai'])): 
+                ?>
+                <div class="mt-3 p-3 border rounded bg-info bg-opacity-10">
+                    <h6 class="mb-2"><i class="fas fa-robot"></i> Feedback AI (Gemini)</h6>
+                    
+                    <?php if (isset($ai_feedback['nilai'])): ?>
+                    <div class="mb-2">
+                        <strong>Nilai AI:</strong> 
+                        <span class="badge bg-primary"><?php echo number_format($ai_feedback['nilai'], 2); ?>/100</span>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($ai_feedback['feedback'])): ?>
+                    <div class="mb-2">
+                        <strong>Feedback:</strong>
+                        <div class="p-2 bg-white rounded">
+                            <?php echo nl2br(escape($ai_feedback['feedback'])); ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($ai_feedback['kekuatan'])): ?>
+                    <div class="mb-2">
+                        <strong>Kekuatan:</strong>
+                        <div class="p-2 bg-success bg-opacity-10 rounded">
+                            <?php echo nl2br(escape($ai_feedback['kekuatan'])); ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($ai_feedback['kelemahan'])): ?>
+                    <div class="mb-2">
+                        <strong>Kelemahan:</strong>
+                        <div class="p-2 bg-warning bg-opacity-10 rounded">
+                            <?php echo nl2br(escape($ai_feedback['kelemahan'])); ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($ai_feedback['saran'])): ?>
+                    <div class="mb-2">
+                        <strong>Saran:</strong>
+                        <div class="p-2 bg-info bg-opacity-10 rounded">
+                            <?php echo nl2br(escape($ai_feedback['saran'])); ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                </div>
+                <?php elseif ($nilai['ai_corrected']): ?>
+                <div class="mt-2">
+                    <small class="text-muted"><i class="fas fa-info-circle"></i> Koreksi AI sedang diproses atau tidak tersedia.</small>
                 </div>
                 <?php endif; ?>
             <?php else: ?>

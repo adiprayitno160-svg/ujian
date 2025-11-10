@@ -20,6 +20,9 @@ function sanitize($data) {
  * Escape output
  */
 function escape($string) {
+    if ($string === null) {
+        return '';
+    }
     return htmlspecialchars($string, ENT_QUOTES, 'UTF-8');
 }
 

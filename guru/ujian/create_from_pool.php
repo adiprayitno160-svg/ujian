@@ -39,9 +39,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $min_submit_minutes = DEFAULT_MIN_SUBMIT_MINUTES;
                 
-                // Create ujian
-                $stmt = $pdo->prepare("INSERT INTO ujian (judul, deskripsi, id_mapel, id_guru, durasi, min_submit_minutes, status) 
-                                      VALUES (?, ?, ?, ?, ?, ?, 'draft')");
+                // Create ujian (with AI correction enabled by default)
+                $stmt = $pdo->prepare("INSERT INTO ujian (judul, deskripsi, id_mapel, id_guru, durasi, min_submit_minutes, ai_correction_enabled, status) 
+                                      VALUES (?, ?, ?, ?, ?, ?, 1, 'draft')");
                 $stmt->execute([$judul, $deskripsi, $id_mapel, $_SESSION['user_id'], $durasi, $min_submit_minutes]);
                 $ujian_id = $pdo->lastInsertId();
                 

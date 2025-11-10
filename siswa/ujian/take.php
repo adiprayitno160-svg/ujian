@@ -598,15 +598,92 @@ if (is_array($opsi)) {
     $opsi = $filtered_opsi;
 }
 
-// Shuffle opsi if enabled
-if ($ujian['acak_opsi'] && is_array($opsi)) {
-    $keys = array_keys($opsi);
-    shuffle($keys);
-    $shuffled_opsi = [];
-    foreach ($keys as $key) {
-        $shuffled_opsi[$key] = $opsi[$key];
+// Shuffle opsi if enabled and create mapping for answer key conversion
+$shuffle_map = []; // Maps shuffled key -> original key (e.g., ['C' => 'A'] means shuffled C is original A)
+$reverse_shuffle_map = []; // Maps original key -> shuffled key (e.g., ['A' => 'C'] means original A is now at C)
+
+if ($ujian['acak_opsi'] && is_array($opsi) && $current_soal_data['tipe_soal'] === 'pilihan_ganda') {
+    // Get or create shuffle mapping for this soal for this student
+    // IMPORTANT: Include student ID to ensure each student gets different shuffle
+    $shuffle_key = 'shuffle_map_' . $sesi_id . '_' . $current_soal_data['id'] . '_' . $_SESSION['user_id'];
+    
+    if (isset($_SESSION[$shuffle_key])) {
+        // Use existing mapping (consistent for this student during exam session)
+        $shuffle_map = $_SESSION[$shuffle_key];
+        $reverse_shuffle_map = array_flip($shuffle_map);
+        
+        // Recreate shuffled opsi based on saved mapping
+        $shuffled_opsi = [];
+        foreach ($shuffle_map as $shuffled_key => $original_key) {
+            if (isset($opsi[$original_key])) {
+                $shuffled_opsi[$shuffled_key] = $opsi[$original_key];
+            }
+        }
+        $opsi = $shuffled_opsi;
+    } else {
+        // Create new shuffle mapping - each student gets different random order
+        // Use student ID as seed to ensure different shuffle per student
+        $keys = array_keys($opsi);
+        $original_keys = $keys; // Keep original order
+        
+        // Seed random with student ID + soal ID to get consistent but different shuffle per student
+        mt_srand(crc32($_SESSION['user_id'] . '_' . $current_soal_data['id'] . '_' . $sesi_id));
+        shuffle($keys); // Shuffle the keys
+        mt_srand(); // Reset seed
+        
+        // Create mapping: shuffled position -> original key
+        // Example: If original A is now at position C, then shuffle_map['C'] = 'A'
+        foreach ($keys as $idx => $shuffled_key) {
+            $original_key = $original_keys[$idx];
+            $shuffle_map[$shuffled_key] = $original_key;
+            $reverse_shuffle_map[$original_key] = $shuffled_key;
+        }
+        
+        // Save mapping to session (per student, per soal, per sesi)
+        $_SESSION[$shuffle_key] = $shuffle_map;
+        
+        // Create shuffled opsi for display
+        $shuffled_opsi = [];
+        foreach ($keys as $key) {
+            $shuffled_opsi[$key] = $opsi[$key];
+        }
+        $opsi = $shuffled_opsi;
     }
-    $opsi = $shuffled_opsi;
+}
+
+// Get matching items if tipe_soal is matching
+$matching_items = [];
+$matching_options = [];
+$saved_matching = [];
+if ($current_soal_data['tipe_soal'] === 'matching') {
+    try {
+        $stmt_match = $pdo->prepare("SELECT * FROM soal_matching WHERE id_soal = ? ORDER BY urutan");
+        $stmt_match->execute([$current_soal_data['id']]);
+        $matching_items = $stmt_match->fetchAll();
+        
+        // Get unique options for matching (item_kanan)
+        foreach ($matching_items as $item) {
+            if (!in_array($item['item_kanan'], $matching_options)) {
+                $matching_options[] = $item['item_kanan'];
+            }
+        }
+        
+        // Shuffle options if acak_opsi is enabled
+        if ($ujian['acak_opsi'] && is_array($matching_options)) {
+            shuffle($matching_options);
+        }
+        
+        // Get saved answers
+        if ($saved && !empty($saved['jawaban_json'])) {
+            $saved_matching = json_decode($saved['jawaban_json'], true);
+            if (!is_array($saved_matching)) {
+                $saved_matching = [];
+            }
+        }
+    } catch (PDOException $e) {
+        error_log("Error fetching matching items: " . $e->getMessage());
+        $matching_items = [];
+    }
 }
 ?>
 
@@ -1114,19 +1191,68 @@ if (isset($hide_navbar) && $hide_navbar) {
                     </div>
                 <?php endif; ?>
                 
-                <?php if ($current_soal_data['tipe_soal'] === 'pilihan_ganda'): ?>
+                <?php if ($current_soal_data['tipe_soal'] === 'pilihan_ganda'): 
+                    // For display: check if saved answer needs conversion from original to shuffled
+                    $display_answer = null;
+                    if ($saved && !empty($saved['jawaban'])) {
+                        $original_answer = $saved['jawaban'];
+                        // If we have shuffle map, convert original answer to shuffled position for display
+                        if (!empty($reverse_shuffle_map) && isset($reverse_shuffle_map[$original_answer])) {
+                            $display_answer = $reverse_shuffle_map[$original_answer];
+                        } else {
+                            // No shuffle or answer already in correct format
+                            $display_answer = $original_answer;
+                        }
+                    }
+                ?>
                     <div class="options-container">
                         <?php foreach ($opsi as $key => $value): 
-                            $is_selected = $saved && $saved['jawaban'] === $key;
+                            // Check if this is the selected answer (considering shuffle mapping)
+                            $is_selected = false;
+                            if ($display_answer !== null) {
+                                $is_selected = ($display_answer === $key);
+                            } elseif ($saved && !empty($saved['jawaban'])) {
+                                // Fallback: direct comparison
+                                $is_selected = ($saved['jawaban'] === $key);
+                            }
+                            
+                            // Get original key for this shuffled position
+                            $original_key = isset($shuffle_map[$key]) ? $shuffle_map[$key] : $key;
+                            
+                            // Handle both old format (string) and new format (object with text and image)
+                            $option_text = '';
+                            $option_image = null;
+                            
+                            if (is_array($value)) {
+                                // New format: object with text and image
+                                $option_text = $value['text'] ?? '';
+                                $option_image = $value['image'] ?? null;
+                            } else {
+                                // Old format: just text (backward compatible)
+                                $option_text = $value;
+                            }
                         ?>
                         <div class="option-item <?php echo $is_selected ? 'selected' : ''; ?>" 
                              onclick="selectOption('<?php echo $key; ?>')">
                             <input type="radio" name="jawaban" id="opt_<?php echo $key; ?>" 
                                    value="<?php echo $key; ?>" 
+                                   data-original-key="<?php echo $original_key; ?>"
                                    <?php echo $is_selected ? 'checked' : ''; ?>
                                    onchange="saveAnswer()">
                             <label for="opt_<?php echo $key; ?>" style="cursor: pointer; margin-left: 10px; flex: 1;">
-                                <strong><?php echo $key; ?>.</strong> <?php echo escape($value); ?>
+                                <strong><?php echo $key; ?>.</strong> 
+                                <?php if (!empty($option_text)): ?>
+                                    <?php echo escape($option_text); ?>
+                                <?php endif; ?>
+                                <?php if (!empty($option_image)): ?>
+                                    <div class="mt-2">
+                                        <img src="<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>" 
+                                             alt="Gambar Opsi <?php echo $key; ?>" 
+                                             class="img-thumbnail" 
+                                             style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                             onclick="event.stopPropagation(); openMediaModal('<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>', 'gambar');">
+                                    </div>
+                                <?php endif; ?>
                             </label>
                         </div>
                         <?php endforeach; ?>
@@ -1155,6 +1281,49 @@ if (isset($hide_navbar) && $hide_navbar) {
                                value="<?php echo escape($saved['jawaban'] ?? ''); ?>" 
                                placeholder="Masukkan jawaban singkat"
                                onchange="saveAnswer()">
+                    </div>
+                <?php elseif ($current_soal_data['tipe_soal'] === 'matching'): ?>
+                    <div class="mb-3">
+                        <p class="text-muted mb-3">
+                            <i class="fas fa-info-circle"></i> 
+                            Pilih jawaban yang tepat untuk setiap item di kolom kiri dengan memilih dari kolom kanan.
+                        </p>
+                        <div class="table-responsive">
+                            <table class="table table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th width="50%">Item Kiri</th>
+                                        <th width="50%">Pilih Jawaban</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($matching_items as $idx => $item): 
+                                        $saved_value = $saved_matching[$idx] ?? '';
+                                    ?>
+                                    <tr>
+                                        <td>
+                                            <strong><?php echo ($idx + 1); ?>.</strong> <?php echo escape($item['item_kiri']); ?>
+                                        </td>
+                                        <td>
+                                            <select class="form-select matching-select" 
+                                                    name="jawaban[<?php echo $idx; ?>]" 
+                                                    data-index="<?php echo $idx; ?>"
+                                                    onchange="saveMatchingAnswer()">
+                                                <option value="">-- Pilih Jawaban --</option>
+                                                <?php foreach ($matching_options as $option): 
+                                                    $is_selected = ($saved_value === $option);
+                                                ?>
+                                                <option value="<?php echo escape($option); ?>" <?php echo $is_selected ? 'selected' : ''; ?>>
+                                                    <?php echo escape($option); ?>
+                                                </option>
+                                                <?php endforeach; ?>
+                                            </select>
+                                        </td>
+                                    </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 <?php elseif ($current_soal_data['tipe_soal'] === 'esai'): ?>
                     <div class="mb-3">
@@ -1187,11 +1356,17 @@ if (isset($hide_navbar) && $hide_navbar) {
                     </button>
                     
                     <?php if ($current_soal < $total_soal): ?>
+                    <a href="<?php echo base_url('siswa/ujian/review.php?id=' . $sesi_id); ?>" class="btn btn-info">
+                        <i class="fas fa-list-check"></i> Review
+                    </a>
                     <button type="button" class="btn btn-primary" 
                             onclick="goToSoal(<?php echo $current_soal + 1; ?>)">
                         Selanjutnya <i class="fas fa-chevron-right"></i>
                     </button>
                     <?php else: ?>
+                    <a href="<?php echo base_url('siswa/ujian/review.php?id=' . $sesi_id); ?>" class="btn btn-info">
+                        <i class="fas fa-list-check"></i> Review
+                    </a>
                     <button type="button" class="btn btn-success" id="submitBtn" <?php echo $can_submit_now ? '' : 'disabled'; ?> onclick="submitExam()">
                         <i class="fas fa-check"></i> Selesai
                     </button>
@@ -1243,6 +1418,9 @@ if (isset($hide_navbar) && $hide_navbar) {
         </div>
         
         <div class="mt-3 text-center">
+            <a href="<?php echo base_url('siswa/ujian/review.php?id=' . $sesi_id); ?>" class="btn btn-info btn-sm w-100 mb-2">
+                <i class="fas fa-list-check"></i> Review Jawaban
+            </a>
             <button type="button" class="btn btn-danger btn-sm w-100" id="submitBtnSidebar" <?php echo $can_submit_now ? '' : 'disabled'; ?> onclick="submitExam()">
                 <i class="fas fa-stop"></i> Selesai Ujian
             </button>
@@ -1480,7 +1658,8 @@ function selectOption(value) {
     if (radio) {
         radio.checked = true;
         radio.closest('.option-item').classList.add('selected');
-        saveAnswer();
+        // Trigger change event to ensure saveAnswer is called with proper conversion
+        radio.dispatchEvent(new Event('change'));
     }
 }
 
@@ -1497,6 +1676,66 @@ function saveAnswer() {
     const form = document.getElementById('examForm');
     const formData = new FormData(form);
     formData.append('action', 'save');
+    
+    // Handle pilihan ganda with shuffled options - convert shuffled key to original key
+    const jawabanInput = form.querySelector('input[name="jawaban"]:checked');
+    if (jawabanInput && jawabanInput.hasAttribute('data-original-key')) {
+        const shuffledKey = jawabanInput.value;
+        const originalKey = jawabanInput.getAttribute('data-original-key');
+        // Replace with original key
+        formData.set('jawaban', originalKey);
+    }
+    
+    // Handle matching answers - convert to JSON array if matching question
+    const matchingSelects = document.querySelectorAll('.matching-select');
+    if (matchingSelects.length > 0) {
+        const matchingAnswers = [];
+        let hasAnswer = false;
+        matchingSelects.forEach(select => {
+            const index = parseInt(select.getAttribute('data-index'));
+            const value = select.value;
+            matchingAnswers[index] = value;
+            if (value) {
+                hasAnswer = true;
+            }
+        });
+        // Remove jawaban field from form and add as JSON array
+        formData.delete('jawaban');
+        if (hasAnswer) {
+            // Send as array for API to handle as JSON
+            matchingAnswers.forEach((value, index) => {
+                formData.append(`jawaban[${index}]`, value);
+            });
+        }
+    }
+    
+    fetch('<?php echo base_url('api/save_answer.php'); ?>', {
+        method: 'POST',
+        body: formData
+    }).then(() => {
+        updateNavigation();
+    });
+}
+
+function saveMatchingAnswer() {
+    // Save matching answers as JSON array
+    const matchingSelects = document.querySelectorAll('.matching-select');
+    const matchingAnswers = [];
+    matchingSelects.forEach(select => {
+        const index = parseInt(select.getAttribute('data-index'));
+        matchingAnswers[index] = select.value;
+    });
+    
+    const formData = new FormData();
+    formData.append('action', 'save');
+    formData.append('sesi_id', sesiId);
+    formData.append('ujian_id', ujianId);
+    formData.append('soal_id', soalId);
+    
+    // Send as array format for API to handle as JSON
+    matchingAnswers.forEach((value, index) => {
+        formData.append(`jawaban[${index}]`, value);
+    });
     
     fetch('<?php echo base_url('api/save_answer.php'); ?>', {
         method: 'POST',

@@ -230,5 +230,109 @@ $sekolah = get_sekolah_info();
     </div>
 </div>
 
+<!-- Fitur Baru untuk Guru -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-star"></i> Fitur Baru untuk Guru</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- AI Correction -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-success bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-robot text-success"></i>
+                                    </div>
+                                    <h6 class="mb-0">AI Correction (Google Gemini)</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Koreksi otomatis jawaban esai menggunakan Google Gemini AI dengan feedback 
+                                    konstruktif, analisis kekuatan dan kelemahan, serta saran perbaikan untuk siswa.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Plagiarisme Check -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-warning bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-shield-alt text-warning"></i>
+                                    </div>
+                                    <h6 class="mb-0">Plagiarisme Check</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Deteksi plagiarisme dengan similarity score, analisis per bagian, 
+                                    dan identifikasi jawaban yang mencurigakan untuk menjaga integritas ujian.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analisis Butir Soal -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-danger bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-chart-bar text-danger"></i>
+                                    </div>
+                                    <h6 class="mb-0">Analisis Butir Soal</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Analisis tingkat kesukaran, daya pembeda, efektivitas distraktor, 
+                                    dan statistik butir soal untuk meningkatkan kualitas soal ujian.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sistem Notifikasi -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-info bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-bell text-info"></i>
+                                    </div>
+                                    <h6 class="mb-0">Sistem Notifikasi</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Notifikasi real-time untuk reminder deadline PR/Tugas, notifikasi soal yang perlu review, 
+                                    dan notifikasi penting lainnya untuk meningkatkan komunikasi.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistik & Analytics -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-primary bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-analytics text-primary"></i>
+                                    </div>
+                                    <h6 class="mb-0">Statistik & Analytics</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Statistik nilai lengkap dengan grafik distribusi, perbandingan dengan ujian lain, 
+                                    trend performa, dan analisis per kelas untuk insights yang lebih mendalam.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <?php include __DIR__ . '/../includes/footer.php'; ?>
 

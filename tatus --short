@@ -1,0 +1,5 @@
+[33m8e209d9[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mv1.0.13[m[33m, [m[1;31morigin/main[m[33m)[m Release v1.0.13: Change login URL from siswa-login to login, maintain backward compatibility
+[33m3372941[m[33m ([m[1;33mtag: [m[1;33mv1.0.12[m[33m)[m Release v1.0.12: Fix exec() error - Add is_exec_available() check, skip Git tags if exec() disabled
+[33m1fb0679[m[33m ([m[1;33mtag: [m[1;33mv1.0.11[m[33m)[m Release v1.0.11: Fix redirect loop issues - Fix router index route, improve login redirect logic, fix header session access
+[33mffea43e[m Fix redirect loop: Update has_operator_access, fix login redirects, change cookie samesite to Lax
+[33m36e3610[m[33m ([m[1;33mtag: [m[1;33mv1.0.9[m[33m)[m Release v1.0.9: Update branch dari master ke main, tambah akses operator di login admin/guru, update system update

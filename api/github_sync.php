@@ -35,6 +35,59 @@ function checkGitAvailable() {
     return $return_var === 0;
 }
 
+// Check if GitHub CLI is available
+function checkGitHubCLIAvailable() {
+    if (!defined('USE_GITHUB_CLI') || !USE_GITHUB_CLI) {
+        return false;
+    }
+    
+    $output = [];
+    $return_var = 0;
+    exec('gh --version 2>&1', $output, $return_var);
+    
+    if ($return_var === 0) {
+        // Check if GitHub CLI is authenticated
+        $auth_output = [];
+        $auth_return = 0;
+        exec('gh auth status 2>&1', $auth_output, $auth_return);
+        return $auth_return === 0;
+    }
+    
+    return false;
+}
+
+// Get GitHub CLI status info
+function getGitHubCLIStatus() {
+    $available = checkGitHubCLIAvailable();
+    $info = [
+        'available' => $available,
+        'authenticated' => false,
+        'user' => null,
+        'version' => null
+    ];
+    
+    if ($available) {
+        // Get authenticated user
+        $user_output = [];
+        $user_return = 0;
+        @exec('gh api user --jq .login 2>&1', $user_output, $user_return);
+        if ($user_return === 0 && !empty($user_output)) {
+            $info['authenticated'] = true;
+            $info['user'] = trim($user_output[0]);
+        }
+        
+        // Get version
+        $version_output = [];
+        $version_return = 0;
+        @exec('gh --version 2>&1', $version_output, $version_return);
+        if ($version_return === 0 && !empty($version_output)) {
+            $info['version'] = trim($version_output[0]);
+        }
+    }
+    
+    return $info;
+}
+
 // Check for updates from GitHub
 function checkUpdateAvailable($repo_path, $branch = null) {
     try {
@@ -428,6 +481,7 @@ try {
             $git_available = @checkGitAvailable();
             $git_info = @getGitInfo($repo_path);
             $git_status = @getGitStatus($repo_path);
+            $github_cli_status = @getGitHubCLIStatus();
             
             // Ensure we always return valid JSON
             $response = [
@@ -435,6 +489,7 @@ try {
                 'git_available' => $git_available !== false,
                 'git_info' => $git_info ?: ['is_repo' => false, 'branch' => null, 'commit' => null, 'remote' => null],
                 'git_status' => $git_status ?: ['has_changes' => false, 'changes' => [], 'success' => false],
+                'github_cli' => $github_cli_status ?: ['available' => false, 'authenticated' => false, 'user' => null, 'version' => null],
                 'github_url' => $github_url
             ];
             

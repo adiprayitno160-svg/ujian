@@ -7,6 +7,8 @@
 require_once __DIR__ . '/../../config/config.php';
 require_once __DIR__ . '/../../includes/auth.php';
 require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../../includes/ai_correction.php';
+require_once __DIR__ . '/../../includes/notification_functions.php';
 
 require_role('siswa');
 check_session_timeout();
@@ -107,37 +109,125 @@ try {
                 $score = $bobot;
             }
         } elseif ($soal['tipe_soal'] === 'isian_singkat') {
+            // Isian singkat: try exact match first, if no match and AI enabled, try AI
             $kunci_list = array_map('trim', explode(',', $kunci));
             $jawaban_trim = strtolower(trim($jawaban_siswa));
+            $found_match = false;
+            
             foreach ($kunci_list as $k) {
                 if (strtolower(trim($k)) === $jawaban_trim) {
                     $score = $bobot;
+                    $found_match = true;
                     break;
                 }
             }
-        } elseif ($soal['tipe_soal'] === 'matching') {
-            // Matching logic
-            $jawaban_json = json_decode($soal['jawaban_json'], true);
-            if ($jawaban_json) {
-                $stmt_match = $pdo->prepare("SELECT * FROM soal_matching WHERE id_soal = ? ORDER BY urutan");
-                $stmt_match->execute([$soal['id']]);
-                $matches = $stmt_match->fetchAll();
+            
+            // If no exact match and AI is enabled, try AI correction for more flexible matching
+            if (!$found_match && is_ai_correction_enabled($ujian_id) && !empty(trim($jawaban_siswa))) {
+                $stmt_jawaban = $pdo->prepare("SELECT id FROM jawaban_siswa 
+                                              WHERE id_sesi = ? AND id_ujian = ? AND id_soal = ? AND id_siswa = ?");
+                $stmt_jawaban->execute([$sesi_id, $ujian_id, $soal['id'], $_SESSION['user_id']]);
+                $jawaban_data = $stmt_jawaban->fetch();
                 
-                $correct = 0;
-                $total_match = count($matches);
-                
-                foreach ($matches as $idx => $match) {
-                    if (isset($jawaban_json[$idx]) && $jawaban_json[$idx] === $match['item_kanan']) {
-                        $correct++;
+                if ($jawaban_data) {
+                    $api_key = get_ai_api_key($ujian_id);
+                    $ai_result = correct_answer_ai($ujian_id, $soal['id'], $jawaban_data['id'], $api_key, 'isian_singkat');
+                    
+                    if ($ai_result['success'] && $ai_result['nilai'] !== null) {
+                        // Use AI score if it's high enough (>= 70% similarity)
+                        if ($ai_result['nilai'] >= 70) {
+                            $score = ($ai_result['nilai'] / 100) * $bobot;
+                        }
                     }
                 }
-                
-                if ($total_match > 0) {
-                    $score = ($correct / $total_match) * $bobot;
+            }
+        } elseif ($soal['tipe_soal'] === 'matching') {
+            // Matching logic - use jawaban_json from jawaban_siswa (from JOIN), not from soal
+            // $soal['jawaban_json'] here is from jawaban_siswa table because of the JOIN
+            $jawaban_siswa_json = $soal['jawaban_json'] ?? null;
+            if ($jawaban_siswa_json) {
+                $jawaban_array = json_decode($jawaban_siswa_json, true);
+                if (is_array($jawaban_array)) {
+                    $stmt_match = $pdo->prepare("SELECT * FROM soal_matching WHERE id_soal = ? ORDER BY urutan");
+                    $stmt_match->execute([$soal['id']]);
+                    $matches = $stmt_match->fetchAll();
+                    
+                    $correct = 0;
+                    $total_match = count($matches);
+                    
+                    // Compare jawaban siswa dengan kunci jawaban (item_kanan)
+                    // Jawaban siswa bisa dalam format array dengan index atau object
+                    foreach ($matches as $idx => $match) {
+                        if (isset($jawaban_array[$idx])) {
+                            // Handle both array and object formats
+                            $jawaban_item = is_array($jawaban_array[$idx]) 
+                                ? ($jawaban_array[$idx]['jawaban'] ?? $jawaban_array[$idx]['item_kanan'] ?? $jawaban_array[$idx]) 
+                                : $jawaban_array[$idx];
+                            
+                            // Case-insensitive comparison
+                            if (trim(strtolower($jawaban_item)) === trim(strtolower($match['item_kanan']))) {
+                                $correct++;
+                            }
+                        }
+                    }
+                    
+                    if ($total_match > 0) {
+                        $score = ($correct / $total_match) * $bobot;
+                    }
                 }
             }
-        } elseif ($soal['tipe_soal'] === 'esai') {
-            // Esai will be graded manually or by AI later
+        } elseif (requires_ai_correction($soal['tipe_soal'])) {
+            // Soal yang memerlukan AI correction (esai, uraian singkat, rangkuman, cerita, dll)
+            // Check if AI correction is enabled for this exam
+            $ai_enabled = is_ai_correction_enabled($ujian_id);
+            
+            if ($ai_enabled && !empty(trim($jawaban_siswa ?? ''))) {
+                // Get jawaban_id
+                $stmt_jawaban = $pdo->prepare("SELECT id FROM jawaban_siswa 
+                                              WHERE id_sesi = ? AND id_ujian = ? AND id_soal = ? AND id_siswa = ?");
+                $stmt_jawaban->execute([$sesi_id, $ujian_id, $soal['id'], $_SESSION['user_id']]);
+                $jawaban_data = $stmt_jawaban->fetch();
+                
+                if ($jawaban_data) {
+                    // Call AI correction
+                    $api_key = get_ai_api_key($ujian_id);
+                    $ai_result = correct_answer_ai($ujian_id, $soal['id'], $jawaban_data['id'], $api_key, $soal['tipe_soal']);
+                    
+                    if ($ai_result['success'] && $ai_result['nilai'] !== null) {
+                        // Convert AI score (0-100 scale) to bobot scale
+                        $score = ($ai_result['nilai'] / 100) * $bobot;
+                        
+                        // Save AI feedback to jawaban_siswa (if field exists) or create feedback record
+                        try {
+                            // Try to update jawaban_siswa with AI feedback
+                            // Note: This assumes there might be fields for AI feedback, if not, we'll log it separately
+                            $feedback_json = json_encode([
+                                'ai_feedback' => $ai_result['feedback'],
+                                'ai_kekuatan' => $ai_result['kekuatan'],
+                                'ai_kelemahan' => $ai_result['kelemahan'],
+                                'ai_saran' => $ai_result['saran'],
+                                'ai_score' => $ai_result['nilai']
+                            ]);
+                            
+                            // Store in a comment or separate field if available
+                            // For now, we'll rely on ai_correction_log for feedback retrieval
+                        } catch (Exception $e) {
+                            error_log("Error saving AI feedback: " . $e->getMessage());
+                        }
+                    } else {
+                        // AI correction failed, set score to 0 (will be graded manually later)
+                        $score = 0;
+                        error_log("AI correction failed for soal_id: " . $soal['id'] . ", error: " . ($ai_result['message'] ?? 'Unknown'));
+                    }
+                } else {
+                    $score = 0;
+                }
+            } else {
+                // AI correction not enabled or empty answer - will be graded manually
+                $score = 0;
+            }
+        } else {
+            // Unknown question type
             $score = 0;
         }
         
@@ -146,15 +236,35 @@ try {
     
     $nilai_akhir = $total_bobot > 0 ? ($total_score / $total_bobot) * 100 : 0;
     
+    // Check if AI correction was used
+    $ai_corrected = false;
+    foreach ($soal_list as $soal) {
+        if (requires_ai_correction($soal['tipe_soal']) && is_ai_correction_enabled($ujian_id)) {
+            $ai_corrected = true;
+            break;
+        }
+    }
+    
     // Update nilai
     $stmt = $pdo->prepare("UPDATE nilai SET 
                           status = 'selesai', 
                           nilai = ?, 
-                          waktu_selesai = NOW() 
+                          waktu_selesai = NOW(),
+                          ai_corrected = ?
                           WHERE id = ?");
-    $stmt->execute([$nilai_akhir, $nilai['id']]);
+    $stmt->execute([$nilai_akhir, $ai_corrected ? 1 : 0, $nilai['id']]);
     
     $pdo->commit();
+    
+    // Create notification for nilai keluar (if notification functions available)
+    if (function_exists('create_nilai_notification')) {
+        try {
+            create_nilai_notification($nilai['id']);
+        } catch (Exception $e) {
+            error_log("Create notification error: " . $e->getMessage());
+            // Don't fail the submit if notification fails
+        }
+    }
     
     // Clear exam mode - exam is finished
     if (function_exists('clear_exam_mode')) {

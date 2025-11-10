@@ -145,7 +145,20 @@ $soal_list = $stmt->fetchAll();
             
             <?php if ($soal['tipe_soal'] === 'pilihan_ganda'): ?>
                 <div class="mb-2">
-                    <?php foreach ($opsi as $key => $value): ?>
+                    <?php foreach ($opsi as $key => $value): 
+                        // Handle both old format (string) and new format (object with text and image)
+                        $option_text = '';
+                        $option_image = null;
+                        
+                        if (is_array($value)) {
+                            // New format: object with text and image
+                            $option_text = $value['text'] ?? '';
+                            $option_image = $value['image'] ?? null;
+                        } else {
+                            // Old format: just text (backward compatible)
+                            $option_text = $value;
+                        }
+                    ?>
                     <div class="form-check mb-1">
                         <input class="form-check-input" type="radio" disabled
                                <?php echo $jawaban === $key ? 'checked' : ''; ?>>
@@ -153,7 +166,19 @@ $soal_list = $stmt->fetchAll();
                             echo $key === $kunci ? 'text-success fw-bold' : 
                                 ($jawaban === $key && $jawaban !== $kunci ? 'text-danger' : ''); 
                         ?>">
-                            <strong><?php echo $key; ?>.</strong> <?php echo escape($value); ?>
+                            <strong><?php echo $key; ?>.</strong> 
+                            <?php if (!empty($option_text)): ?>
+                                <?php echo escape($option_text); ?>
+                            <?php endif; ?>
+                            <?php if (!empty($option_image)): ?>
+                                <div class="mt-2">
+                                    <img src="<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>" 
+                                         alt="Gambar Opsi <?php echo $key; ?>" 
+                                         class="img-thumbnail" 
+                                         style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                         onclick="openMediaModal('<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>', 'gambar');">
+                                </div>
+                            <?php endif; ?>
                             <?php if ($key === $kunci): ?>
                                 <i class="fas fa-check-circle"></i> (Kunci)
                             <?php endif; ?>

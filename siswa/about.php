@@ -189,6 +189,74 @@ $sekolah = get_sekolah_info();
     </div>
 </div>
 
+<!-- Fitur Baru untuk Siswa -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-star"></i> Fitur Baru untuk Siswa</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Dashboard & Progress Tracking -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-primary bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-chart-line text-primary"></i>
+                                    </div>
+                                    <h6 class="mb-0">Dashboard & Progress Tracking</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Dashboard siswa dengan grafik performa, progress tracking per mata pelajaran, 
+                                    dan analisis trend nilai untuk memantau perkembangan belajar Anda.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sistem Notifikasi -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-info bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-bell text-info"></i>
+                                    </div>
+                                    <h6 class="mb-0">Sistem Notifikasi</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Notifikasi real-time untuk reminder ujian mendatang, notifikasi nilai keluar, 
+                                    reminder deadline PR/Tugas, sehingga Anda tidak melewatkan informasi penting.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Enhanced Security -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-success bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-lock text-success"></i>
+                                    </div>
+                                    <h6 class="mb-0">Enhanced Security</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Fitur keamanan lanjutan untuk menjaga integritas ujian: browser lock mode, 
+                                    fullscreen enforcement, dan monitoring aktivitas untuk ujian yang lebih aman.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Cara Penggunaan -->
 <div class="row g-4 mb-4">
     <div class="col-12">

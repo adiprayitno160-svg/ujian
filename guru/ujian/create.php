@@ -16,12 +16,29 @@ global $pdo;
 $error = '';
 $success = '';
 
+// Get template if provided
+$template_id = intval($_GET['template_id'] ?? 0);
+$template = null;
+if ($template_id > 0) {
+    $stmt = $pdo->prepare("SELECT * FROM ujian_templates WHERE id = ? AND created_by = ?");
+    $stmt->execute([$template_id, $_SESSION['user_id']]);
+    $template = $stmt->fetch();
+}
+
 // Handle POST first (before any output)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $judul = sanitize($_POST['judul'] ?? '');
     $deskripsi = sanitize($_POST['deskripsi'] ?? '');
     $id_mapel = intval($_POST['id_mapel'] ?? 0);
     $durasi = intval($_POST['durasi'] ?? 0);
+    
+    // Get settings from POST (if provided) or use template/default values
+    $min_submit_minutes = isset($_POST['min_submit_minutes']) ? intval($_POST['min_submit_minutes']) : ($template ? intval($template['min_submit_minutes'] ?? DEFAULT_MIN_SUBMIT_MINUTES) : DEFAULT_MIN_SUBMIT_MINUTES);
+    $acak_soal = isset($_POST['acak_soal']) ? 1 : ($template ? intval($template['acak_soal'] ?? 1) : 1);
+    $acak_opsi = isset($_POST['acak_opsi']) ? 1 : ($template ? intval($template['acak_opsi'] ?? 1) : 1);
+    $anti_contek_enabled = isset($_POST['anti_contek_enabled']) ? 1 : ($template ? intval($template['anti_contek_enabled'] ?? 1) : 1);
+    $ai_correction_enabled = isset($_POST['ai_correction_enabled']) ? 1 : ($template ? intval($template['ai_correction_enabled'] ?? 0) : 0);
+    $show_review_mode = 1; // Default enabled
     
     if (empty($judul) || !$id_mapel || $durasi <= 0) {
         $error = 'Judul, mata pelajaran, dan durasi harus diisi';
@@ -32,12 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'Anda tidak diizinkan membuat ujian untuk mata pelajaran ini. Pastikan Anda telah di-assign ke mata pelajaran ini oleh admin.';
         } else {
             try {
-                // Use default min_submit_minutes from config
-                $min_submit_minutes = DEFAULT_MIN_SUBMIT_MINUTES;
-                
-                $stmt = $pdo->prepare("INSERT INTO ujian (judul, deskripsi, id_mapel, id_guru, durasi, min_submit_minutes, status) 
-                                      VALUES (?, ?, ?, ?, ?, ?, 'draft')");
-                $stmt->execute([$judul, $deskripsi, $id_mapel, $_SESSION['user_id'], $durasi, $min_submit_minutes]);
+                $stmt = $pdo->prepare("INSERT INTO ujian (judul, deskripsi, id_mapel, id_guru, durasi, min_submit_minutes, acak_soal, acak_opsi, anti_contek_enabled, ai_correction_enabled, show_review_mode, status) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
+                $stmt->execute([$judul, $deskripsi, $id_mapel, $_SESSION['user_id'], $durasi, $min_submit_minutes, $acak_soal, $acak_opsi, $anti_contek_enabled, $ai_correction_enabled, $show_review_mode]);
                 $ujian_id = $pdo->lastInsertId();
                 
                 log_activity('create_ujian', 'ujian', $ujian_id);
@@ -101,7 +115,7 @@ $mapel_list = get_mapel_by_guru($_SESSION['user_id']);
                 <div class="mb-3">
                     <label for="deskripsi" class="form-label">Deskripsi</label>
                     <textarea class="form-control" id="deskripsi" name="deskripsi" rows="3" 
-                              placeholder="Deskripsi ujian..."></textarea>
+                              placeholder="Deskripsi ujian..."><?php echo $template ? escape($template['description'] ?? '') : ''; ?></textarea>
                 </div>
                 
                 <div class="mb-3">
@@ -144,7 +158,49 @@ $mapel_list = get_mapel_by_guru($_SESSION['user_id']);
                 <div class="mb-3">
                     <label for="durasi" class="form-label">Durasi (menit) <span class="text-danger">*</span></label>
                     <input type="number" class="form-control" id="durasi" name="durasi" required min="1" 
+                           value="<?php echo $template ? $template['durasi'] : '90'; ?>"
                            placeholder="Contoh: 90">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="min_submit_minutes" class="form-label">Minimum Waktu Submit (menit)</label>
+                    <input type="number" class="form-control" id="min_submit_minutes" name="min_submit_minutes" 
+                           value="<?php echo $template ? $template['min_submit_minutes'] : DEFAULT_MIN_SUBMIT_MINUTES; ?>" 
+                           min="0" max="60">
+                    <small class="text-muted">Siswa harus menunggu minimal X menit setelah mulai ujian sebelum bisa submit. 0 = tidak ada batasan</small>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Pengaturan Soal</h6>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="acak_soal" name="acak_soal" 
+                               <?php echo ($template ? ($template['acak_soal'] ?? 1) : 1) ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="acak_soal">
+                            Acak Urutan Soal
+                        </label>
+                        <small class="d-block text-muted">Soal akan diacak untuk setiap siswa</small>
+                    </div>
+                    
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="acak_opsi" name="acak_opsi" 
+                               <?php echo ($template ? ($template['acak_opsi'] ?? 1) : 1) ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="acak_opsi">
+                            Acak Urutan Opsi Jawaban
+                        </label>
+                        <small class="d-block text-muted">Opsi jawaban akan diacak untuk setiap siswa</small>
+                    </div>
+                </div>
+                
+                <div class="mb-3">
+                    <h6>Pengaturan Keamanan</h6>
+                    <div class="form-check form-switch mb-2">
+                        <input class="form-check-input" type="checkbox" id="anti_contek_enabled" name="anti_contek_enabled" 
+                               <?php echo ($template ? ($template['anti_contek_enabled'] ?? 1) : 1) ? 'checked' : ''; ?>>
+                        <label class="form-check-label" for="anti_contek_enabled">
+                            Aktifkan Fitur Anti Contek
+                        </label>
+                        <small class="d-block text-muted">Mendeteksi tab switching, copy-paste, dan aktivitas mencurigakan</small>
+                    </div>
                 </div>
                 
                 <div class="d-flex gap-2">

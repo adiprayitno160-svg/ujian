@@ -113,8 +113,29 @@ include __DIR__ . '/../../includes/header.php';
                             <?php if ($item['tipe_soal'] === 'pilihan_ganda' || $item['tipe_soal'] === 'benar_salah'): ?>
                                 <p class="alert alert-info mb-0">
                                     <strong><?php echo escape($item['jawaban']); ?></strong>
-                                    <?php if (isset($opsi[$item['jawaban']])): ?>
-                                        - <?php echo escape($opsi[$item['jawaban']]); ?>
+                                    <?php if (isset($opsi[$item['jawaban']])): 
+                                        $selected_option = $opsi[$item['jawaban']];
+                                        $option_text = '';
+                                        $option_image = null;
+                                        
+                                        if (is_array($selected_option)) {
+                                            $option_text = $selected_option['text'] ?? '';
+                                            $option_image = $selected_option['image'] ?? null;
+                                        } else {
+                                            $option_text = $selected_option;
+                                        }
+                                    ?>
+                                        <?php if (!empty($option_text)): ?>
+                                            - <?php echo escape($option_text); ?>
+                                        <?php endif; ?>
+                                        <?php if (!empty($option_image)): ?>
+                                            <div class="mt-2">
+                                                <img src="<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>" 
+                                                     alt="Gambar Opsi <?php echo escape($item['jawaban']); ?>" 
+                                                     class="img-thumbnail" 
+                                                     style="max-width: 300px; max-height: 200px;">
+                                            </div>
+                                        <?php endif; ?>
                                     <?php endif; ?>
                                 </p>
                             <?php else: ?>
@@ -124,6 +145,40 @@ include __DIR__ . '/../../includes/header.php';
                             <p class="text-muted">Belum dijawab</p>
                         <?php endif; ?>
                     </div>
+                    
+                    <?php if ($item['tipe_soal'] === 'pilihan_ganda' && !empty($opsi)): ?>
+                    <div class="mb-3">
+                        <strong>Semua Opsi:</strong>
+                        <div class="mt-2">
+                            <?php foreach ($opsi as $key => $value): 
+                                $option_text = '';
+                                $option_image = null;
+                                
+                                if (is_array($value)) {
+                                    $option_text = $value['text'] ?? '';
+                                    $option_image = $value['image'] ?? null;
+                                } else {
+                                    $option_text = $value;
+                                }
+                            ?>
+                            <div class="mb-2 p-2 border rounded">
+                                <strong><?php echo $key; ?>.</strong> 
+                                <?php if (!empty($option_text)): ?>
+                                    <?php echo escape($option_text); ?>
+                                <?php endif; ?>
+                                <?php if (!empty($option_image)): ?>
+                                    <div class="mt-2">
+                                        <img src="<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>" 
+                                             alt="Gambar Opsi <?php echo $key; ?>" 
+                                             class="img-thumbnail" 
+                                             style="max-width: 300px; max-height: 200px;">
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                     
                     <?php if ($item['kunci_jawaban']): ?>
                     <div class="mb-3">

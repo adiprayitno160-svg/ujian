@@ -38,9 +38,83 @@ function calculate_similarity($str1, $str2) {
 }
 
 /**
+ * Calculate similarity by sections (paragraphs or sentences)
+ */
+function calculate_similarity_by_sections($str1, $str2, $section_type = 'paragraph') {
+    if (empty($str1) || empty($str2)) {
+        return [
+            'overall_similarity' => 0,
+            'sections' => []
+        ];
+    }
+    
+    // Split into sections
+    if ($section_type === 'paragraph') {
+        $sections1 = array_filter(array_map('trim', explode("\n\n", $str1)));
+        $sections2 = array_filter(array_map('trim', explode("\n\n", $str2)));
+    } else { // sentences
+        $sections1 = array_filter(array_map('trim', preg_split('/[.!?]+/', $str1)));
+        $sections2 = array_filter(array_map('trim', preg_split('/[.!?]+/', $str2)));
+    }
+    
+    $section_similarities = [];
+    $total_similarity = 0;
+    $max_sections = max(count($sections1), count($sections2));
+    
+    if ($max_sections == 0) {
+        return [
+            'overall_similarity' => 100,
+            'sections' => []
+        ];
+    }
+    
+    // Compare each section from str1 with all sections from str2
+    foreach ($sections1 as $idx1 => $section1) {
+        $best_match = 0;
+        $best_match_idx = -1;
+        
+        foreach ($sections2 as $idx2 => $section2) {
+            $similarity = calculate_similarity($section1, $section2);
+            if ($similarity > $best_match) {
+                $best_match = $similarity;
+                $best_match_idx = $idx2;
+            }
+        }
+        
+        $section_similarities[] = [
+            'section_index' => $idx1 + 1,
+            'section_text' => substr($section1, 0, 100) . (strlen($section1) > 100 ? '...' : ''),
+            'matched_section_index' => $best_match_idx + 1,
+            'similarity' => $best_match
+        ];
+        
+        $total_similarity += $best_match;
+    }
+    
+    // Handle sections in str2 that don't have matches in str1
+    for ($i = count($sections1); $i < count($sections2); $i++) {
+        $section_similarities[] = [
+            'section_index' => $i + 1,
+            'section_text' => substr($sections2[$i], 0, 100) . (strlen($sections2[$i]) > 100 ? '...' : ''),
+            'matched_section_index' => null,
+            'similarity' => 0
+        ];
+    }
+    
+    $overall_similarity = $max_sections > 0 ? ($total_similarity / $max_sections) : 0;
+    
+    return [
+        'overall_similarity' => round($overall_similarity, 2),
+        'sections' => $section_similarities,
+        'total_sections_str1' => count($sections1),
+        'total_sections_str2' => count($sections2)
+    ];
+}
+
+/**
  * Check plagiarisme for a soal
  */
-function check_plagiarisme_soal($ujian_id, $soal_id, $threshold = 80) {
+function check_plagiarisme_soal($ujian_id, $soal_id, $threshold = 80, $include_sections = false) {
     global $pdo;
     
     try {
@@ -63,11 +137,23 @@ function check_plagiarisme_soal($ujian_id, $soal_id, $threshold = 80) {
                 $similarity = calculate_similarity($answers[$i]['jawaban'], $answers[$j]['jawaban']);
                 
                 if ($similarity >= $threshold) {
-                    $similarities[] = [
+                    $result = [
                         'id_siswa1' => $answers[$i]['id_siswa'],
                         'id_siswa2' => $answers[$j]['id_siswa'],
                         'similarity_score' => $similarity
                     ];
+                    
+                    // Add section-by-section analysis if requested
+                    if ($include_sections) {
+                        $section_analysis = calculate_similarity_by_sections(
+                            $answers[$i]['jawaban'], 
+                            $answers[$j]['jawaban'],
+                            strlen($answers[$i]['jawaban']) > 500 ? 'paragraph' : 'sentence'
+                        );
+                        $result['section_analysis'] = $section_analysis;
+                    }
+                    
+                    $similarities[] = $result;
                 }
             }
         }
@@ -82,7 +168,7 @@ function check_plagiarisme_soal($ujian_id, $soal_id, $threshold = 80) {
 /**
  * Batch check plagiarisme for all soal in ujian
  */
-function batch_check_plagiarisme($ujian_id, $threshold = 80) {
+function batch_check_plagiarisme($ujian_id, $threshold = 80, $include_sections = false) {
     global $pdo;
     
     try {
@@ -94,7 +180,7 @@ function batch_check_plagiarisme($ujian_id, $threshold = 80) {
         $all_results = [];
         
         foreach ($soal_list as $soal) {
-            $similarities = check_plagiarisme_soal($ujian_id, $soal['id'], $threshold);
+            $similarities = check_plagiarisme_soal($ujian_id, $soal['id'], $threshold, $include_sections);
             
             // Save to database
             foreach ($similarities as $sim) {
@@ -108,17 +194,62 @@ function batch_check_plagiarisme($ujian_id, $threshold = 80) {
                     $sim['id_siswa2'], $sim['id_siswa1']
                 ]);
                 
+                $section_data = isset($sim['section_analysis']) ? json_encode($sim['section_analysis']) : null;
+                
                 if (!$stmt->fetch()) {
-                    $stmt = $pdo->prepare("INSERT INTO plagiarisme_check 
-                                          (id_ujian, id_siswa1, id_siswa2, id_soal, similarity_score, status) 
-                                          VALUES (?, ?, ?, ?, ?, 'pending')");
-                    $stmt->execute([
-                        $ujian_id,
-                        $sim['id_siswa1'],
-                        $sim['id_siswa2'],
-                        $soal['id'],
-                        $sim['similarity_score']
-                    ]);
+                    // Check if table has section_analysis column
+                    try {
+                        $stmt = $pdo->prepare("INSERT INTO plagiarisme_check 
+                                              (id_ujian, id_siswa1, id_siswa2, id_soal, similarity_score, status, section_analysis) 
+                                              VALUES (?, ?, ?, ?, ?, 'pending', ?)");
+                        $stmt->execute([
+                            $ujian_id,
+                            $sim['id_siswa1'],
+                            $sim['id_siswa2'],
+                            $soal['id'],
+                            $sim['similarity_score'],
+                            $section_data
+                        ]);
+                    } catch (PDOException $e) {
+                        // If column doesn't exist, insert without it
+                        if (strpos($e->getMessage(), 'section_analysis') !== false) {
+                            $stmt = $pdo->prepare("INSERT INTO plagiarisme_check 
+                                                  (id_ujian, id_siswa1, id_siswa2, id_soal, similarity_score, status) 
+                                                  VALUES (?, ?, ?, ?, ?, 'pending')");
+                            $stmt->execute([
+                                $ujian_id,
+                                $sim['id_siswa1'],
+                                $sim['id_siswa2'],
+                                $soal['id'],
+                                $sim['similarity_score']
+                            ]);
+                        } else {
+                            throw $e;
+                        }
+                    }
+                } else {
+                    // Update existing record with section analysis if available
+                    if ($section_data) {
+                        try {
+                            $stmt = $pdo->prepare("UPDATE plagiarisme_check 
+                                                  SET similarity_score = ?, section_analysis = ? 
+                                                  WHERE id_ujian = ? AND id_soal = ? 
+                                                  AND ((id_siswa1 = ? AND id_siswa2 = ?) OR (id_siswa1 = ? AND id_siswa2 = ?))");
+                            $stmt->execute([
+                                $sim['similarity_score'],
+                                $section_data,
+                                $ujian_id,
+                                $soal['id'],
+                                $sim['id_siswa1'],
+                                $sim['id_siswa2'],
+                                $sim['id_siswa2'],
+                                $sim['id_siswa1']
+                            ]);
+                        } catch (PDOException $e) {
+                            // Column might not exist, ignore
+                            error_log("Update section analysis error: " . $e->getMessage());
+                        }
+                    }
                 }
             }
             

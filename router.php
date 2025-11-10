@@ -193,12 +193,39 @@ if (isset($parsed['query'])) {
     parse_str($parsed['query'], $_GET);
 }
 
-// If path is empty or 'index', redirect directly to login
-// Don't include index.php to prevent any redirect loops
-if (empty($path) || $path === 'index') {
-    header('Location: ' . base_url('login'), true, 302);
-    exit;
-}
+        // Handle static files (manifest.json, service-worker.js)
+        if ($path === 'manifest.json') {
+            header('Content-Type: application/json');
+            readfile(__DIR__ . '/manifest.json');
+            exit;
+        }
+        
+        if ($path === 'service-worker.js') {
+            header('Content-Type: application/javascript');
+            readfile(__DIR__ . '/service-worker.js');
+            exit;
+        }
+        
+        // If path is empty or 'index', redirect directly to login
+        // Don't include index.php to prevent any redirect loops
+        if (empty($path) || $path === 'index') {
+            // Check if user is logged in, redirect to appropriate dashboard
+            if (function_exists('is_logged_in') && is_logged_in() && isset($_SESSION['role'])) {
+                $role = $_SESSION['role'];
+                if ($role === 'admin') {
+                    header('Location: ' . base_url('admin'), true, 302);
+                } elseif ($role === 'guru') {
+                    header('Location: ' . base_url('guru'), true, 302);
+                } elseif ($role === 'operator') {
+                    header('Location: ' . base_url('operator'), true, 302);
+                } else {
+                    header('Location: ' . base_url('siswa-dashboard'), true, 302);
+                }
+            } else {
+                header('Location: ' . base_url('login'), true, 302);
+            }
+            exit;
+        }
 
 // Route mapping
 $routes = [
@@ -219,7 +246,9 @@ $routes = [
     'admin' => 'admin/index.php',
     'admin-index' => 'admin/index.php',
     'admin-about' => 'admin/about.php',
+    'admin-bulk-operations' => 'admin/bulk_operations.php',
     'admin-manage-users' => 'admin/manage_users.php',
+    'admin-ujian-bulk' => 'admin/ujian/bulk_operations.php',
     'admin-manage-kelas' => 'admin/manage_kelas.php',
     'admin-manage-mapel' => 'admin/manage_mapel.php',
     'admin-manage-tahun-ajaran' => 'admin/manage_tahun_ajaran.php',
@@ -234,6 +263,7 @@ $routes = [
     'guru-ujian-create' => 'guru/ujian/create.php',
     'guru-ujian-detail' => 'guru/ujian/detail.php',
     'guru-ujian-settings' => 'guru/ujian/settings.php',
+    'guru-ujian-templates' => 'guru/ujian/templates.php',
     // SUMATIP hanya untuk operator - redirect ke operator assessment
     'guru-ujian-sumatip-list' => 'operator/assessment/sumatip/list.php',
     'guru-ujian-sumatip-create' => 'operator/assessment/sumatip/list.php',
@@ -255,8 +285,12 @@ $routes = [
     // Siswa routes
     'siswa' => 'siswa/index.php',
     'siswa-index' => 'siswa/index.php',
+    'siswa-dashboard' => 'siswa/dashboard.php',
+    'siswa-progress' => 'siswa/progress.php',
+    'siswa-notifications' => 'siswa/notifications.php',
     'siswa-about' => 'siswa/about.php',
     'siswa-ujian-list' => 'siswa/ujian/list.php',
+    'siswa-ujian-review' => 'siswa/ujian/review.php',
     'siswa-ujian-take' => 'siswa/ujian/take.php',
     'siswa-ujian-submit' => 'siswa/ujian/submit.php',
     'siswa-ujian-hasil' => 'siswa/ujian/hasil.php',
@@ -271,6 +305,7 @@ $routes = [
     
     // Guru routes
     'guru-about' => 'guru/about.php',
+    'guru-profile' => 'guru/profile.php',
     
     // Operator routes
     'operator' => 'operator/index.php',

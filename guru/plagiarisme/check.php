@@ -34,7 +34,9 @@ $results = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'check') {
     try {
         require_once __DIR__ . '/../../includes/plagiarisme_check.php';
-        $results = batch_check_plagiarisme($ujian_id, 60); // 60% threshold
+        $include_sections = isset($_POST['include_sections']) && $_POST['include_sections'] === '1';
+        $threshold = floatval($_POST['threshold'] ?? 60);
+        $results = batch_check_plagiarisme($ujian_id, $threshold, $include_sections);
         $success = 'Plagiarisme check selesai';
     } catch (Exception $e) {
         $error = 'Terjadi kesalahan: ' . $e->getMessage();
@@ -59,6 +61,12 @@ if (empty($results)) {
     $existing_results = $stmt->fetchAll();
     
     if (!empty($existing_results)) {
+        // Parse section_analysis if available
+        foreach ($existing_results as &$result) {
+            if (isset($result['section_analysis']) && !empty($result['section_analysis'])) {
+                $result['section_analysis'] = json_decode($result['section_analysis'], true);
+            }
+        }
         $results = $existing_results;
     }
 }
@@ -73,9 +81,23 @@ if (empty($results)) {
             </div>
             <form method="POST" class="d-inline">
                 <input type="hidden" name="action" value="check">
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-search"></i> Check Plagiarisme
-                </button>
+                <div class="d-flex gap-2 align-items-center">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="include_sections" value="1" id="includeSections" checked>
+                        <label class="form-check-label" for="includeSections">
+                            Analisis per Bagian
+                        </label>
+                    </div>
+                    <select name="threshold" class="form-select" style="width: auto;">
+                        <option value="60">Threshold: 60%</option>
+                        <option value="70">Threshold: 70%</option>
+                        <option value="80">Threshold: 80%</option>
+                        <option value="90">Threshold: 90%</option>
+                    </select>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Check Plagiarisme
+                    </button>
+                </div>
             </form>
         </div>
     </div>
@@ -150,7 +172,7 @@ if (empty($results)) {
                         </td>
                         <td>
                             <button type="button" class="btn btn-sm btn-info" 
-                                    onclick="showDetail(<?php echo htmlspecialchars(json_encode($result)); ?>)">
+                                    onclick="showDetail(<?php echo htmlspecialchars(json_encode($result, JSON_HEX_APOS | JSON_HEX_QUOT)); ?>)">
                                 <i class="fas fa-eye"></i> Detail
                             </button>
                         </td>
@@ -182,26 +204,89 @@ if (empty($results)) {
 
 <script>
 function showDetail(result) {
-    const content = `
+    let similarityScore = result.similarity_score;
+    if (similarityScore > 1) {
+        similarityScore = similarityScore / 100;
+    }
+    
+    let content = `
         <div class="mb-3">
             <strong>Similarity Score:</strong> 
-            <span class="badge bg-${result.similarity_score >= 0.8 ? 'danger' : (result.similarity_score >= 0.6 ? 'warning' : 'success')}">
-                ${(result.similarity_score * 100).toFixed(2)}%
+            <span class="badge bg-${similarityScore >= 0.8 ? 'danger' : (similarityScore >= 0.6 ? 'warning' : 'success')}">
+                ${(similarityScore * 100).toFixed(2)}%
             </span>
         </div>
         <div class="mb-3">
             <strong>Jawaban Siswa 1:</strong>
-            <div class="p-3 bg-light rounded">${result.jawaban_1 || '-'}</div>
+            <div class="p-3 bg-light rounded" style="max-height: 200px; overflow-y: auto;">${escapeHtml(result.jawaban_1 || '-')}</div>
         </div>
         <div class="mb-3">
             <strong>Jawaban Siswa 2:</strong>
-            <div class="p-3 bg-light rounded">${result.jawaban_2 || '-'}</div>
+            <div class="p-3 bg-light rounded" style="max-height: 200px; overflow-y: auto;">${escapeHtml(result.jawaban_2 || '-')}</div>
         </div>
     `;
+    
+    // Add section analysis if available
+    if (result.section_analysis && result.section_analysis.sections && result.section_analysis.sections.length > 0) {
+        content += `
+            <div class="mb-3">
+                <strong>Analisis per Bagian:</strong>
+                <div class="table-responsive mt-2">
+                    <table class="table table-sm table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Bagian</th>
+                                <th>Similarity</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        result.section_analysis.sections.forEach(function(section, index) {
+            const sectionScore = section.similarity / 100;
+            const statusClass = sectionScore >= 0.8 ? 'danger' : (sectionScore >= 0.6 ? 'warning' : 'success');
+            const statusText = sectionScore >= 0.8 ? 'Sangat Mencurigakan' : (sectionScore >= 0.6 ? 'Mencurigakan' : 'Normal');
+            
+            content += `
+                <tr>
+                    <td>
+                        <small>${escapeHtml(section.section_text)}</small>
+                    </td>
+                    <td>
+                        <span class="badge bg-${statusClass}">${section.similarity.toFixed(2)}%</span>
+                    </td>
+                    <td>${statusText}</td>
+                </tr>
+            `;
+        });
+        
+        content += `
+                        </tbody>
+                    </table>
+                </div>
+                <small class="text-muted">
+                    Total Bagian: ${result.section_analysis.total_sections_str1} (Siswa 1) vs ${result.section_analysis.total_sections_str2} (Siswa 2)
+                </small>
+            </div>
+        `;
+    }
     
     document.getElementById('detailContent').innerHTML = content;
     const modal = new bootstrap.Modal(document.getElementById('detailModal'));
     modal.show();
+}
+
+function escapeHtml(text) {
+    if (!text) return '-';
+    const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+    };
+    return text.replace(/[&<>"']/g, function(m) { return map[m]; }).replace(/\n/g, '<br>');
 }
 </script>
 <?php else: ?>

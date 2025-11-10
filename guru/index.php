@@ -26,25 +26,28 @@ $stats = [
 ];
 
 try {
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM ujian WHERE id_guru = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $stats['total_ujian'] = $stmt->fetch()['total'];
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM sesi_ujian s
-                          INNER JOIN ujian u ON s.id_ujian = u.id
-                          WHERE u.id_guru = ? AND s.status = 'aktif'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $stats['active_sesi'] = $stmt->fetch()['total'];
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM pr WHERE id_guru = ?");
-    $stmt->execute([$_SESSION['user_id']]);
-    $stats['total_pr'] = $stmt->fetch()['total'];
-    
-    $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM pr_submission ps
-                          INNER JOIN pr p ON ps.id_pr = p.id
-                          WHERE p.id_guru = ? AND ps.status = 'sudah_dikumpulkan'");
-    $stmt->execute([$_SESSION['user_id']]);
-    $stats['pending_review'] = $stmt->fetch()['total'];
+    $user_id = $_SESSION['user_id'] ?? null;
+    if ($user_id) {
+        $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM ujian WHERE id_guru = ?");
+        $stmt->execute([$user_id]);
+        $stats['total_ujian'] = $stmt->fetch()['total'];
+        
+        $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM sesi_ujian s
+                              INNER JOIN ujian u ON s.id_ujian = u.id
+                              WHERE u.id_guru = ? AND s.status = 'aktif'");
+        $stmt->execute([$user_id]);
+        $stats['active_sesi'] = $stmt->fetch()['total'];
+        
+        $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM pr WHERE id_guru = ?");
+        $stmt->execute([$user_id]);
+        $stats['total_pr'] = $stmt->fetch()['total'];
+        
+        $stmt = $pdo->prepare("SELECT COUNT(*) as total FROM pr_submission ps
+                              INNER JOIN pr p ON ps.id_pr = p.id
+                              WHERE p.id_guru = ? AND ps.status = 'sudah_dikumpulkan'");
+        $stmt->execute([$user_id]);
+        $stats['pending_review'] = $stmt->fetch()['total'];
+    }
 } catch (PDOException $e) {
     error_log("Dashboard stats error: " . $e->getMessage());
 }
@@ -52,7 +55,7 @@ try {
 
 <div class="row mb-4">
     <div class="col-12">
-        <p class="text-muted mb-0">Selamat datang, <strong><?php echo escape($_SESSION['nama']); ?></strong>!</p>
+        <p class="text-muted mb-0">Selamat datang, <strong><?php echo escape($_SESSION['nama'] ?? 'Guru'); ?></strong>!</p>
     </div>
 </div>
 

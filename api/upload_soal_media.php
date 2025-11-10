@@ -56,6 +56,9 @@ if (!isset($_FILES['media']) || $_FILES['media']['error'] !== UPLOAD_ERR_OK) {
 
 $file = $_FILES['media'];
 
+// Check if this is for option image (gambar opsi jawaban)
+$is_option_image = isset($_POST['is_option_image']) && $_POST['is_option_image'] === '1';
+
 // Validate file type
 $finfo = new finfo(FILEINFO_MIME_TYPE);
 $mime_type = $finfo->file($file['tmp_name']);
@@ -66,28 +69,43 @@ $max_size = MAX_FILE_SIZE;
 // Check if it's an image
 if (in_array($mime_type, ALLOWED_IMAGE_TYPES)) {
     $media_type = 'gambar';
-    $max_size = MAX_FILE_SIZE;
+    // If this is for option image, use 100KB limit
+    if ($is_option_image) {
+        $max_size = 102400; // 100KB for option images
+    } else {
+        $max_size = MAX_FILE_SIZE; // 500KB for soal media
+    }
 }
-// Check if it's a video
+// Videos are disabled - reject video uploads
 elseif (in_array($mime_type, ALLOWED_VIDEO_TYPES)) {
-    $media_type = 'video';
-    $max_size = MAX_VIDEO_SIZE;
+    echo json_encode([
+        'success' => false, 
+        'message' => 'Video tidak diizinkan. Hanya gambar (JPG, PNG, GIF, WebP) yang diizinkan. Maksimal: 500KB'
+    ]);
+    exit;
 }
 else {
     echo json_encode([
         'success' => false, 
-        'message' => 'Tipe file tidak diizinkan. Hanya gambar (JPG, PNG, GIF, WebP) dan video (MP4, WebM, OGG) yang diizinkan.'
+        'message' => 'Tipe file tidak diizinkan. Hanya gambar (JPG, PNG, GIF, WebP) yang diizinkan. Maksimal: 500KB'
     ]);
     exit;
 }
 
 // Validate file size
 if ($file['size'] > $max_size) {
-    $max_size_mb = round($max_size / 1048576, 1);
-    echo json_encode([
-        'success' => false, 
-        'message' => "Ukuran file terlalu besar. Maksimal: {$max_size_mb}MB"
-    ]);
+    if ($is_option_image) {
+        echo json_encode([
+            'success' => false, 
+            'message' => 'Ukuran file terlalu besar. Maksimal: 100KB untuk gambar opsi jawaban'
+        ]);
+    } else {
+        $max_size_kb = round($max_size / 1024, 0);
+        echo json_encode([
+            'success' => false, 
+            'message' => "Ukuran file terlalu besar. Maksimal: {$max_size_kb}KB untuk gambar soal"
+        ]);
+    }
     exit;
 }
 

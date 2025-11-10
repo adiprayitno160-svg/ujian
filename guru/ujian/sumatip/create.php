@@ -116,12 +116,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'id_kelas' => $wizard_data['id_kelas']
             ]);
             
-            // Update settings
+            // Update settings (default to 1 if not set, including AI correction)
             update_ujian_settings($ujian_id, [
-                'acak_soal' => $wizard_data['acak_soal'] ?? 0,
-                'acak_opsi' => $wizard_data['acak_opsi'] ?? 0,
-                'anti_contek_enabled' => $wizard_data['anti_contek'] ?? 0,
-                'min_submit_minutes' => $wizard_data['min_submit_minutes'] ?? 0
+                'acak_soal' => $wizard_data['acak_soal'] ?? 1,
+                'acak_opsi' => $wizard_data['acak_opsi'] ?? 1,
+                'anti_contek_enabled' => $wizard_data['anti_contek'] ?? 1,
+                'min_submit_minutes' => $wizard_data['min_submit_minutes'] ?? 0,
+                'ai_correction_enabled' => 1 // Default enabled
             ]);
             
             // Clear wizard session
@@ -341,17 +342,17 @@ $tahun_ajaran_list = $pdo->query("SELECT DISTINCT tahun_ajaran FROM kelas WHERE 
                 </div>
                 <div class="mb-3 form-check form-switch">
                     <input type="checkbox" class="form-check-input" id="acak_soal" name="acak_soal"
-                           <?php echo ($_SESSION['sumatip_wizard']['acak_soal'] ?? ($template ? $template['acak_soal_default'] : 0)) ? 'checked' : ''; ?>>
+                           <?php echo ($_SESSION['sumatip_wizard']['acak_soal'] ?? ($template ? $template['acak_soal_default'] : 1)) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="acak_soal">Acak Urutan Soal</label>
                 </div>
                 <div class="mb-3 form-check form-switch">
                     <input type="checkbox" class="form-check-input" id="acak_opsi" name="acak_opsi"
-                           <?php echo ($_SESSION['sumatip_wizard']['acak_opsi'] ?? ($template ? $template['acak_opsi_default'] : 0)) ? 'checked' : ''; ?>>
+                           <?php echo ($_SESSION['sumatip_wizard']['acak_opsi'] ?? ($template ? $template['acak_opsi_default'] : 1)) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="acak_opsi">Acak Urutan Opsi</label>
                 </div>
                 <div class="mb-3 form-check form-switch">
                     <input type="checkbox" class="form-check-input" id="anti_contek" name="anti_contek"
-                           <?php echo ($_SESSION['sumatip_wizard']['anti_contek'] ?? ($template ? $template['anti_contek_default'] : 0)) ? 'checked' : ''; ?>>
+                           <?php echo ($_SESSION['sumatip_wizard']['anti_contek'] ?? ($template ? $template['anti_contek_default'] : 1)) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="anti_contek">Aktifkan Anti Contek</label>
                 </div>
                 <div class="mb-3">

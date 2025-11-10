@@ -68,11 +68,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $semester_label = ucfirst($semester);
                 $periode = "$jenis - Semester $semester_label $tahun_ajaran";
                 
-                // Create assessment (ujian)
+                // Create assessment (ujian) with AI correction enabled by default
                 $stmt = $pdo->prepare("INSERT INTO ujian 
                                       (judul, deskripsi, id_mapel, id_guru, durasi, tipe_asesmen, tahun_ajaran, semester, 
-                                       periode_sumatip, tingkat_kelas, status) 
-                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
+                                       periode_sumatip, tingkat_kelas, ai_correction_enabled, status) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'draft')");
                 $deskripsi = "Assessment dibuat dari bank soal oleh operator";
                 $stmt->execute([
                     $judul,

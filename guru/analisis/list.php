@@ -66,6 +66,58 @@ foreach ($soal_list as $soal) {
     </div>
 </div>
 
+<?php if (!empty($analisis_list)): ?>
+<!-- Summary Charts -->
+<div class="row g-4 mb-4">
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Tingkat Kesukaran per Soal</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="difficultyChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-line"></i> Daya Pembeda per Soal</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="discriminationChart" height="300"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie"></i> Distribusi Kategori Soal</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="categoryChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-chart-area"></i> Distribusi Jawaban (Benar/Salah/Kosong)</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="answerDistributionChart" height="100"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <div class="card border-0 shadow-sm">
     <div class="card-body">
         <?php if (empty($analisis_list)): ?>
@@ -178,6 +230,266 @@ foreach ($soal_list as $soal) {
         </ul>
     </div>
 </div>
+
+<?php if (!empty($analisis_list)): ?>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Prepare data for charts
+const soalNumbers = <?php 
+$soal_nums = [];
+foreach ($analisis_list as $index => $item) {
+    $soal_nums[] = 'Soal ' . ($index + 1);
+}
+echo json_encode($soal_nums); 
+?>;
+const difficultyData = <?php echo json_encode(array_column($analisis_list, 'tingkat_kesukaran')); ?>;
+const discriminationData = <?php echo json_encode(array_column($analisis_list, 'daya_pembeda')); ?>;
+const benarData = <?php echo json_encode(array_column($analisis_list, 'jumlah_benar')); ?>;
+const salahData = <?php echo json_encode(array_column($analisis_list, 'jumlah_salah')); ?>;
+const kosongData = <?php 
+$kosong_data = [];
+foreach ($analisis_list as $item) {
+    $kosong_data[] = ($item['total_responden'] ?? 0) - ($item['jumlah_benar'] ?? 0) - ($item['jumlah_salah'] ?? 0);
+}
+echo json_encode($kosong_data); 
+?>;
+
+// Category counts
+const categoryCounts = {
+    baik: 0,
+    cukup: 0,
+    revisi: 0
+};
+
+<?php foreach ($analisis_list as $item): ?>
+    <?php 
+    $tk = $item['tingkat_kesukaran'] ?? 0;
+    $dp = $item['daya_pembeda'] ?? 0;
+    if ($tk >= 0.3 && $tk <= 0.7 && $dp >= 0.4) {
+        echo "categoryCounts.baik++;";
+    } elseif ($tk >= 0.3 && $tk <= 0.7 && $dp >= 0.2) {
+        echo "categoryCounts.cukup++;";
+    } else {
+        echo "categoryCounts.revisi++;";
+    }
+    ?>
+<?php endforeach; ?>
+
+// Difficulty Chart
+const ctx1 = document.getElementById('difficultyChart').getContext('2d');
+new Chart(ctx1, {
+    type: 'bar',
+    data: {
+        labels: soalNumbers,
+        datasets: [{
+            label: 'Tingkat Kesukaran',
+            data: difficultyData,
+            backgroundColor: difficultyData.map(tk => {
+                if (tk >= 0.7) return 'rgba(239, 68, 68, 0.6)'; // Mudah - Red
+                if (tk >= 0.3) return 'rgba(245, 158, 11, 0.6)'; // Sedang - Yellow
+                return 'rgba(16, 185, 129, 0.6)'; // Sulit - Green
+            }),
+            borderColor: difficultyData.map(tk => {
+                if (tk >= 0.7) return 'rgba(239, 68, 68, 1)';
+                if (tk >= 0.3) return 'rgba(245, 158, 11, 1)';
+                return 'rgba(16, 185, 129, 1)';
+            }),
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 1,
+                title: {
+                    display: true,
+                    text: 'Tingkat Kesukaran (0-1)'
+                }
+            },
+            x: {
+                title: {
+                    display: true,
+                    text: 'Nomor Soal'
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const tk = context.parsed.y;
+                        let category = 'Sulit';
+                        if (tk >= 0.7) category = 'Mudah';
+                        else if (tk >= 0.3) category = 'Sedang';
+                        return `Tingkat Kesukaran: ${tk.toFixed(3)} (${category})`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Discrimination Chart
+const ctx2 = document.getElementById('discriminationChart').getContext('2d');
+new Chart(ctx2, {
+    type: 'line',
+    data: {
+        labels: soalNumbers,
+        datasets: [{
+            label: 'Daya Pembeda',
+            data: discriminationData,
+            borderColor: 'rgba(59, 130, 246, 1)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.4,
+            pointRadius: 4,
+            pointBackgroundColor: discriminationData.map(dp => {
+                if (dp >= 0.4) return 'rgba(16, 185, 129, 1)'; // Baik - Green
+                if (dp >= 0.2) return 'rgba(245, 158, 11, 1)'; // Cukup - Yellow
+                return 'rgba(239, 68, 68, 1)'; // Kurang - Red
+            }),
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                max: 1,
+                title: {
+                    display: true,
+                    text: 'Daya Pembeda (0-1)'
+                }
+            },
+            x: {
+                title: {
+                    display: true,
+                    text: 'Nomor Soal'
+                }
+            }
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const dp = context.parsed.y;
+                        let category = 'Kurang';
+                        if (dp >= 0.4) category = 'Baik';
+                        else if (dp >= 0.2) category = 'Cukup';
+                        return `Daya Pembeda: ${dp.toFixed(3)} (${category})`;
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Category Chart
+const ctx3 = document.getElementById('categoryChart').getContext('2d');
+new Chart(ctx3, {
+    type: 'doughnut',
+    data: {
+        labels: ['Baik', 'Cukup', 'Perlu Revisi'],
+        datasets: [{
+            data: [categoryCounts.baik, categoryCounts.cukup, categoryCounts.revisi],
+            backgroundColor: [
+                'rgba(16, 185, 129, 0.6)',
+                'rgba(245, 158, 11, 0.6)',
+                'rgba(239, 68, 68, 0.6)'
+            ],
+            borderColor: [
+                'rgba(16, 185, 129, 1)',
+                'rgba(245, 158, 11, 1)',
+                'rgba(239, 68, 68, 1)'
+            ],
+            borderWidth: 2
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const total = categoryCounts.baik + categoryCounts.cukup + categoryCounts.revisi;
+                        const percentage = ((context.parsed / total) * 100).toFixed(1);
+                        return context.label + ': ' + context.parsed + ' (' + percentage + '%)';
+                    }
+                }
+            }
+        }
+    }
+});
+
+// Answer Distribution Chart
+const ctx4 = document.getElementById('answerDistributionChart').getContext('2d');
+new Chart(ctx4, {
+    type: 'bar',
+    data: {
+        labels: soalNumbers,
+        datasets: [{
+            label: 'Benar',
+            data: benarData,
+            backgroundColor: 'rgba(16, 185, 129, 0.6)',
+            borderColor: 'rgba(16, 185, 129, 1)',
+            borderWidth: 1
+        }, {
+            label: 'Salah',
+            data: salahData,
+            backgroundColor: 'rgba(239, 68, 68, 0.6)',
+            borderColor: 'rgba(239, 68, 68, 1)',
+            borderWidth: 1
+        }, {
+            label: 'Kosong',
+            data: kosongData,
+            backgroundColor: 'rgba(156, 163, 175, 0.6)',
+            borderColor: 'rgba(156, 163, 175, 1)',
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            x: {
+                stacked: true,
+                title: {
+                    display: true,
+                    text: 'Nomor Soal'
+                }
+            },
+            y: {
+                stacked: true,
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: 'Jumlah Responden'
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                position: 'top'
+            }
+        }
+    }
+});
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
 

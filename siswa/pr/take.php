@@ -433,6 +433,19 @@ if (is_array($opsi)) {
                         <div class="options-container">
                             <?php foreach ($opsi as $key => $value): 
                                 $is_selected = $saved && $saved['jawaban'] === $key;
+                                
+                                // Handle both old format (string) and new format (object with text and image)
+                                $option_text = '';
+                                $option_image = null;
+                                
+                                if (is_array($value)) {
+                                    // New format: object with text and image
+                                    $option_text = $value['text'] ?? '';
+                                    $option_image = $value['image'] ?? null;
+                                } else {
+                                    // Old format: just text (backward compatible)
+                                    $option_text = $value;
+                                }
                             ?>
                             <div class="option-item <?php echo $is_selected ? 'selected' : ''; ?>" 
                                  onclick="selectOption('<?php echo $key; ?>')">
@@ -441,7 +454,19 @@ if (is_array($opsi)) {
                                        <?php echo $is_selected ? 'checked' : ''; ?>
                                        onchange="saveAnswer()">
                                 <label for="opt_<?php echo $key; ?>" style="cursor: pointer; margin-left: 10px; flex: 1;">
-                                    <strong><?php echo $key; ?>.</strong> <?php echo escape($value); ?>
+                                    <strong><?php echo $key; ?>.</strong> 
+                                    <?php if (!empty($option_text)): ?>
+                                        <?php echo escape($option_text); ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($option_image)): ?>
+                                        <div class="mt-2">
+                                            <img src="<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>" 
+                                                 alt="Gambar Opsi <?php echo $key; ?>" 
+                                                 class="img-thumbnail" 
+                                                 style="max-width: 300px; max-height: 200px; cursor: pointer;"
+                                                 onclick="event.stopPropagation(); openMediaModal('<?php echo UPLOAD_URL . '/soal/' . escape($option_image); ?>', 'gambar');">
+                                        </div>
+                                    <?php endif; ?>
                                 </label>
                             </div>
                             <?php endforeach; ?>

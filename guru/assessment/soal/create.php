@@ -73,8 +73,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 $stmt = $pdo->prepare("INSERT INTO ujian 
                                       (judul, deskripsi, id_mapel, id_guru, durasi, tipe_asesmen, tahun_ajaran, semester, 
-                                       periode_sumatip, tingkat_kelas, status) 
-                                      VALUES (?, ?, ?, ?, 120, ?, ?, ?, ?, ?, 'draft')");
+                                       periode_sumatip, tingkat_kelas, ai_correction_enabled, status) 
+                                      VALUES (?, ?, ?, ?, 120, ?, ?, ?, ?, ?, 1, 'draft')");
                 $stmt->execute([
                     $judul,
                     "Assessment $jenis untuk mata pelajaran " . get_mapel($id_mapel)['nama_mapel'] . " kelas $tingkat_kelas",
@@ -111,8 +111,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $opsi = array_filter($opsi, function($value) {
                     return !empty($value);
                 });
-                $opsi_json = json_encode($opsi);
+                
+                // Validate: minimal 2 opsi harus diisi
+                if (count($opsi) < 2) {
+                    throw new Exception('Pilihan ganda minimal harus memiliki 2 opsi yang diisi');
+                }
+                
+                // Validate: kunci_jawaban harus ada di opsi yang diisi
                 $kunci_jawaban = sanitize($kunci_jawaban_raw);
+                if (empty($kunci_jawaban)) {
+                    throw new Exception('Kunci jawaban untuk pilihan ganda harus dipilih');
+                }
+                if (!isset($opsi[$kunci_jawaban])) {
+                    throw new Exception('Kunci jawaban harus sesuai dengan opsi yang diisi');
+                }
+                
+                $opsi_json = json_encode($opsi);
             } elseif ($tipe_soal === 'benar_salah') {
                 $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
                 $kunci_jawaban = sanitize($kunci_jawaban_raw);
@@ -156,18 +170,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $items_kiri = $_POST['item_kiri'] ?? [];
                 $items_kanan = $_POST['item_kanan'] ?? [];
                 
+                $matching_count = 0;
                 foreach ($items_kiri as $idx => $kiri) {
                     if (!empty($kiri) && !empty($items_kanan[$idx])) {
                         $stmt = $pdo->prepare("INSERT INTO soal_matching (id_soal, item_kiri, item_kanan, urutan) VALUES (?, ?, ?, ?)");
                         $stmt->execute([$soal_id, sanitize($kiri), sanitize($items_kanan[$idx]), $idx + 1]);
+                        $matching_count++;
                     }
+                }
+                
+                // Validate: matching minimal harus memiliki 1 item
+                if ($matching_count === 0) {
+                    throw new Exception('Soal matching minimal harus memiliki 1 pasangan item (kiri-kanan)');
                 }
             }
             
-            // Auto-add soal to bank_soal
-            add_soal_to_bank($soal_id, $id_mapel, $tingkat_kelas);
-            
             $pdo->commit();
+            
+            // Auto-add soal to bank_soal (non-blocking, log error if fails)
+            // Do this after commit to avoid transaction issues
+            try {
+                add_soal_to_bank($soal_id, $id_mapel, $tingkat_kelas);
+            } catch (Exception $e) {
+                // Log error but don't fail the transaction
+                error_log("Failed to add soal to bank: " . $e->getMessage());
+            }
+            
             log_activity('create_assessment_soal', 'soal', $soal_id);
             
             $success = 'Soal assessment berhasil dibuat';
@@ -312,16 +340,16 @@ $mapel_list = get_mapel_by_guru($_SESSION['user_id']);
             <!-- Media Upload Section -->
             <div class="mb-3">
                 <label for="soal_media" class="form-label">
-                    <i class="fas fa-image me-1"></i> Media Soal (Gambar/Video)
+                    <i class="fas fa-image me-1"></i> Media Soal (Gambar)
                 </label>
                 <input type="file" 
                        class="form-control" 
                        id="soal_media" 
                        name="soal_media" 
-                       accept="image/*,video/*"
+                       accept="image/*"
                        onchange="handleMediaUpload(this)">
                 <small class="text-muted">
-                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 10MB), Video (MP4, WebM, OGG - maks. 50MB)
+                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 500KB)
                 </small>
                 <div id="media_preview" class="mt-2" style="display:none;">
                     <div class="alert alert-info d-flex justify-content-between align-items-center">
@@ -454,11 +482,20 @@ function showTipeFields() {
     document.getElementById('matching_fields').style.display = 'none';
     document.getElementById('esai_fields').style.display = 'none';
     
-    // Show selected
+    // Remove required attributes from all kunci_jawaban fields first
+    document.querySelectorAll('input[name="kunci_jawaban"], select[name="kunci_jawaban"], textarea[name="kunci_jawaban"]').forEach(el => {
+        el.removeAttribute('required');
+    });
+    
+    // Show selected and set required if needed
     if (tipe === 'pilihan_ganda') {
         document.getElementById('pilihan_ganda_fields').style.display = 'block';
+        const kunciSelect = document.querySelector('#pilihan_ganda_fields select[name="kunci_jawaban"]');
+        if (kunciSelect) kunciSelect.setAttribute('required', 'required');
     } else if (tipe === 'benar_salah') {
         document.getElementById('benar_salah_fields').style.display = 'block';
+        const kunciSelect = document.querySelector('#benar_salah_fields select[name="kunci_jawaban"]');
+        if (kunciSelect) kunciSelect.setAttribute('required', 'required');
     } else if (tipe === 'isian_singkat') {
         document.getElementById('isian_singkat_fields').style.display = 'block';
     } else if (tipe === 'matching') {
@@ -467,6 +504,75 @@ function showTipeFields() {
         document.getElementById('esai_fields').style.display = 'block';
     }
 }
+
+// Form validation before submit
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('soalForm');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            const tipe = document.getElementById('tipe_soal').value;
+            let isValid = true;
+            let errorMsg = '';
+            
+            // Validate based on tipe soal
+            if (tipe === 'pilihan_ganda') {
+                const opsi_a = document.querySelector('input[name="opsi_a"]').value.trim();
+                const opsi_b = document.querySelector('input[name="opsi_b"]').value.trim();
+                const opsi_c = document.querySelector('input[name="opsi_c"]').value.trim();
+                const opsi_d = document.querySelector('input[name="opsi_d"]').value.trim();
+                const kunciSelect = document.querySelector('#pilihan_ganda_fields select[name="kunci_jawaban"]');
+                const kunci = kunciSelect ? kunciSelect.value : '';
+                
+                const opsiFilled = [opsi_a, opsi_b, opsi_c, opsi_d].filter(o => o !== '').length;
+                
+                if (opsiFilled < 2) {
+                    isValid = false;
+                    errorMsg = 'Pilihan ganda minimal harus memiliki 2 opsi yang diisi';
+                } else if (!kunci) {
+                    isValid = false;
+                    errorMsg = 'Kunci jawaban harus dipilih';
+                } else {
+                    // Check if selected kunci has filled option
+                    const opsiMap = {'A': opsi_a, 'B': opsi_b, 'C': opsi_c, 'D': opsi_d};
+                    if (!opsiMap[kunci] || opsiMap[kunci].trim() === '') {
+                        isValid = false;
+                        errorMsg = 'Kunci jawaban yang dipilih harus memiliki opsi yang diisi';
+                    }
+                }
+            } else if (tipe === 'benar_salah') {
+                const kunciSelect = document.querySelector('#benar_salah_fields select[name="kunci_jawaban"]');
+                const kunci = kunciSelect ? kunciSelect.value : '';
+                if (!kunci) {
+                    isValid = false;
+                    errorMsg = 'Kunci jawaban untuk benar/salah harus dipilih';
+                }
+            } else if (tipe === 'matching') {
+                const itemsKiri = document.querySelectorAll('#matching_fields input[name="item_kiri[]"]');
+                const itemsKanan = document.querySelectorAll('#matching_fields input[name="item_kanan[]"]');
+                let validPairs = 0;
+                
+                itemsKiri.forEach((kiri, idx) => {
+                    if (itemsKanan[idx] && kiri.value.trim() !== '' && itemsKanan[idx].value.trim() !== '') {
+                        validPairs++;
+                    }
+                });
+                
+                if (validPairs === 0) {
+                    isValid = false;
+                    errorMsg = 'Soal matching minimal harus memiliki 1 pasangan item (kiri-kanan) yang diisi';
+                }
+            }
+            
+            if (!isValid) {
+                e.preventDefault();
+                alert(errorMsg);
+                return false;
+            }
+            
+            return true;
+        });
+    }
+});
 
 function addMatchingItem() {
     const container = document.getElementById('matching_items');
@@ -504,10 +610,10 @@ function handleMediaUpload(input) {
         return;
     }
     
-    // Validate file size
-    const maxSize = file.type.startsWith('video/') ? 52428800 : 10485760; // 50MB for video, 10MB for image
+    // Validate file size (max 500KB for images)
+    const maxSize = 512000; // 500KB
     if (file.size > maxSize) {
-        alert('Ukuran file terlalu besar. Maksimal: ' + (maxSize / 1048576) + 'MB');
+        alert('Ukuran file terlalu besar. Maksimal: 500KB');
         input.value = '';
         removeMedia();
         return;
@@ -532,19 +638,11 @@ function handleMediaUpload(input) {
         if (data.success) {
             document.getElementById('media_path').value = data.path;
             document.getElementById('media_type').value = data.media_type;
-            document.getElementById('media_type_badge').textContent = data.media_type === 'gambar' ? 'Gambar' : 'Video';
+            document.getElementById('media_type_badge').textContent = 'Gambar';
             
-            // Show preview
-            if (data.media_type === 'gambar') {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
-            } else {
-                document.getElementById('media_preview_content').innerHTML = 
-                    '<video controls class="img-thumbnail" style="max-width: 400px; max-height: 300px;">' +
-                    '<source src="' + data.url + '" type="' + data.mime_type + '">' +
-                    'Browser Anda tidak mendukung video tag.' +
-                    '</video>';
-            }
+            // Show preview (only images)
+            document.getElementById('media_preview_content').innerHTML = 
+                '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
         } else {
             alert('Error: ' + data.message);
             input.value = '';

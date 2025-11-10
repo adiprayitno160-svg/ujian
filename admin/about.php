@@ -1,4 +1,3 @@
-h error
 <?php
 /**
  * About & System Management - Admin
@@ -81,6 +80,253 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
         </div>
     </div>
     
+    <div class="col-md-6">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fab fa-github"></i> GitHub CLI & Git Status</h5>
+            </div>
+            <div class="card-body">
+                <div id="gitStatusLoading" class="text-center py-3">
+                    <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="text-muted mt-2 mb-0">Memuat status...</p>
+                </div>
+                <div id="gitStatusContent" style="display:none;">
+                    <table class="table table-borderless">
+                        <tr>
+                            <th width="200">Git Status</th>
+                            <td>
+                                <span id="gitAvailableStatus" class="badge bg-secondary">Checking...</span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <th>GitHub CLI Status</th>
+                            <td>
+                                <span id="githubCliStatus" class="badge bg-secondary">Checking...</span>
+                            </td>
+                        </tr>
+                        <tr id="githubCliUserRow" style="display:none;">
+                            <th>GitHub CLI User</th>
+                            <td>
+                                <span id="githubCliUser" class="text-muted">-</span>
+                            </td>
+                        </tr>
+                        <tr id="githubCliVersionRow" style="display:none;">
+                            <th>GitHub CLI Version</th>
+                            <td>
+                                <span id="githubCliVersion" class="text-muted">-</span>
+                            </td>
+                        </tr>
+                        <tr id="gitBranchRow" style="display:none;">
+                            <th>Git Branch</th>
+                            <td>
+                                <span id="gitBranch" class="text-muted">-</span>
+                            </td>
+                        </tr>
+                        <tr id="gitCommitRow" style="display:none;">
+                            <th>Git Commit</th>
+                            <td>
+                                <code id="gitCommit" class="text-muted">-</code>
+                            </td>
+                        </tr>
+                    </table>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="loadGitStatus()">
+                            <i class="fas fa-sync"></i> Refresh Status
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- New Features Section -->
+<div class="row g-4 mb-4">
+    <div class="col-md-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-star"></i> Fitur Baru Sistem UJAN</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Dashboard & Progress Tracking -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-primary bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-chart-line text-primary"></i>
+                                    </div>
+                                    <h6 class="mb-0">Dashboard & Progress Tracking</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Dashboard siswa dengan grafik performa, progress tracking per mata pelajaran, 
+                                    dan analisis trend nilai untuk memantau perkembangan belajar siswa.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sistem Notifikasi -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-info bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-bell text-info"></i>
+                                    </div>
+                                    <h6 class="mb-0">Sistem Notifikasi</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Notifikasi real-time untuk siswa dan guru, reminder ujian, notifikasi nilai keluar, 
+                                    dan reminder deadline PR/Tugas untuk meningkatkan komunikasi dan engagement.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Correction -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-success bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-robot text-success"></i>
+                                    </div>
+                                    <h6 class="mb-0">AI Correction (Google Gemini)</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Koreksi otomatis jawaban esai menggunakan Google Gemini AI dengan feedback 
+                                    konstruktif, analisis kekuatan dan kelemahan, serta saran perbaikan.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Plagiarisme Check -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-warning bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-shield-alt text-warning"></i>
+                                    </div>
+                                    <h6 class="mb-0">Plagiarisme Check</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Deteksi plagiarisme dengan similarity score, analisis per bagian, 
+                                    dan identifikasi jawaban yang mencurigakan untuk menjaga integritas ujian.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GitHub Sync & Update -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-dark bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fab fa-github text-dark"></i>
+                                    </div>
+                                    <h6 class="mb-0">GitHub Sync & Auto Update</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Integrasi dengan GitHub untuk update otomatis, backup database sebelum update, 
+                                    version management, dan rollback otomatis jika update gagal.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analisis Butir Soal -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-danger bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-chart-bar text-danger"></i>
+                                    </div>
+                                    <h6 class="mb-0">Analisis Butir Soal</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Analisis tingkat kesukaran, daya pembeda, efektivitas distraktor, 
+                                    dan statistik butir soal untuk meningkatkan kualitas soal ujian.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Real-time Monitoring -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-primary bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-tv text-primary"></i>
+                                    </div>
+                                    <h6 class="mb-0">Real-time Monitoring</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Monitoring real-time ujian untuk operator, tracking progress peserta, 
+                                    status pengerjaan, dan monitoring aktivitas ujian secara live.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Security Features -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-success bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-lock text-success"></i>
+                                    </div>
+                                    <h6 class="mb-0">Enhanced Security</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Fitur keamanan lanjutan: browser lock mode, fullscreen enforcement, 
+                                    deteksi multiple device login, dan monitoring aktivitas mencurigakan.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Statistik & Analytics -->
+                    <div class="col-md-6 col-lg-4">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-info bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-analytics text-info"></i>
+                                    </div>
+                                    <h6 class="mb-0">Statistik & Analytics</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Statistik nilai lengkap dengan grafik distribusi, perbandingan dengan ujian lain, 
+                                    trend performa, dan analisis per kelas untuk insights yang lebih mendalam.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="my-4">
+
+                <div class="alert alert-info mb-0">
+                    <h6 class="alert-heading"><i class="fas fa-info-circle"></i> Informasi Tambahan</h6>
+                    <p class="mb-2">Sistem UJAN terus dikembangkan dengan fitur-fitur baru untuk meningkatkan pengalaman pengguna dan kualitas pembelajaran.</p>
+                    <p class="mb-0 small">
+                        <strong>Fitur yang akan datang:</strong> Review Mode sebelum Submit, Analisis Waktu per Soal, 
+                        Question Tagging & Kategorisasi, Rubric-Based Grading, Export/Import Lanjutan, dan banyak lagi.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- GitHub Operations -->
@@ -591,11 +837,84 @@ function loadVersionFromGit() {
 
 // Quick update function handles everything
 
+// Load Git and GitHub CLI status
+function loadGitStatus() {
+    $('#gitStatusLoading').show();
+    $('#gitStatusContent').hide();
+    
+    $.ajax({
+        url: apiUrl,
+        method: 'GET',
+        data: { action: 'status' },
+        dataType: 'json',
+        timeout: 10000,
+        success: function(response) {
+            $('#gitStatusLoading').hide();
+            $('#gitStatusContent').show();
+            
+            // Git status
+            if (response.git_available) {
+                $('#gitAvailableStatus').removeClass('bg-secondary bg-danger').addClass('bg-success').text('Tersedia');
+            } else {
+                $('#gitAvailableStatus').removeClass('bg-secondary bg-success').addClass('bg-danger').text('Tidak Tersedia');
+            }
+            
+            // GitHub CLI status
+            if (response.github_cli && response.github_cli.available) {
+                if (response.github_cli.authenticated) {
+                    $('#githubCliStatus').removeClass('bg-secondary bg-danger bg-warning').addClass('bg-success').text('Aktif & Terautentikasi');
+                    
+                    // Show user and version if available
+                    if (response.github_cli.user) {
+                        $('#githubCliUser').text(response.github_cli.user);
+                        $('#githubCliUserRow').show();
+                    }
+                    if (response.github_cli.version) {
+                        $('#githubCliVersion').text(response.github_cli.version);
+                        $('#githubCliVersionRow').show();
+                    }
+                } else {
+                    $('#githubCliStatus').removeClass('bg-secondary bg-danger bg-success').addClass('bg-warning').text('Tersedia (Belum Login)');
+                    $('#githubCliUserRow').hide();
+                    $('#githubCliVersionRow').hide();
+                }
+            } else {
+                $('#githubCliStatus').removeClass('bg-secondary bg-success bg-warning').addClass('bg-danger').text('Tidak Tersedia');
+                $('#githubCliUserRow').hide();
+                $('#githubCliVersionRow').hide();
+            }
+            
+            // Git info
+            if (response.git_info && response.git_info.is_repo) {
+                if (response.git_info.branch) {
+                    $('#gitBranch').text(response.git_info.branch);
+                    $('#gitBranchRow').show();
+                }
+                if (response.git_info.commit) {
+                    $('#gitCommit').text(response.git_info.commit);
+                    $('#gitCommitRow').show();
+                }
+            } else {
+                $('#gitBranchRow').hide();
+                $('#gitCommitRow').hide();
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#gitStatusLoading').hide();
+            $('#gitStatusContent').show();
+            $('#gitAvailableStatus').removeClass('bg-secondary bg-success').addClass('bg-danger').text('Error');
+            $('#githubCliStatus').removeClass('bg-secondary bg-success bg-warning').addClass('bg-danger').text('Error');
+            console.error('Error loading Git status:', error);
+        }
+    });
+}
+
 // Initialize
 $(document).ready(function() {
     console.log('About page initialized');
     
     loadCurrentVersionForPull();
+    loadGitStatus();
     
     // Check version update on page load
     checkVersionUpdate(false);
@@ -604,6 +923,11 @@ $(document).ready(function() {
     setInterval(function() {
         checkVersionUpdate(false);
     }, 300000); // 5 minutes
+    
+    // Auto-refresh Git status every 2 minutes
+    setInterval(function() {
+        loadGitStatus();
+    }, 120000); // 2 minutes
 });
 </script>
 

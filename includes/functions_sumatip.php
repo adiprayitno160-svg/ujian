@@ -129,11 +129,11 @@ function create_sumatip($data) {
             $periode = "$jenis - Semester $semester_label {$data['tahun_ajaran']}";
         }
         
-        // Insert ujian
+        // Insert ujian (with AI correction enabled by default)
         $stmt = $pdo->prepare("INSERT INTO ujian 
                               (judul, deskripsi, id_mapel, id_guru, durasi, tipe_asesmen, tahun_ajaran, semester, 
-                               periode_sumatip, is_mandatory, id_template_sumatip, tingkat_kelas, status) 
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')");
+                               periode_sumatip, is_mandatory, id_template_sumatip, tingkat_kelas, ai_correction_enabled, status) 
+                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'draft')");
         $stmt->execute([
             $data['judul'],
             $data['deskripsi'] ?? null,

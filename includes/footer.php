@@ -43,6 +43,19 @@
     <?php endif; ?>
     
     <script>
+        // Register Service Worker for PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('<?php echo base_url('service-worker.js'); ?>')
+                    .then(function(registration) {
+                        console.log('Service Worker registered:', registration.scope);
+                    })
+                    .catch(function(error) {
+                        console.log('Service Worker registration failed:', error);
+                    });
+            });
+        }
+        
         // Show toast notification
         function showToast(message, type = 'info') {
             const toast = document.getElementById('toastNotification');

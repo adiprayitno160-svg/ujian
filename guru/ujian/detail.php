@@ -260,6 +260,16 @@ $sesi_list = $stmt->fetchAll();
                         </a>
                     </div>
                     <div class="col-md-3">
+                        <a href="<?php echo base_url('guru/nilai/export.php?ujian_id=' . $id); ?>" class="btn btn-outline-success w-100">
+                            <i class="fas fa-file-excel"></i> Export Excel
+                        </a>
+                    </div>
+                    <div class="col-md-3">
+                        <a href="<?php echo base_url('guru/nilai/export_pdf.php?ujian_id=' . $id); ?>" class="btn btn-outline-danger w-100" target="_blank">
+                            <i class="fas fa-file-pdf"></i> Export PDF
+                        </a>
+                    </div>
+                    <div class="col-md-3">
                         <a href="<?php echo base_url('guru/soal/import.php?ujian_id=' . $id); ?>" class="btn btn-outline-secondary w-100">
                             <i class="fas fa-file-import"></i> Import Soal
                         </a>

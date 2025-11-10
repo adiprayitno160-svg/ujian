@@ -14,7 +14,7 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.13');
+    define('APP_VERSION', '1.0.14');
     
     // Auto-detect APP_URL based on server environment
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 
@@ -113,12 +113,12 @@ if (!file_exists(UPLOAD_PROFILE)) mkdir(UPLOAD_PROFILE, 0755, true);
 if (!file_exists(UPLOAD_VERIFIKASI)) mkdir(UPLOAD_VERIFIKASI, 0755, true);
 
 // File upload settings
-define('MAX_FILE_SIZE', 10485760); // 10MB in bytes
-define('MAX_VIDEO_SIZE', 52428800); // 50MB in bytes for videos
+define('MAX_FILE_SIZE', 512000); // 500KB in bytes (for faster loading)
+define('MAX_VIDEO_SIZE', 52428800); // 50MB in bytes for videos (deprecated - video disabled)
 define('ALLOWED_IMAGE_TYPES', ['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
-define('ALLOWED_VIDEO_TYPES', ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime']);
+define('ALLOWED_VIDEO_TYPES', ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime']); // Deprecated - video disabled
 define('ALLOWED_DOC_TYPES', ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/zip']);
-define('ALLOWED_SOAL_MEDIA_TYPES', array_merge(ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES));
+define('ALLOWED_SOAL_MEDIA_TYPES', ALLOWED_IMAGE_TYPES); // Only images, no videos
 
 // Security settings
 define('SESSION_TIMEOUT', 3600); // 1 hour in seconds

@@ -373,6 +373,74 @@ $sekolah = get_sekolah_info();
     </div>
 </div>
 
+<!-- Fitur Baru untuk Operator -->
+<div class="row g-4 mb-4">
+    <div class="col-12">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="mb-0"><i class="fas fa-star"></i> Fitur Baru untuk Operator</h5>
+            </div>
+            <div class="card-body">
+                <div class="row g-3">
+                    <!-- Real-time Monitoring -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-primary bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-tv text-primary"></i>
+                                    </div>
+                                    <h6 class="mb-0">Real-time Monitoring</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Monitoring real-time ujian untuk operator, tracking progress peserta, 
+                                    status pengerjaan, dan monitoring aktivitas ujian secara live.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analytics & Statistics -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-info bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-analytics text-info"></i>
+                                    </div>
+                                    <h6 class="mb-0">Analytics & Statistics</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Statistik lengkap dengan grafik distribusi nilai, perbandingan performa, 
+                                    trend analisis, dan insights yang lebih mendalam untuk pengambilan keputusan.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Sistem Notifikasi -->
+                    <div class="col-md-6">
+                        <div class="card border h-100">
+                            <div class="card-body">
+                                <div class="d-flex align-items-center mb-2">
+                                    <div class="bg-success bg-opacity-10 rounded p-2 me-2">
+                                        <i class="fas fa-bell text-success"></i>
+                                    </div>
+                                    <h6 class="mb-0">Sistem Notifikasi</h6>
+                                </div>
+                                <p class="text-muted small mb-0">
+                                    Notifikasi real-time untuk informasi penting, reminder deadline, 
+                                    dan notifikasi sistem untuk meningkatkan efisiensi kerja.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Cara Penggunaan -->
 <div class="row g-4 mb-4">
     <div class="col-12">

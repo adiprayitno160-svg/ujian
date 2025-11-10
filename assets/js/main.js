@@ -108,38 +108,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
     
-    // Sidebar toggle for mobile
-    const sidebar = document.getElementById('sidebar');
-    const sidebarToggle = document.getElementById('sidebarToggle');
-    const sidebarOverlay = document.getElementById('sidebarOverlay');
-    
-    if (sidebarToggle && sidebar) {
-        sidebarToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('show');
-            if (sidebarOverlay) {
-                sidebarOverlay.classList.toggle('show');
-            }
-        });
-        
-        if (sidebarOverlay) {
-            sidebarOverlay.addEventListener('click', function() {
-                sidebar.classList.remove('show');
-                sidebarOverlay.classList.remove('show');
-            });
-        }
-        
-        // Close sidebar when clicking menu items on mobile
-        const menuItems = sidebar.querySelectorAll('.menu-item');
-        menuItems.forEach(function(item) {
-            item.addEventListener('click', function() {
-                if (window.innerWidth <= 768) {
-                    sidebar.classList.remove('show');
-                    if (sidebarOverlay) {
-                        sidebarOverlay.classList.remove('show');
-                    }
-                }
-            });
-        });
-    }
+    // Sidebar toggle is handled in footer.php to avoid duplication
 });
 
