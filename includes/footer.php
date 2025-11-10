@@ -5,7 +5,7 @@
     
     <!-- Sidebar Toggle Button (Mobile) -->
     <?php if (is_logged_in() && !isset($hide_navbar)): ?>
-    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" style="display: none;">
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
         <i class="fas fa-bars"></i>
     </button>
     <?php endif; ?>
