@@ -450,18 +450,56 @@ try {
             // Get branch from POST, default to current branch or master
             $branch = $_POST['branch'] ?? $_GET['branch'] ?? null;
             $skip_backup = isset($_POST['skip_backup']) && $_POST['skip_backup'] === '1';
+            $is_live_server = isset($_POST['is_live_server']) && $_POST['is_live_server'] === '1';
+            
+            // For live server: Always backup and enable maintenance mode
+            if ($is_live_server) {
+                $skip_backup = false; // Force backup for live server
+                
+                // Enable maintenance mode
+                require_once __DIR__ . '/../includes/maintenance_mode.php';
+                $maintenance_enabled = enable_maintenance_mode('Sistem sedang diupdate. Silakan coba lagi beberapa saat lagi.');
+                if (!$maintenance_enabled) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'Gagal mengaktifkan maintenance mode'
+                    ]);
+                    break;
+                }
+            }
             
             // Backup database first (unless skipped)
             $backup = null;
             if (!$skip_backup) {
                 $backup = backupDatabase();
+                if (!$backup['success']) {
+                    // If backup fails on live server, abort
+                    if ($is_live_server) {
+                        disable_maintenance_mode();
+                        echo json_encode([
+                            'success' => false,
+                            'message' => 'Gagal membuat backup database. Update dibatalkan untuk keamanan.',
+                            'backup_error' => $backup['message'] ?? 'Unknown error'
+                        ]);
+                        break;
+                    }
+                }
             }
             
             // Set timeout for long operations
             @set_time_limit(300); // 5 minutes
             
+            // Store old commit for rollback
+            $old_dir = getcwd();
+            @chdir($repo_path);
+            $old_commit_output = [];
+            @exec('git rev-parse HEAD 2>&1', $old_commit_output, $old_commit_return);
+            $old_commit_full = ($old_commit_return === 0 && !empty($old_commit_output)) ? trim($old_commit_output[0]) : null;
+            @chdir($old_dir);
+            
             $result = pullFromGitHub($repo_path, $branch);
             $result['backup'] = $backup;
+            $result['old_commit_full'] = $old_commit_full; // Store for rollback
             
             // Run database migrations after successful pull
             if ($result['success']) {
@@ -497,10 +535,69 @@ try {
                     
                     $result['migrations'] = $migration_results;
                     error_log("Database migrations executed after pull: " . json_encode($migration_results));
+                    
+                    // If migration fails on live server, rollback
+                    if ($is_live_server) {
+                        $migration_failed = false;
+                        foreach ($migration_results as $migration_result) {
+                            if ($migration_result === false) {
+                                $migration_failed = true;
+                                break;
+                            }
+                        }
+                        
+                        if ($migration_failed) {
+                            // Rollback to old commit
+                            $old_dir = getcwd();
+                            @chdir($repo_path);
+                            @exec('git reset --hard ' . escapeshellarg($old_commit_full) . ' 2>&1', $rollback_output, $rollback_return);
+                            @chdir($old_dir);
+                            
+                            disable_maintenance_mode();
+                            
+                            echo json_encode([
+                                'success' => false,
+                                'message' => 'Update gagal: Database migration error. Sistem telah di-rollback ke versi sebelumnya.',
+                                'migration_error' => 'Satu atau lebih migration gagal',
+                                'rollback' => $rollback_return === 0 ? 'success' : 'failed'
+                            ]);
+                            break;
+                        }
+                    }
                 } catch (Exception $e) {
                     error_log("Error running migrations after pull: " . $e->getMessage());
                     $result['migration_error'] = $e->getMessage();
+                    
+                    // If migration error on live server, rollback
+                    if ($is_live_server) {
+                        $old_dir = getcwd();
+                        @chdir($repo_path);
+                        @exec('git reset --hard ' . escapeshellarg($old_commit_full) . ' 2>&1', $rollback_output, $rollback_return);
+                        @chdir($old_dir);
+                        
+                        disable_maintenance_mode();
+                        
+                        echo json_encode([
+                            'success' => false,
+                            'message' => 'Update gagal: ' . $e->getMessage() . '. Sistem telah di-rollback.',
+                            'migration_error' => $e->getMessage(),
+                            'rollback' => $rollback_return === 0 ? 'success' : 'failed'
+                        ]);
+                        break;
+                    }
                 }
+            } else {
+                // If pull fails on live server, disable maintenance mode
+                if ($is_live_server) {
+                    disable_maintenance_mode();
+                }
+            }
+            
+            // Disable maintenance mode after successful update
+            if ($result['success'] && $is_live_server) {
+                require_once __DIR__ . '/../includes/maintenance_mode.php';
+                disable_maintenance_mode();
+                $result['maintenance_disabled'] = true;
             }
             
             // Log the operation

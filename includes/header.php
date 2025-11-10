@@ -8,6 +8,10 @@ if (!defined('APP_NAME')) {
     require_once __DIR__ . '/../config/config.php';
 }
 
+// Check maintenance mode (before auth check to allow login)
+require_once __DIR__ . '/maintenance_mode.php';
+check_maintenance_mode();
+
 require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/functions.php';
 

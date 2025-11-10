@@ -324,19 +324,40 @@ function quickUpdate() {
         return;
     }
     
+    // Detect if this is live server (check if URL is not localhost)
+    const isLiveServer = window.location.hostname !== 'localhost' && 
+                         window.location.hostname !== '127.0.0.1' &&
+                         !window.location.hostname.startsWith('192.168.') &&
+                         !window.location.hostname.startsWith('10.') &&
+                         window.location.protocol === 'https';
+    
+    // Confirm for live server
+    if (isLiveServer) {
+        if (!confirm('⚠️ LIVE SERVER DETECTED ⚠️\n\n' +
+                     'Update akan:\n' +
+                     '1. Membuat backup database otomatis\n' +
+                     '2. Mengaktifkan maintenance mode\n' +
+                     '3. Update file dan database\n' +
+                     '4. Rollback otomatis jika gagal\n\n' +
+                     'Lanjutkan update?')) {
+            return;
+        }
+    }
+    
     // Show progress
     $('#quickUpdateBtn').hide();
     $('#updateProgress').show();
     $('#updateAvailableAlert').html('<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i> Memproses update...</div>');
     
-    // Start pull process (skip backup, automatic update)
+    // Start pull process
     $.ajax({
         url: apiUrl,
         method: 'POST',
         data: {
             action: 'pull',
             branch: 'master',
-            skip_backup: '1' // Skip backup for quick update
+            skip_backup: isLiveServer ? '0' : '1', // Always backup for live server
+            is_live_server: isLiveServer ? '1' : '0' // Mark as live server
         },
         dataType: 'json',
         timeout: 300000, // 5 minutes timeout
