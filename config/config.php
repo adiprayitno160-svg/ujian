@@ -14,7 +14,7 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.11');
+    define('APP_VERSION', '1.0.12');
     
     // Auto-detect APP_URL based on server environment
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 

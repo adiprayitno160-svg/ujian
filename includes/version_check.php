@@ -62,36 +62,63 @@ function get_current_version() {
         return APP_VERSION;
     }
     
-    // Fallback to Git tag
-    try {
-        $repo_path = dirname(__DIR__);
-        if (is_dir($repo_path . '/.git')) {
-            $old_dir = getcwd();
-            @chdir($repo_path);
-            
-            $tag_output = [];
-            $tag_return = 0;
-            @exec('git describe --tags --abbrev=0 2>&1', $tag_output, $tag_return);
-            $current_tag = ($tag_return === 0 && !empty($tag_output)) ? trim($tag_output[0]) : null;
-            
-            @chdir($old_dir);
-            
-            if ($current_tag) {
-                return ltrim($current_tag, 'vV');
+    // Fallback to Git tag (only if exec() is available)
+    if (is_exec_available()) {
+        try {
+            $repo_path = dirname(__DIR__);
+            if (is_dir($repo_path . '/.git')) {
+                $old_dir = getcwd();
+                @chdir($repo_path);
+                
+                $tag_output = [];
+                $tag_return = 0;
+                @exec('git describe --tags --abbrev=0 2>&1', $tag_output, $tag_return);
+                $current_tag = ($tag_return === 0 && !empty($tag_output)) ? trim($tag_output[0]) : null;
+                
+                @chdir($old_dir);
+                
+                if ($current_tag) {
+                    return ltrim($current_tag, 'vV');
+                }
             }
+        } catch (Exception $e) {
+            error_log("Error getting version from Git: " . $e->getMessage());
         }
-    } catch (Exception $e) {
-        error_log("Error getting version from Git: " . $e->getMessage());
     }
     
     return '1.0.0'; // Default fallback
 }
 
 /**
+ * Check if exec() function is available
+ */
+function is_exec_available() {
+    // Check if exec is in disabled_functions
+    $disabled = ini_get('disable_functions');
+    if ($disabled) {
+        $disabled = explode(',', $disabled);
+        $disabled = array_map('trim', $disabled);
+        if (in_array('exec', $disabled)) {
+            return false;
+        }
+    }
+    
+    // Check if function exists and is callable
+    return function_exists('exec') && is_callable('exec');
+}
+
+/**
  * Get version from Git tags (fallback when GitHub Releases API is not available)
  * Fast version - doesn't fetch from remote to avoid timeout
+ * Returns null if exec() is not available
  */
 function get_version_from_git_tags($fast_mode = true) {
+    // Check if exec() is available
+    if (!is_exec_available()) {
+        error_log("exec() function is not available - skipping Git tags check");
+        return null;
+    }
+    
     try {
         $repo_path = dirname(__DIR__);
         if (!is_dir($repo_path . '/.git')) {
@@ -295,20 +322,22 @@ function check_github_releases($use_cache = true, $cache_duration = 3600) {
         
         // If 404, repository might not exist or have no releases - try to get from Git tags instead
         if ($http_code === 404) {
-            // Try to get version from Git tags as fallback (fast mode)
-            $git_tag_version = get_version_from_git_tags(true);
-            if ($git_tag_version) {
-                return [
-                    'success' => true,
-                    'latest_version' => $git_tag_version,
-                    'tag_name' => 'v' . $git_tag_version,
-                    'name' => 'v' . $git_tag_version,
-                    'body' => '',
-                    'html_url' => null,
-                    'published_at' => null,
-                    'source' => 'git_tags',
-                    'message' => 'Version from Git tags (GitHub Releases not available)'
-                ];
+            // Try to get version from Git tags as fallback (fast mode) - only if exec() is available
+            if (is_exec_available()) {
+                $git_tag_version = get_version_from_git_tags(true);
+                if ($git_tag_version) {
+                    return [
+                        'success' => true,
+                        'latest_version' => $git_tag_version,
+                        'tag_name' => 'v' . $git_tag_version,
+                        'name' => 'v' . $git_tag_version,
+                        'body' => '',
+                        'html_url' => null,
+                        'published_at' => null,
+                        'source' => 'git_tags',
+                        'message' => 'Version from Git tags (GitHub Releases not available)'
+                    ];
+                }
             }
             
             // Return cached data if available
@@ -347,20 +376,22 @@ function check_github_releases($use_cache = true, $cache_duration = 3600) {
     
     $data = json_decode($response, true);
     if (!$data) {
-        // Try to get from Git tags as fallback (fast mode)
-        $git_tag_version = get_version_from_git_tags(true);
-        if ($git_tag_version) {
-            return [
-                'success' => true,
-                'latest_version' => $git_tag_version,
-                'tag_name' => 'v' . $git_tag_version,
-                'name' => 'v' . $git_tag_version,
-                'body' => '',
-                'html_url' => null,
-                'published_at' => null,
-                'source' => 'git_tags',
-                'message' => 'Version from Git tags (GitHub API response invalid)'
-            ];
+        // Try to get from Git tags as fallback (fast mode) - only if exec() is available
+        if (is_exec_available()) {
+            $git_tag_version = get_version_from_git_tags(true);
+            if ($git_tag_version) {
+                return [
+                    'success' => true,
+                    'latest_version' => $git_tag_version,
+                    'tag_name' => 'v' . $git_tag_version,
+                    'name' => 'v' . $git_tag_version,
+                    'body' => '',
+                    'html_url' => null,
+                    'published_at' => null,
+                    'source' => 'git_tags',
+                    'message' => 'Version from Git tags (GitHub API response invalid)'
+                ];
+            }
         }
         
         return [
@@ -373,20 +404,22 @@ function check_github_releases($use_cache = true, $cache_duration = 3600) {
     $latest_version = isset($data['tag_name']) ? ltrim($data['tag_name'], 'vV') : null;
     
     if (!$latest_version) {
-        // Try to get from Git tags as fallback (fast mode)
-        $git_tag_version = get_version_from_git_tags(true);
-        if ($git_tag_version) {
-            return [
-                'success' => true,
-                'latest_version' => $git_tag_version,
-                'tag_name' => 'v' . $git_tag_version,
-                'name' => 'v' . $git_tag_version,
-                'body' => '',
-                'html_url' => null,
-                'published_at' => null,
-                'source' => 'git_tags',
-                'message' => 'Version from Git tags (no version in GitHub release)'
-            ];
+        // Try to get from Git tags as fallback (fast mode) - only if exec() is available
+        if (is_exec_available()) {
+            $git_tag_version = get_version_from_git_tags(true);
+            if ($git_tag_version) {
+                return [
+                    'success' => true,
+                    'latest_version' => $git_tag_version,
+                    'tag_name' => 'v' . $git_tag_version,
+                    'name' => 'v' . $git_tag_version,
+                    'body' => '',
+                    'html_url' => null,
+                    'published_at' => null,
+                    'source' => 'git_tags',
+                    'message' => 'Version from Git tags (no version in GitHub release)'
+                ];
+            }
         }
     }
     
@@ -421,39 +454,41 @@ function check_update_available($force_refresh = false) {
     $current_version = get_current_version();
     $latest_release = check_github_releases(!$force_refresh);
     
-    // If GitHub API fails, try Git tags as fallback
+    // If GitHub API fails, try Git tags as fallback (only if exec() is available)
     if (!$latest_release['success']) {
         // Check if it's a timeout error - use fast mode for Git tags
         $is_timeout = isset($latest_release['error_type']) && $latest_release['error_type'] === 'timeout';
         
-        // Try Git tags as fallback (fast mode to avoid another timeout)
-        $git_tag_version = get_version_from_git_tags(true);
-        if ($git_tag_version) {
-            $comparison = compare_versions($current_version, $git_tag_version);
-            $has_update = $comparison < 0;
-            
-            $warning_msg = 'GitHub Releases API tidak tersedia';
-            if ($is_timeout) {
-                $warning_msg = 'GitHub API timeout, menggunakan Git tags lokal sebagai fallback';
+        // Try Git tags as fallback (fast mode to avoid another timeout) - only if exec() is available
+        if (is_exec_available()) {
+            $git_tag_version = get_version_from_git_tags(true);
+            if ($git_tag_version) {
+                $comparison = compare_versions($current_version, $git_tag_version);
+                $has_update = $comparison < 0;
+                
+                $warning_msg = 'GitHub Releases API tidak tersedia';
+                if ($is_timeout) {
+                    $warning_msg = 'GitHub API timeout, menggunakan Git tags lokal sebagai fallback';
+                }
+                
+                return [
+                    'success' => true,
+                    'has_update' => $has_update,
+                    'current_version' => $current_version,
+                    'latest_version' => $git_tag_version,
+                    'tag_name' => 'v' . $git_tag_version,
+                    'release_name' => 'v' . $git_tag_version,
+                    'release_notes' => '',
+                    'release_url' => null,
+                    'published_at' => null,
+                    'source' => 'git_tags',
+                    'message' => $has_update ? "Update available: v{$git_tag_version} (from Git tags)" : "You are running the latest version (from Git tags)",
+                    'warning' => $warning_msg . '. Versi yang ditampilkan dari Git tags lokal.'
+                ];
             }
-            
-            return [
-                'success' => true,
-                'has_update' => $has_update,
-                'current_version' => $current_version,
-                'latest_version' => $git_tag_version,
-                'tag_name' => 'v' . $git_tag_version,
-                'release_name' => 'v' . $git_tag_version,
-                'release_notes' => '',
-                'release_url' => null,
-                'published_at' => null,
-                'source' => 'git_tags',
-                'message' => $has_update ? "Update available: v{$git_tag_version} (from Git tags)" : "You are running the latest version (from Git tags)",
-                'warning' => $warning_msg . '. Versi yang ditampilkan dari Git tags lokal.'
-            ];
         }
         
-        // If timeout and no Git tags, return error with helpful message
+        // If timeout and no Git tags (or exec() not available), return error with helpful message
         if ($is_timeout) {
             return [
                 'success' => false,
