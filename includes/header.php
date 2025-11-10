@@ -802,7 +802,7 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                     </a>
                 <?php endif; ?>
                 
-                <?php if ($_SESSION['role'] === 'siswa'): ?>
+                <?php if (is_logged_in() && isset($_SESSION['role']) && $_SESSION['role'] === 'siswa'): ?>
                 <a href="<?php echo base_url('siswa-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>">
                     <i class="fas fa-info-circle"></i>
                     <span class="menu-label">Informasi</span>

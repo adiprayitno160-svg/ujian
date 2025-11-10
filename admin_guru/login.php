@@ -8,18 +8,28 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-// Redirect if already logged in
-if (is_logged_in()) {
-    $role = $_SESSION['role'] ?? 'admin';
-    // Redirect to dashboard based on role
+// Redirect if already logged in - prevent redirect loop
+if (is_logged_in() && isset($_SESSION['role']) && isset($_SESSION['user_id'])) {
+    $role = $_SESSION['role'];
+    $current_url = $_SERVER['REQUEST_URI'] ?? '';
+    $current_path = parse_url($current_url, PHP_URL_PATH);
+    
+    // Determine target path based on role
+    $target_route = '';
     if ($role === 'admin') {
-        redirect('admin');
+        $target_route = 'admin';
     } elseif ($role === 'guru') {
-        redirect('guru');
+        $target_route = 'guru';
     } elseif ($role === 'operator') {
-        redirect('operator');
+        $target_route = 'operator';
     } else {
-        redirect('siswa');
+        $target_route = 'siswa';
+    }
+    
+    // Only redirect if we're on a login page (prevent loop)
+    if (strpos($current_path, 'login') !== false) {
+        redirect($target_route);
+        exit;
     }
 }
 

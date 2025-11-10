@@ -14,7 +14,7 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.10');
+    define('APP_VERSION', '1.0.11');
     
     // Auto-detect APP_URL based on server environment
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 
@@ -141,6 +141,9 @@ define('VERIFIKASI_MAX_FILE_SIZE', 204800); // 200KB in bytes (maximum size)
 define('VERIFIKASI_ALLOWED_TYPES', ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg']);
 define('VERIFIKASI_MAX_UPLOAD_ULANG', 1); // Maksimal 1x upload ulang
 
+// GitHub CLI Settings
+define('USE_GITHUB_CLI', true); // Aktifkan GitHub CLI jika tersedia (akan fallback ke Git jika tidak tersedia)
+
 // Roles
 define('ROLE_ADMIN', 'admin');
 define('ROLE_GURU', 'guru');
@@ -234,8 +237,8 @@ function redirect($url) {
         exit();
     }
     
-    // Send redirect header
-    header("Location: " . $redirect_url);
+    // Send redirect header with 302 status
+    header("Location: " . $redirect_url, true, 302);
     exit();
 }
 

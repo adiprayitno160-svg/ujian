@@ -192,17 +192,10 @@ if (isset($parsed['query'])) {
     parse_str($parsed['query'], $_GET);
 }
 
-// If path is empty, redirect to siswa-login
-if (empty($path)) {
-    // Try to include index.php, or redirect directly
-    $index_file = __DIR__ . '/index.php';
-    if (file_exists($index_file)) {
-        require_once $index_file;
-    } else {
-        // Fallback redirect
-        header('Location: siswa-login');
-        exit;
-    }
+// If path is empty or 'index', redirect directly to siswa-login
+// Don't include index.php to prevent any redirect loops
+if (empty($path) || $path === 'index') {
+    header('Location: ' . base_url('siswa-login'), true, 302);
     exit;
 }
 
@@ -210,7 +203,7 @@ if (empty($path)) {
 $routes = [
     // Root & Auth
     '' => 'index.php',
-    'index' => 'index.php',
+    // Remove 'index' route to prevent confusion - use root or siswa-login instead
     'logout' => 'logout.php',
     'about' => 'about.php',
     
