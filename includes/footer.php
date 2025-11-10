@@ -4,9 +4,11 @@
     </div>
     
     <!-- Sidebar Toggle Button (Mobile) -->
-    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+    <?php if (is_logged_in() && !isset($hide_navbar)): ?>
+    <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar" style="display: none;">
         <i class="fas fa-bars"></i>
     </button>
+    <?php endif; ?>
     <?php else: ?>
     </main>
     <?php endif; ?>
@@ -104,10 +106,17 @@
             
             // Desktop toggle button
             if (sidebarToggleBtn) {
-                sidebarToggleBtn.addEventListener('click', toggleSidebar);
+                sidebarToggleBtn.addEventListener('click', function() {
+                    // Check if mobile view
+                    if (window.innerWidth <= 768) {
+                        toggleMobileSidebar();
+                    } else {
+                        toggleSidebar();
+                    }
+                });
             }
             
-            // Mobile toggle button
+            // Mobile toggle button (fixed position)
             if (sidebarToggle) {
                 sidebarToggle.addEventListener('click', toggleMobileSidebar);
             }

@@ -454,11 +454,18 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
             background: var(--primary-color);
             color: #fff;
             border: none;
-            width: 40px;
-            height: 40px;
+            width: 45px;
+            height: 45px;
             border-radius: 8px;
             cursor: pointer;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            font-size: 1.2rem;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .sidebar-toggle:hover {
+            background: var(--primary-hover);
         }
         
         .sidebar.collapsed {
@@ -494,6 +501,7 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
         @media (max-width: 768px) {
             .sidebar {
                 transform: translateX(-100%);
+                transition: transform 0.3s ease;
             }
             
             .sidebar.show {
@@ -505,14 +513,22 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
             }
             
             .sidebar-toggle {
-                display: block;
+                display: flex !important;
+                position: fixed;
+                top: 1rem;
+                left: 1rem;
+                z-index: 1001;
             }
             
             .sidebar-toggle-btn {
-                display: block;
+                display: block !important;
             }
             
-            .content-header,
+            .content-header {
+                padding: 1rem;
+                padding-top: 4rem; /* Space for mobile toggle button */
+            }
+            
             .content-body {
                 padding: 1rem;
             }
@@ -525,6 +541,13 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                 padding: 0.5rem;
                 min-width: 40px;
                 justify-content: center;
+            }
+            
+            /* Ensure sidebar toggle button in header also works on mobile */
+            .content-header .sidebar-toggle-btn {
+                display: flex !important;
+                position: relative;
+                z-index: 1;
             }
         }
         
