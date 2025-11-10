@@ -428,6 +428,10 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
             padding: 0.5rem;
             border-radius: 8px;
             transition: all 0.2s ease;
+            min-width: 40px;
+            height: 40px;
+            align-items: center;
+            justify-content: center;
         }
         
         .sidebar-toggle-btn:hover {
@@ -446,30 +450,6 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
         
         .main-content.no-header .content-body {
             padding-top: 2rem;
-        }
-        
-        /* Sidebar Toggle */
-        .sidebar-toggle {
-            display: none;
-            position: fixed;
-            top: 1rem;
-            left: 1rem;
-            z-index: 1001;
-            background: var(--primary-color);
-            color: #fff;
-            border: none;
-            width: 45px;
-            height: 45px;
-            border-radius: 8px;
-            cursor: pointer;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            font-size: 1.2rem;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .sidebar-toggle:hover {
-            background: var(--primary-hover);
         }
         
         .sidebar.collapsed {
@@ -516,21 +496,12 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                 margin-left: 0;
             }
             
-            .sidebar-toggle {
-                display: flex !important;
-                position: fixed;
-                top: 1rem;
-                left: 1rem;
-                z-index: 1001;
-            }
-            
             .sidebar-toggle-btn {
-                display: block !important;
+                display: flex !important;
             }
             
             .content-header {
                 padding: 1rem;
-                padding-top: 4rem; /* Space for mobile toggle button */
             }
             
             .content-body {
@@ -545,13 +516,6 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                 padding: 0.5rem;
                 min-width: 40px;
                 justify-content: center;
-            }
-            
-            /* Ensure sidebar toggle button in header also works on mobile */
-            .content-header .sidebar-toggle-btn {
-                display: flex !important;
-                position: relative;
-                z-index: 1;
             }
         }
         
@@ -888,18 +852,13 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                     <p class="sekolah-name-header mb-0">
                         <i class="fas fa-school me-2"></i><?php echo escape($sekolah['nama_sekolah']); ?>
                     </p>
-                    <button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button">
-                        <i class="fas fa-bars"></i>
-                    </button>
                 </div>
                 <?php endif; ?>
                 <div class="content-header-bottom">
                     <div class="d-flex align-items-center gap-3">
-                        <?php if (!$sekolah || empty($sekolah['nama_sekolah'])): ?>
                         <button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button">
                             <i class="fas fa-bars"></i>
                         </button>
-                        <?php endif; ?>
                         <h2 class="mb-0 fw-bold"><?php echo isset($page_title) ? $page_title : 'Dashboard'; ?></h2>
                     </div>
                     <div class="header-actions">

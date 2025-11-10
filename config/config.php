@@ -14,7 +14,7 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.7');
+    define('APP_VERSION', '1.0.9');
     
     // Auto-detect APP_URL based on server environment
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 
@@ -248,7 +248,7 @@ function require_login() {
     if (!is_logged_in()) {
         // Redirect to appropriate login based on current path
         $current_path = $_SERVER['REQUEST_URI'] ?? '';
-        if (strpos($current_path, 'admin') !== false || strpos($current_path, 'guru') !== false) {
+        if (strpos($current_path, 'admin') !== false || strpos($current_path, 'guru') !== false || strpos($current_path, 'operator') !== false) {
             redirect('admin-login');
         } elseif (strpos($current_path, 'siswa') !== false) {
             redirect('siswa-login');

@@ -5,7 +5,7 @@
 set -e
 
 REPO_URL="https://github.com/adiprayitno160-svg/ujian.git"
-BRANCH="master"
+BRANCH="main"
 
 echo "=========================================="
 echo "  Setup Git Repository"
@@ -55,7 +55,7 @@ echo ""
 
 # Test connection
 echo "Menguji koneksi ke GitHub..."
-if git ls-remote --heads origin master &> /dev/null; then
+if git ls-remote --heads origin main &> /dev/null; then
     echo "✓ Koneksi ke GitHub berhasil"
 else
     echo "✗ Koneksi ke GitHub gagal!"
@@ -66,7 +66,7 @@ else
     echo "  3. Repository tidak ada atau private"
     echo ""
     echo "Coba manual:"
-    echo "  git ls-remote origin master"
+    echo "  git ls-remote origin main"
     exit 1
 fi
 echo ""
@@ -77,7 +77,7 @@ git fetch origin $BRANCH || {
     echo "✗ Gagal fetch dari GitHub"
     echo ""
     echo "Coba manual:"
-    echo "  git fetch origin master"
+    echo "  git fetch origin main"
     exit 1
 }
 echo "✓ Fetch berhasil"
@@ -104,8 +104,8 @@ echo "  Setup Selesai!"
 echo "=========================================="
 echo ""
 echo "Sekarang Anda bisa:"
-echo "  git pull origin master"
-echo "  git fetch origin master"
+echo "  git pull origin main"
+echo "  git fetch origin main"
 echo ""
 
 

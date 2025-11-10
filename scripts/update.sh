@@ -5,12 +5,12 @@
 #
 # Usage: ./update.sh [version] [branch]
 #   version: Versi yang ingin diupdate (optional, default: latest)
-#   branch: Branch yang ingin diupdate (optional, default: master)
+#   branch: Branch yang ingin diupdate (optional, default: main)
 #
 # Example:
-#   ./update.sh              # Update ke versi terbaru dari branch master
+#   ./update.sh              # Update ke versi terbaru dari branch main
 #   ./update.sh v1.0.3       # Update ke versi v1.0.3
-#   ./update.sh latest master  # Update ke versi terbaru dari branch master
+#   ./update.sh latest main  # Update ke versi terbaru dari branch main
 
 set -e  # Exit on error
 
@@ -25,7 +25,7 @@ NC='\033[0m' # No Color
 REPO_URL="https://github.com/adiprayitno160-svg/ujian.git"
 REPO_DIR=$(pwd)
 BACKUP_DIR="../backups"
-BRANCH="${2:-master}"
+BRANCH="${2:-main}"
 VERSION="${1:-latest}"
 
 # Functions

@@ -1,6 +1,6 @@
 <?php
 /**
- * Login Page - Admin & Guru
+ * Login Page - Admin, Guru & Operator
  * Sistem Ujian dan Pekerjaan Rumah (UJAN)
  */
 
@@ -25,10 +25,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $result = login($username, $password);
         
         if ($result['success']) {
-            // Check if user is admin or guru
+            // Check if user is admin, guru, or operator
             $role = $result['user']['role'];
-            if ($role !== 'admin' && $role !== 'guru') {
-                $error = 'Halaman ini hanya untuk admin dan guru';
+            if ($role !== 'admin' && $role !== 'guru' && $role !== 'operator') {
+                $error = 'Halaman ini hanya untuk admin, guru, dan operator';
                 logout();
             } else {
                 // Redirect based on role
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$page_title = 'Login Admin / Guru';
+$page_title = 'Login Admin / Guru / Operator';
 $hide_navbar = true;
 include __DIR__ . '/../includes/header.php';
 ?>
@@ -50,8 +50,8 @@ include __DIR__ . '/../includes/header.php';
         <div class="card shadow-lg border-0">
             <div class="card-body p-5">
                 <div class="text-center mb-4">
-                    <h2 class="fw-bold text-primary">Login Admin / Guru</h2>
-                    <p class="text-muted">Akses Administrator & Guru</p>
+                    <h2 class="fw-bold text-primary">Login Admin / Guru / Operator</h2>
+                    <p class="text-muted">Akses Administrator, Guru & Operator</p>
                 </div>
                 
                 <?php if ($error): ?>

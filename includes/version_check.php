@@ -585,3 +585,172 @@ function get_all_releases($limit = 10) {
     ];
 }
 
+/**
+ * Create a new GitHub release
+ * @param string $version Version number (e.g., '1.0.8')
+ * @param string $release_name Release name (optional, defaults to 'Release v{version}')
+ * @param string $release_body Release notes/description (optional)
+ * @param bool $draft Whether to create as draft (default: false)
+ * @param bool $prerelease Whether to mark as prerelease (default: false)
+ * @param string $github_token GitHub personal access token (optional, can be from env or config)
+ * @return array Result array with success status and message
+ */
+function create_github_release($version, $release_name = null, $release_body = '', $draft = false, $prerelease = false, $github_token = '') {
+    global $GITHUB_API_URL, $GITHUB_REPO;
+    
+    // Get GitHub token from various sources
+    if (empty($github_token)) {
+        // Try environment variable
+        $github_token = getenv('GITHUB_TOKEN');
+        
+        // Try config file
+        if (empty($github_token)) {
+            $token_file = __DIR__ . '/../config/github_token.php';
+            if (file_exists($token_file)) {
+                $token_config = @include $token_file;
+                if (isset($token_config['token'])) {
+                    $github_token = $token_config['token'];
+                }
+            }
+        }
+    }
+    
+    if (empty($github_token)) {
+        return [
+            'success' => false,
+            'error' => 'GitHub token tidak ditemukan. Silakan berikan GitHub personal access token dengan permission repo.',
+            'suggestion' => 'Buat token di https://github.com/settings/tokens dengan permission: repo',
+            'manual_steps' => [
+                'Buka https://github.com/settings/tokens',
+                'Buat token baru dengan permission: repo',
+                'Simpan token di environment variable GITHUB_TOKEN atau di config/github_token.php',
+                'Atau berikan token langsung saat membuat release'
+            ]
+        ];
+    }
+    
+    // Validate version format
+    if (!preg_match('/^\d+\.\d+\.\d+$/', $version)) {
+        return [
+            'success' => false,
+            'error' => 'Format versi tidak valid. Gunakan format X.Y.Z (contoh: 1.0.8)'
+        ];
+    }
+    
+    // Set default release name
+    if (empty($release_name)) {
+        $release_name = 'Release v' . $version;
+    }
+    
+    // Set default release body
+    if (empty($release_body)) {
+        $release_body = "Release v{$version}\n\nPerbaikan dan peningkatan fitur.";
+    }
+    
+    // Prepare API request
+    $tag_name = 'v' . $version;
+    $api_url = $GITHUB_API_URL . '/releases';
+    
+    $data = [
+        'tag_name' => $tag_name,
+        'name' => $release_name,
+        'body' => $release_body,
+        'draft' => $draft,
+        'prerelease' => $prerelease
+    ];
+    
+    // Make API request
+    $ch = curl_init();
+    curl_setopt_array($ch, [
+        CURLOPT_URL => $api_url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($data),
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/vnd.github.v3+json',
+            'Authorization: token ' . $github_token,
+            'Content-Type: application/json',
+            'User-Agent: UJAN-System/1.0'
+        ],
+        CURLOPT_TIMEOUT => 30,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => false,
+    ]);
+    
+    $response = curl_exec($ch);
+    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_error = curl_error($ch);
+    curl_close($ch);
+    
+    if ($curl_error) {
+        return [
+            'success' => false,
+            'error' => 'Curl error: ' . $curl_error
+        ];
+    }
+    
+    $response_data = json_decode($response, true);
+    
+    if ($http_code === 201) {
+        // Success - release created
+        return [
+            'success' => true,
+            'message' => 'Release berhasil dibuat',
+            'tag_name' => $tag_name,
+            'release_name' => $release_name,
+            'release_url' => $response_data['html_url'] ?? null,
+            'release_id' => $response_data['id'] ?? null
+        ];
+    } elseif ($http_code === 422) {
+        // Validation error - might be duplicate tag
+        $error_message = 'Gagal membuat release';
+        if (isset($response_data['errors'])) {
+            foreach ($response_data['errors'] as $error) {
+                if (isset($error['message'])) {
+                    $error_message .= ': ' . $error['message'];
+                }
+            }
+        }
+        
+        if (isset($response_data['message'])) {
+            if (strpos($response_data['message'], 'already exists') !== false) {
+                return [
+                    'success' => false,
+                    'error' => 'Release dengan tag ' . $tag_name . ' sudah ada',
+                    'suggestion' => 'Gunakan versi yang berbeda atau hapus release lama terlebih dahulu',
+                    'manual_steps' => [
+                        'Buka https://github.com/' . $GITHUB_REPO . '/releases',
+                        'Hapus release lama dengan tag ' . $tag_name . ' jika diperlukan',
+                        'Atau gunakan versi yang berbeda'
+                    ]
+                ];
+            }
+            $error_message = $response_data['message'];
+        }
+        
+        return [
+            'success' => false,
+            'error' => $error_message,
+            'response' => $response_data
+        ];
+    } elseif ($http_code === 401) {
+        return [
+            'success' => false,
+            'error' => 'Unauthorized: GitHub token tidak valid atau tidak memiliki permission',
+            'suggestion' => 'Pastikan token memiliki permission: repo'
+        ];
+    } else {
+        $error_message = 'Gagal membuat release: HTTP ' . $http_code;
+        if (isset($response_data['message'])) {
+            $error_message .= ' - ' . $response_data['message'];
+        }
+        
+        return [
+            'success' => false,
+            'error' => $error_message,
+            'http_code' => $http_code,
+            'response' => $response_data
+        ];
+    }
+}

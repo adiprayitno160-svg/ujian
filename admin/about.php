@@ -330,7 +330,7 @@ function quickUpdate() {
         method: 'POST',
         data: {
             action: 'pull',
-            branch: 'master',
+            branch: 'main',
             skip_backup: isLiveServer ? '0' : '1', // Always backup for live server
             is_live_server: isLiveServer ? '1' : '0' // Mark as live server
         },

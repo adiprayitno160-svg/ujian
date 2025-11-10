@@ -54,7 +54,7 @@ function checkUpdateAvailable($repo_path, $branch = null) {
             $branch_output = [];
             $branch_return = 0;
             @exec('git rev-parse --abbrev-ref HEAD 2>&1', $branch_output, $branch_return);
-            $current_branch = ($branch_return === 0 && !empty($branch_output)) ? trim($branch_output[0]) : 'master';
+            $current_branch = ($branch_return === 0 && !empty($branch_output)) ? trim($branch_output[0]) : 'main';
         } else {
             $current_branch = $branch;
         }
@@ -261,7 +261,7 @@ function pullFromGitHub($repo_path, $branch = null) {
             $branch_output = [];
             $branch_return = 0;
             @exec('git rev-parse --abbrev-ref HEAD 2>&1', $branch_output, $branch_return);
-            $branch = ($branch_return === 0 && !empty($branch_output)) ? trim($branch_output[0]) : 'master';
+            $branch = ($branch_return === 0 && !empty($branch_output)) ? trim($branch_output[0]) : 'main';
         }
         
         // Get current commit before update
@@ -447,7 +447,7 @@ try {
             break;
             
         case 'pull':
-            // Get branch from POST, default to current branch or master
+            // Get branch from POST, default to current branch or main
             $branch = $_POST['branch'] ?? $_GET['branch'] ?? null;
             $skip_backup = isset($_POST['skip_backup']) && $_POST['skip_backup'] === '1';
             $is_live_server = isset($_POST['is_live_server']) && $_POST['is_live_server'] === '1';

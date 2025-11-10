@@ -10,7 +10,7 @@
 # 3. Tekan Enter untuk menjalankan
 #
 # Atau simpan sebagai file dan jalankan:
-#   curl -sSL https://raw.githubusercontent.com/adiprayitno160-svg/ujian/master/scripts/update_ssh.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/adiprayitno160-svg/ujian/main/scripts/update_ssh.sh | bash
 #
 # =============================================================================
 
@@ -27,7 +27,7 @@ NC='\033[0m'
 # Config
 REPO_URL="https://github.com/adiprayitno160-svg/ujian.git"
 BACKUP_DIR="../backups"
-BRANCH="master"
+BRANCH="main"
 
 echo -e "${CYAN}=============================================================================${NC}"
 echo -e "${CYAN}  Script Update Aplikasi UJAN${NC}"

@@ -39,7 +39,7 @@ if git remote | grep -q origin; then
     
     # Check if remote is accessible
     echo "  Testing connection to GitHub..."
-    if git ls-remote --heads origin master &> /dev/null; then
+    if git ls-remote --heads origin main &> /dev/null; then
         echo "  ✓ Koneksi ke GitHub berhasil"
     else
         echo "  ✗ Koneksi ke GitHub gagal!"
@@ -97,11 +97,11 @@ echo ""
 
 # Try to fetch
 echo "[8] Testing fetch from GitHub..."
-if git fetch origin master --dry-run 2>&1 | head -5; then
+if git fetch origin main --dry-run 2>&1 | head -5; then
     echo "  ✓ Fetch test berhasil"
 else
     echo "  ✗ Fetch test gagal"
-    ERROR_OUTPUT=$(git fetch origin master --dry-run 2>&1)
+    ERROR_OUTPUT=$(git fetch origin main --dry-run 2>&1)
     echo "    Error: $ERROR_OUTPUT"
 fi
 echo ""
@@ -118,8 +118,8 @@ echo "   git remote remove origin"
 echo "   git remote add origin https://github.com/adiprayitno160-svg/ujian.git"
 echo ""
 echo "2. Fetch dan pull:"
-echo "   git fetch origin master"
-echo "   git pull origin master"
+echo "   git fetch origin main"
+echo "   git pull origin main"
 echo ""
 echo "3. Jika masih gagal, gunakan script alternatif:"
 echo "   - UPDATE_VIA_ZIP.sh (download ZIP dari GitHub)"
