@@ -15,7 +15,7 @@ function enable_maintenance_mode($message = 'Sistem sedang dalam maintenance. Si
         'enabled' => true,
         'message' => $message,
         'enabled_at' => date('Y-m-d H:i:s'),
-        'enabled_by' => $_SESSION['user_id'] ?? 'system'
+        'enabled_by' => (isset($_SESSION) && isset($_SESSION['user_id'])) ? $_SESSION['user_id'] : 'system'
     ];
     
     return file_put_contents(MAINTENANCE_FILE, json_encode($content, JSON_PRETTY_PRINT)) !== false;
@@ -60,16 +60,30 @@ function get_maintenance_message() {
  * Call this in header.php or index.php
  */
 function check_maintenance_mode() {
+    // Start session if not started
+    if (session_status() === PHP_SESSION_NONE) {
+        @session_start();
+    }
+    
+    // Check if maintenance mode is enabled
+    if (!is_maintenance_mode()) {
+        return; // Not in maintenance mode, continue normally
+    }
+    
     // Allow admin to access even during maintenance
-    if (is_logged_in() && isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
+    // Check if user is logged in and is admin (check session directly to avoid dependency)
+    if (isset($_SESSION['user_id']) && isset($_SESSION['role']) && $_SESSION['role'] === 'admin') {
         return; // Admin can access
     }
     
-    // Allow access to login page
-    $current_page = basename($_SERVER['PHP_SELF']);
+    // Allow access to login page and API endpoints
+    $current_page = basename($_SERVER['PHP_SELF'] ?? '');
     $allowed_pages = ['login.php', 'index.php'];
-    if (in_array($current_page, $allowed_pages)) {
-        return; // Allow login page
+    $allowed_dirs = ['api'];
+    $current_dir = basename(dirname($_SERVER['PHP_SELF'] ?? ''));
+    
+    if (in_array($current_page, $allowed_pages) || in_array($current_dir, $allowed_dirs)) {
+        return; // Allow login page and API
     }
     
     if (is_maintenance_mode()) {

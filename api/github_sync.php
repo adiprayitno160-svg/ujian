@@ -475,6 +475,7 @@ try {
                 if (!$backup['success']) {
                     // If backup fails on live server, abort
                     if ($is_live_server) {
+                        require_once __DIR__ . '/../includes/maintenance_mode.php';
                         disable_maintenance_mode();
                         echo json_encode([
                             'success' => false,
@@ -553,6 +554,7 @@ try {
                             @exec('git reset --hard ' . escapeshellarg($old_commit_full) . ' 2>&1', $rollback_output, $rollback_return);
                             @chdir($old_dir);
                             
+                            require_once __DIR__ . '/../includes/maintenance_mode.php';
                             disable_maintenance_mode();
                             
                             echo json_encode([
@@ -575,6 +577,7 @@ try {
                         @exec('git reset --hard ' . escapeshellarg($old_commit_full) . ' 2>&1', $rollback_output, $rollback_return);
                         @chdir($old_dir);
                         
+                        require_once __DIR__ . '/../includes/maintenance_mode.php';
                         disable_maintenance_mode();
                         
                         echo json_encode([
@@ -589,6 +592,7 @@ try {
             } else {
                 // If pull fails on live server, disable maintenance mode
                 if ($is_live_server) {
+                    require_once __DIR__ . '/../includes/maintenance_mode.php';
                     disable_maintenance_mode();
                 }
             }

@@ -371,10 +371,22 @@ function quickUpdate() {
                     console.warn('Migration error:', response.migration_error);
                 }
                 
+                // Show success message
+                if (response.backup && response.backup.success) {
+                    console.log('Backup created:', response.backup.filename);
+                }
+                
                 // Pull successful, now update version and config.php automatically
                 updateSystemVersionAuto(window.updateInfo.latest_version, window.updateInfo.tag_name);
             } else {
-                alert('Gagal melakukan update: ' + (response.message || 'Unknown error'));
+                let errorMsg = 'Gagal melakukan update: ' + (response.message || 'Unknown error');
+                if (response.rollback) {
+                    errorMsg += '\n\nSistem telah di-rollback ke versi sebelumnya.';
+                }
+                if (response.backup_error) {
+                    errorMsg += '\n\nError backup: ' + response.backup_error;
+                }
+                alert(errorMsg);
                 $('#quickUpdateBtn').show();
                 $('#updateProgress').hide();
                 checkVersionUpdate(true);
