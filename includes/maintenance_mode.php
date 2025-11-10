@@ -83,12 +83,11 @@ function check_maintenance_mode() {
     $current_dir = basename(dirname($_SERVER['PHP_SELF'] ?? ''));
     $request_uri = $_SERVER['REQUEST_URI'] ?? '';
     
-    // Allow access to login pages (admin-login, siswa-login, etc.)
+    // Allow access to login pages (admin-login, login, etc.)
     if (in_array($current_page, $allowed_pages) || 
         in_array($current_dir, $allowed_dirs) || 
         strpos($request_uri, 'login') !== false ||
-        strpos($request_uri, 'admin-login') !== false ||
-        strpos($request_uri, 'siswa-login') !== false) {
+        strpos($request_uri, 'admin-login') !== false) {
         return; // Allow login page and API
     }
     

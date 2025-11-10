@@ -16,7 +16,7 @@ if (is_logged_in() && isset($_SESSION['role']) && isset($_SESSION['user_id'])) {
     $current_path = parse_url($current_url, PHP_URL_PATH);
     
     // Only redirect if we're on a login page (prevent loop)
-    if (strpos($current_path, 'login') !== false || strpos($current_path, 'siswa-login') !== false) {
+    if (strpos($current_path, 'login') !== false) {
         // Determine target route based on role and redirect
         if ($role === 'admin') {
             redirect('admin');

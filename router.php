@@ -5,7 +5,8 @@
  * 
  * Menangani URL seperti:
  * - admin-login -> admin/login.php
- * - siswa-login -> siswa/login.php
+ * - login -> siswa/login.php (main login page)
+ * - siswa-login -> siswa/login.php (backward compatibility)
  * - admin-manage-users -> admin/manage_users.php
  */
 
@@ -192,10 +193,10 @@ if (isset($parsed['query'])) {
     parse_str($parsed['query'], $_GET);
 }
 
-// If path is empty or 'index', redirect directly to siswa-login
+// If path is empty or 'index', redirect directly to login
 // Don't include index.php to prevent any redirect loops
 if (empty($path) || $path === 'index') {
-    header('Location: ' . base_url('siswa-login'), true, 302);
+    header('Location: ' . base_url('login'), true, 302);
     exit;
 }
 
@@ -203,14 +204,15 @@ if (empty($path) || $path === 'index') {
 $routes = [
     // Root & Auth
     '' => 'index.php',
-    // Remove 'index' route to prevent confusion - use root or siswa-login instead
+    // Remove 'index' route to prevent confusion - use root or login instead
     'logout' => 'logout.php',
     'about' => 'about.php',
     
     // Login pages
     'admin-login' => 'admin_guru/login.php',
     'guru-login' => 'admin_guru/login.php',
-    'siswa-login' => 'siswa/login.php',
+    'login' => 'siswa/login.php',  // Main login page (for students)
+    'siswa-login' => 'siswa/login.php',  // Keep for backward compatibility
     'operator-login' => 'operator/login.php',
     
     // Admin routes
@@ -527,14 +529,14 @@ $debug_mode = (isset($_GET['debug']) && $_GET['debug'] === '1');
         
         <div class="debug-toggle">
             <a href="?debug=1">Tampilkan Debug Info</a> | 
-            <a href="<?php echo base_url('siswa-login'); ?>">Coba Siswa Login</a>
+            <a href="<?php echo base_url('login'); ?>">Coba Login</a>
         </div>
         
         <div style="margin-top: 30px;">
             <p><strong>Halaman yang tersedia:</strong></p>
             <div class="routes-list">
                 <ul>
-                    <li><a href="<?php echo base_url('siswa-login'); ?>">Siswa Login</a></li>
+                    <li><a href="<?php echo base_url('login'); ?>">Login</a></li>
                     <li><a href="<?php echo base_url('admin-login'); ?>">Admin Login</a></li>
                     <li><a href="<?php echo base_url('guru-login'); ?>">Guru Login</a></li>
                     <li><a href="<?php echo base_url('operator-login'); ?>">Operator Login</a></li>

@@ -114,7 +114,7 @@ include __DIR__ . '/../includes/header.php';
                 
                 <div class="text-center mt-3">
                     <small class="text-muted">
-                        <a href="<?php echo base_url('siswa-login'); ?>" class="text-decoration-none">
+                        <a href="<?php echo base_url('login'); ?>" class="text-decoration-none">
                             Login sebagai Siswa?
                         </a>
                     </small>
