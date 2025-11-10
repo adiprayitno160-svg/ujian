@@ -129,10 +129,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // Redirect back (before any output)
             redirect('guru/ujian/detail.php?id=' . $id_ujian);
-        } catch (PDOException $e) {
-            $pdo->rollBack();
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log("Create soal error: " . $e->getMessage());
-            $error = 'Terjadi kesalahan saat membuat soal';
+            // Show user-friendly error message
+            $error = $e->getMessage();
+            // If it's a PDOException, show generic message to user but log details
+            if ($e instanceof PDOException) {
+                $error = 'Terjadi kesalahan saat membuat soal. Silakan coba lagi atau hubungi administrator.';
+            }
         }
     }
 }

@@ -128,10 +128,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Refresh page
             header("Location: " . base_url('guru/pr/soal.php?id=' . $pr_id));
             exit;
-        } catch (PDOException $e) {
-            $pdo->rollBack();
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
             error_log("Create PR soal error: " . $e->getMessage());
-            $error = 'Terjadi kesalahan saat menambahkan soal';
+            // Show user-friendly error message
+            $error = $e->getMessage();
+            // If it's a PDOException, show generic message to user but log details
+            if ($e instanceof PDOException) {
+                $error = 'Terjadi kesalahan saat menambahkan soal. Silakan coba lagi atau hubungi administrator.';
+            }
         }
     }
 }
