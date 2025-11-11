@@ -177,6 +177,39 @@ try {
         exit;
     }
     
+    if ($action === 'reset_answers') {
+        // Reset all answers (for tab switch detection)
+        if (!$sesi_id || !$ujian_id) {
+            echo json_encode(['success' => false, 'message' => 'Invalid parameters']);
+            exit;
+        }
+        
+        $pdo->beginTransaction();
+        
+        // Delete all answers (reset)
+        $stmt = $pdo->prepare("DELETE FROM jawaban_siswa 
+                              WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+        $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
+        
+        // Log the reset event
+        log_security_event(
+            $_SESSION['user_id'],
+            $sesi_id,
+            'answers_reset',
+            $reason ?: 'Tab switch detected - answers reset',
+            false
+        );
+        
+        $pdo->commit();
+        
+        echo json_encode([
+            'success' => true,
+            'answers_reset' => true,
+            'message' => 'Semua jawaban telah di-reset karena terdeteksi beralih tab/window'
+        ]);
+        exit;
+    }
+    
     echo json_encode(['success' => false, 'message' => 'Invalid action']);
 } catch (PDOException $e) {
     if ($pdo->inTransaction()) {

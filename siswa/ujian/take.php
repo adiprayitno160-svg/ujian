@@ -144,6 +144,9 @@ if (!$ujian) {
     redirect('siswa-ujian-list');
 }
 
+// Check if this is an assessment (dikelola operator)
+$is_assessment = !empty($ujian['tipe_asesmen']); // Assessment jika tipe_asesmen tidak NULL/empty
+
 // Check if already started
 try {
     $stmt = $pdo->prepare("SELECT * FROM nilai WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
@@ -155,13 +158,8 @@ try {
     redirect('siswa-ujian-list');
 }
 
-// Check for fraud flag - force logout if fraud detected
-if ($nilai && ($nilai['is_fraud'] || $nilai['requires_relogin'])) {
-    // Fraud detected - force logout
-    $_SESSION['error_message'] = 'Fraud terdeteksi: ' . ($nilai['fraud_reason'] ?? 'Pelanggaran keamanan terdeteksi') . '. Silakan login ulang. Waktu ujian terus berjalan.';
-    logout();
-    redirect('siswa/login.php?fraud=1&sesi_id=' . $sesi_id);
-}
+// DISABLED: Fitur Anti Contek telah dihapus - tidak ada pengecekan fraud flags
+// Semua pengecekan fraud flags telah dinonaktifkan
 
 if (!$nilai) {
     try {
@@ -203,10 +201,14 @@ if (!$nilai) {
     redirect('siswa-ujian-hasil?id=' . $sesi_id);
 } else {
     // Exam already started - check for normal disruption (requires token)
-    if (isset($nilai['answers_locked']) && $nilai['answers_locked'] && 
-        isset($nilai['requires_token']) && $nilai['requires_token'] && 
-        (!isset($nilai['is_fraud']) || !$nilai['is_fraud'])) {
-        // Normal disruption - answers locked, need token to resume
+    // Hanya cek requires_token jika ini adalah assessment dengan token_required aktif
+    // Note: $token_required_setting akan didefinisikan di baris 309
+    $token_required_setting_temp = isset($sesi['token_required']) && ($sesi['token_required'] == 1 || $sesi['token_required'] === '1');
+    
+    if ($is_assessment && $token_required_setting_temp && 
+        isset($nilai['answers_locked']) && $nilai['answers_locked'] && 
+        isset($nilai['requires_token']) && $nilai['requires_token']) {
+        // Normal disruption - answers locked, need token to resume (hanya untuk assessment)
         // Check if token is already verified
         $token_verified_key = 'token_verified_' . $sesi_id;
         if (!isset($_SESSION[$token_verified_key]) || !$_SESSION[$token_verified_key]) {
@@ -300,12 +302,31 @@ $token_id_key = 'token_id_' . $sesi_id;
 $need_auth = false;
 $token_error = '';
 
+// Determine if token is required
+// Token hanya diperlukan jika:
+// 1. Ujian adalah assessment yang dikelola operator (punya tipe_asesmen) DAN
+// 2. token_required = 1 di sesi_ujian
+// Note: $is_assessment sudah didefinisikan di baris 148
+$token_required_setting = isset($sesi['token_required']) && ($sesi['token_required'] == 1 || $sesi['token_required'] === '1');
+$token_required = $is_assessment && $token_required_setting; // Hanya aktif untuk assessment dengan token_required = 1
+
+// Ensure token_usage table has sesi_id column (check once at the beginning)
+try {
+    $check_col = $pdo->query("SHOW COLUMNS FROM token_usage LIKE 'sesi_id'");
+    if ($check_col->rowCount() == 0) {
+        $pdo->exec("ALTER TABLE token_usage ADD COLUMN sesi_id INT DEFAULT NULL AFTER id_user");
+    }
+} catch (PDOException $e) {
+    // Column might already exist or table doesn't exist yet, ignore error
+    error_log("Note: sesi_id column check in token_usage: " . $e->getMessage());
+}
+
 // Process authentication form submission (token only)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_auth'])) {
     $token_input = $_POST['token'] ?? '';
     
     // Validate token if required
-    if ($sesi['token_required']) {
+    if ($token_required) {
         if (empty($token_input)) {
             $token_error = 'Token harus diisi';
         } else {
@@ -321,36 +342,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_auth'])) {
                 $token_error = 'Token sudah mencapai batas penggunaan';
             } else {
                 // Check if this user already used a token for this session
+                // Use id DESC instead of created_at (column might not exist)
                 $stmt = $pdo->prepare("SELECT id_token FROM token_usage 
                                       WHERE id_user = ? AND sesi_id = ? 
-                                      ORDER BY created_at DESC LIMIT 1");
+                                      ORDER BY id DESC LIMIT 1");
                 $stmt->execute([$_SESSION['user_id'], $sesi_id]);
                 $existing_usage = $stmt->fetch();
                 
-                // Check if token was already used by another user (prevent token sharing)
-                $stmt = $pdo->prepare("SELECT COUNT(DISTINCT id_user) as user_count 
-                                      FROM token_usage 
-                                      WHERE id_token = ? AND sesi_id = ?");
-                $stmt->execute([$token['id'], $sesi_id]);
-                $token_users = $stmt->fetch();
+                // Check if token has max_usage limit
+                $token_has_limit = ($token['max_usage'] !== null && $token['max_usage'] > 0);
                 
-                if ($token_users && $token_users['user_count'] > 0) {
-                    // Token already used by someone else - prevent reuse
-                    $token_error = 'Token ini sudah digunakan. Setiap siswa harus menggunakan token yang berbeda.';
-                } else {
-                    // Token valid and not used by others - record usage
-                    if (!$existing_usage || $existing_usage['id_token'] != $token['id']) {
-                        // New token usage for this user
-                        try {
-                            // Check if token_usage table has sesi_id column, if not, add it
-                            $check_col = $pdo->query("SHOW COLUMNS FROM token_usage LIKE 'sesi_id'");
-                            if ($check_col->rowCount() == 0) {
-                                $pdo->exec("ALTER TABLE token_usage ADD COLUMN sesi_id INT DEFAULT NULL AFTER id_user");
-                            }
-                        } catch (PDOException $e) {
-                            // Column might already exist, ignore error
+                if ($token_has_limit) {
+                    // Token has usage limit - check if already used by someone else
+                    $stmt = $pdo->prepare("SELECT COUNT(DISTINCT id_user) as user_count 
+                                          FROM token_usage 
+                                          WHERE id_token = ? AND sesi_id = ?");
+                    $stmt->execute([$token['id'], $sesi_id]);
+                    $token_users = $stmt->fetch();
+                    
+                    if ($token_users && $token_users['user_count'] > 0) {
+                        // Token already used by someone else - prevent reuse
+                        $token_error = 'Token ini sudah digunakan. Setiap siswa harus menggunakan token yang berbeda.';
+                    } else {
+                        // Token not used yet - record usage
+                        if (!$existing_usage || $existing_usage['id_token'] != $token['id']) {
+                            $stmt = $pdo->prepare("INSERT INTO token_usage (id_token, id_user, sesi_id, ip_address, device_info) 
+                                                  VALUES (?, ?, ?, ?, ?)");
+                            $stmt->execute([$token['id'], $_SESSION['user_id'], $sesi_id, get_client_ip(), get_device_info()]);
+                            
+                            $stmt = $pdo->prepare("UPDATE token_ujian SET current_usage = current_usage + 1 WHERE id = ?");
+                            $stmt->execute([$token['id']]);
                         }
                         
+                        // Store verification in session and bind to user
+                        $_SESSION[$token_verified_key] = true;
+                        $_SESSION[$token_id_key] = $token['id'];
+                        
+                        // Redirect to same page to continue
+                        redirect('siswa-ujian-take?id=' . $sesi_id);
+                    }
+                } else {
+                    // Token has no limit (max_usage is NULL) - allow all peserta to use same token
+                    if (!$existing_usage || $existing_usage['id_token'] != $token['id']) {
+                        // New token usage for this user
                         $stmt = $pdo->prepare("INSERT INTO token_usage (id_token, id_user, sesi_id, ip_address, device_info) 
                                               VALUES (?, ?, ?, ?, ?)");
                         $stmt->execute([$token['id'], $_SESSION['user_id'], $sesi_id, get_client_ip(), get_device_info()]);
@@ -362,10 +396,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_auth'])) {
                     // Store verification in session and bind to user
                     $_SESSION[$token_verified_key] = true;
                     $_SESSION[$token_id_key] = $token['id'];
+                    
+                    // Redirect to same page to continue
+                    redirect('siswa-ujian-take?id=' . $sesi_id);
                 }
-                
-                // Redirect to same page to continue
-                redirect('siswa-ujian-take?id=' . $sesi_id);
             }
         }
     }
@@ -373,7 +407,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_auth'])) {
 
 // Check if authentication is needed (token only)
 // If token is not required, automatically mark as verified
-if (!$sesi['token_required']) {
+if (!$token_required) {
     $_SESSION[$token_verified_key] = true;
     $token_verified = true;
 } else {
@@ -429,8 +463,26 @@ if (!$sesi['token_required']) {
     }
 }
 
+// Get active token for this sesi (to display in form)
+$active_token_for_sesi = null;
+if ($token_required) {
+    try {
+        $stmt = $pdo->prepare("SELECT token FROM token_ujian 
+                              WHERE id_sesi = ? AND status = 'active' 
+                              AND expires_at > NOW()
+                              ORDER BY id DESC LIMIT 1");
+        $stmt->execute([$sesi_id]);
+        $token_result = $stmt->fetch();
+        if ($token_result) {
+            $active_token_for_sesi = $token_result['token'];
+        }
+    } catch (PDOException $e) {
+        error_log("Error fetching active token: " . $e->getMessage());
+    }
+}
+
 // Only need auth if token is required and not yet verified
-if ($sesi['token_required'] && !$token_verified) {
+if ($token_required && !$token_verified) {
     $need_auth = true;
 }
 
@@ -462,7 +514,7 @@ if (!isset($current_soal_data) || !$current_soal_data) {
 
 $page_title = 'Kerjakan Ujian';
 $role_css = 'siswa';
-$custom_js = ['auto_save', 'ragu_ragu', 'exam_security'];
+$custom_js = ['auto_save', 'ragu_ragu']; // DISABLED: exam_security removed (Anti Contek feature removed)
 $hide_navbar = true; // Hide sidebar for fullscreen exam
 $fullscreen_exam = true; // Flag for fullscreen exam
 
@@ -653,13 +705,102 @@ if ($need_auth) {
                         </p>
                     </div>
                     <div class="auth-body">
+                        <!-- Aturan Pengerjaan dan Sangsi -->
+                        <div class="alert alert-warning mb-3" style="background: #fff3cd; border-left: 4px solid #ffc107;">
+                            <h5 class="mb-3"><i class="fas fa-exclamation-triangle text-warning me-2"></i>Aturan Pengerjaan dan Sangsi</h5>
+                            <div style="font-size: 0.9rem; line-height: 1.6;">
+                                <p class="mb-2"><strong>Aturan Pengerjaan:</strong></p>
+                                <ul class="mb-3" style="padding-left: 20px;">
+                                    <li>Dilarang beralih tab atau window browser selama ujian</li>
+                                    <li>Dilarang menggunakan aplikasi lain atau membuka aplikasi lain</li>
+                                    <li>Dilarang copy-paste atau screenshot</li>
+                                    <li>Dilarang menggunakan developer tools atau inspect element</li>
+                                    <li>Dilarang menggunakan aplikasi remote desktop</li>
+                                </ul>
+                                
+                                <p class="mb-2"><strong>Sangsi Pelanggaran:</strong></p>
+                                <ul style="padding-left: 20px; margin-bottom: 0;">
+                                    <li><strong>Beralih Tab/Window:</strong> Semua jawaban akan di-reset otomatis setiap kali terdeteksi beralih tab/window</li>
+                                    <li><strong>Pelanggaran Berulang:</strong> Jika terdeteksi beralih tab/window lebih dari 10 kali, akun akan di-logout dan harus login ulang</li>
+                                    <li><strong>Pelanggaran Lainnya:</strong> Akan dicatat sebagai fraud dan dapat mengakibatkan pengurangan nilai atau diskualifikasi</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
                         <?php if ($token_error): ?>
                             <div class="alert alert-danger">
                                 <i class="fas fa-exclamation-circle me-2"></i><?php echo escape($token_error); ?>
                             </div>
                         <?php endif; ?>
+                        
+                        <!-- Display Active Token for All Participants (First Token) -->
+                        <?php if ($active_token_for_sesi): ?>
+                            <div class="alert alert-success mb-3" style="background: #d1e7dd; border-left: 4px solid #198754;">
+                                <div class="d-flex align-items-center">
+                                    <i class="fas fa-key fa-2x me-3 text-success"></i>
+                                    <div>
+                                        <strong>Token Ujian Aktif</strong><br>
+                                        <span class="fs-4 fw-bold text-success" style="letter-spacing: 0.3rem;">
+                                            <?php echo escape($active_token_for_sesi); ?>
+                                        </span><br>
+                                        <small class="text-muted">Token ini digunakan oleh semua peserta ujian di sesi ini</small>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endif; ?>
+                        
+                        <!-- Token Request Status (hanya untuk assessment) -->
+                        <?php if ($is_assessment && $token_required_setting): ?>
+                        <div id="tokenRequestStatus" class="alert d-none mb-3"></div>
+                        
+                        <!-- Check existing token request (hanya untuk assessment) -->
+                        <?php
+                        $existing_request = null;
+                        try {
+                            $stmt = $pdo->prepare("SELECT tr.*, t.token, u.nama as approved_by_name
+                                                  FROM token_request tr
+                                                  LEFT JOIN token_ujian t ON tr.id_token = t.id
+                                                  LEFT JOIN users u ON tr.approved_by = u.id
+                                                  WHERE tr.id_sesi = ? AND tr.id_siswa = ?
+                                                  ORDER BY tr.requested_at DESC LIMIT 1");
+                            $stmt->execute([$sesi_id, $_SESSION['user_id']]);
+                            $existing_request = $stmt->fetch();
+                        } catch (PDOException $e) {
+                            error_log("Error fetching token request: " . $e->getMessage());
+                        }
+                        
+                        if ($existing_request):
+                            if ($existing_request['status'] === 'pending'):
+                        ?>
+                            <div class="alert alert-info">
+                                <i class="fas fa-clock me-2"></i>
+                                <strong>Request Token Dikirim</strong><br>
+                                <small>Request token Anda sedang menunggu persetujuan operator. Silakan tunggu atau hubungi operator.</small>
+                            </div>
+                        <?php elseif ($existing_request['status'] === 'approved' && $existing_request['token']): ?>
+                            <div class="alert alert-success">
+                                <i class="fas fa-check-circle me-2"></i>
+                                <strong>Token Tersedia!</strong><br>
+                                <small>Token Anda: <strong class="fs-5"><?php echo escape($existing_request['token']); ?></strong></small><br>
+                                <?php if ($existing_request['approved_by_name']): ?>
+                                    <small>Disetujui oleh: <?php echo escape($existing_request['approved_by_name']); ?></small>
+                                <?php endif; ?>
+                            </div>
+                        <?php elseif ($existing_request['status'] === 'rejected'): ?>
+                            <div class="alert alert-warning">
+                                <i class="fas fa-times-circle me-2"></i>
+                                <strong>Request Ditolak</strong><br>
+                                <?php if ($existing_request['notes']): ?>
+                                    <small><?php echo escape($existing_request['notes']); ?></small>
+                                <?php else: ?>
+                                    <small>Request token Anda ditolak. Silakan request token baru.</small>
+                                <?php endif; ?>
+                            </div>
+                        <?php endif; ?>
+                        <?php endif; ?>
+                        <?php endif; ?>
                     
-                        <form method="POST">
+                        <form method="POST" id="tokenForm">
                             <input type="hidden" name="id" value="<?php echo $sesi_id; ?>">
                             
                             <div class="mb-3">
@@ -674,15 +815,28 @@ if ($need_auth) {
                                        pattern="[0-9]{6}"
                                        placeholder="Masukkan 6 digit token"
                                        style="font-size: 1.1rem; letter-spacing: 0.4rem; padding: 10px;"
-                                       value="<?php echo isset($_POST['token']) ? escape($_POST['token']) : ''; ?>"
+                                       value="<?php 
+                                       echo isset($_POST['token']) ? escape($_POST['token']) : 
+                                            ($active_token_for_sesi ? escape($active_token_for_sesi) : 
+                                            ($existing_request && $existing_request['token'] ? escape($existing_request['token']) : '')); 
+                                       ?>"
                                        required 
                                        autofocus>
                                 <small class="text-muted" style="font-size: 0.8rem;">Token 6 digit yang diberikan oleh pengawas</small>
                             </div>
                             
-                            <button type="submit" name="verify_auth" class="btn btn-verify mt-2">
+                            <button type="submit" name="verify_auth" class="btn btn-verify mt-2 w-100">
                                 <i class="fas fa-check-circle me-2"></i>Verifikasi & Lanjutkan Ujian
                             </button>
+                            
+                            <?php 
+                            // Hanya tampilkan button Request Token jika ini adalah assessment yang dikelola operator
+                            if ($is_assessment && $token_required_setting && (!$existing_request || $existing_request['status'] === 'rejected')): 
+                            ?>
+                            <button type="button" class="btn btn-outline-info mt-2 w-100" id="btnRequestToken" onclick="requestToken()">
+                                <i class="fas fa-paper-plane me-2"></i>Request Token Baru
+                            </button>
+                            <?php endif; ?>
                         </form>
                     </div>
                 </div>
@@ -1929,6 +2083,59 @@ function openMediaModal(url, type) {
         modal.appendChild(closeBtn);
         document.body.appendChild(modal);
     }
+}
+
+// Request token function
+function requestToken() {
+    const btn = document.getElementById('btnRequestToken');
+    const statusDiv = document.getElementById('tokenRequestStatus');
+    
+    if (!btn || !statusDiv) return;
+    
+    // Disable button
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Mengirim Request...';
+    
+    const formData = new FormData();
+    formData.append('action', 'request');
+    formData.append('sesi_id', sesiId);
+    
+    fetch('<?php echo base_url('api/request_token.php'); ?>', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            statusDiv.className = 'alert alert-success mb-3';
+            statusDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+            statusDiv.classList.remove('d-none');
+            
+            // Hide button and reload page after 2 seconds
+            btn.style.display = 'none';
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            statusDiv.className = 'alert alert-danger mb-3';
+            statusDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + data.message;
+            statusDiv.classList.remove('d-none');
+            
+            // Re-enable button
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Request Token Baru';
+        }
+    })
+    .catch(error => {
+        console.error('Error requesting token:', error);
+        statusDiv.className = 'alert alert-danger mb-3';
+        statusDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Terjadi kesalahan saat mengirim request';
+        statusDiv.classList.remove('d-none');
+        
+        // Re-enable button
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Request Token Baru';
+    });
 }
 </script>
 

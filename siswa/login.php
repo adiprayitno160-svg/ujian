@@ -42,7 +42,7 @@ $sesi_id_resume = intval($_GET['sesi_id'] ?? 0);
 if (isset($_GET['fraud']) && $_GET['fraud'] == '1') {
     $fraud_reason = isset($_GET['reason']) ? sanitize($_GET['reason']) : 'Fraud terdeteksi';
     $error = 'Fraud terdeteksi: ' . $fraud_reason;
-    $violation_message = 'Fraud terdeteksi. Jawaban sudah dikunci di server. Anda harus login ulang. Waktu ujian terus berjalan.';
+    $violation_message = 'Fraud terdeteksi. Jawaban sudah di-reset di server. Anda harus login ulang. Waktu ujian terus berjalan.';
     $fraud_detected = true;
 }
 
@@ -110,6 +110,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     
                     // Check if resuming exam after fraud or disruption
                     if ($sesi_id_resume > 0) {
+                        // Reset fraud flags after successful login (automatic reset)
+                        // This allows student to continue exam after fraud detection
+                        // If automatic reset fails, operator can use manual reset in operator/reset_fraud_lock.php
+                        try {
+                            // First, get ujian_id from sesi_ujian
+                            $stmt = $pdo->prepare("SELECT id_ujian FROM sesi_ujian WHERE id = ?");
+                            $stmt->execute([$sesi_id_resume]);
+                            $sesi = $stmt->fetch();
+                            
+                            if ($sesi && isset($sesi['id_ujian'])) {
+                                $ujian_id = $sesi['id_ujian'];
+                                
+                                // DISABLED: Fitur Anti Contek telah dihapus
+                                // Tidak ada reset fraud flags karena fitur sudah dihapus
+                                // Langsung redirect ke halaman ujian
+                            } else {
+                                // Sesi not found - log error
+                                error_log("Sesi not found for sesi_id={$sesi_id_resume}");
+                                $_SESSION['warning_message'] = 'Sesi ujian tidak ditemukan. Hubungi operator untuk bantuan.';
+                            }
+                        } catch (PDOException $e) {
+                            // Log error but don't block login
+                            error_log("Error processing sesi resume: " . $e->getMessage());
+                        }
+                        
                         // Redirect to exam page
                         redirect('siswa-ujian-take?id=' . $sesi_id_resume);
                     } else {
