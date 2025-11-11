@@ -13,8 +13,8 @@ APP_PATH="/www/wwwroot/8.215.192.2"
 BACKUP_DIR="${APP_PATH}/../backups_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR" && cp -r "$APP_PATH" "$BACKUP_DIR/" && echo "✓ Backup: $BACKUP_DIR"
 
-# Update
-cd "$APP_PATH" && git fetch origin main && git checkout main && git pull origin main && git checkout v1.0.18 2>/dev/null || git checkout main
+# Update (PENTING: fetch tags dulu!)
+cd "$APP_PATH" && git fetch origin --tags && git fetch origin main && git checkout main && git pull origin main && git checkout v1.0.18 2>/dev/null || git checkout main
 
 # Permissions
 chmod -R 755 "$APP_PATH" && chmod -R 777 "$APP_PATH/assets/uploads" "$APP_PATH/cache" "$APP_PATH/backups" 2>/dev/null
@@ -36,6 +36,7 @@ echo "=== UJAN Update v1.0.18 ==="
 BACKUP_DIR="${APP_PATH}/../backups_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR" && cp -r "$APP_PATH" "$BACKUP_DIR/" && echo "✓ Backup: $BACKUP_DIR"
 cd "$APP_PATH" || exit 1
+git fetch origin --tags
 git fetch origin main
 git checkout main
 git pull origin main
@@ -50,11 +51,12 @@ echo "✓ Update selesai! Versi: v1.0.18"
 
 UPDATE KE VERSI SPESIFIK (1.0.17 atau 1.0.18):
 
+# PENTING: Fetch tags dulu sebelum checkout!
 # Update ke v1.0.17:
-cd /www/wwwroot/8.215.192.2 && git fetch origin main && git checkout v1.0.17
+cd /www/wwwroot/8.215.192.2 && git fetch origin --tags && git fetch origin main && git checkout v1.0.17
 
 # Update ke v1.0.18:
-cd /www/wwwroot/8.215.192.2 && git fetch origin main && git checkout v1.0.18
+cd /www/wwwroot/8.215.192.2 && git fetch origin --tags && git fetch origin main && git checkout v1.0.18
 
 # Update ke versi terbaru (main):
 cd /www/wwwroot/8.215.192.2 && git fetch origin main && git checkout main && git pull origin main

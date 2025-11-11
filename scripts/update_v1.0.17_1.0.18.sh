@@ -57,14 +57,19 @@ fi
 echo -e "${GREEN}✓ Git repository ditemukan${NC}"
 echo ""
 
-# 4. Fetch dari GitHub
-echo -e "${YELLOW}[4/7] Mengambil update dari GitHub...${NC}"
+# 4. Fetch dari GitHub (termasuk tags)
+echo -e "${YELLOW}[4/7] Mengambil update dari GitHub (termasuk tags)...${NC}"
+if ! git fetch origin --tags; then
+    echo -e "${RED}Error: Gagal fetch tags dari GitHub${NC}"
+    echo "Pastikan koneksi internet dan akses GitHub tersedia."
+    exit 1
+fi
 if ! git fetch origin main; then
     echo -e "${RED}Error: Gagal fetch dari GitHub${NC}"
     echo "Pastikan koneksi internet dan akses GitHub tersedia."
     exit 1
 fi
-echo -e "${GREEN}✓ Fetch berhasil${NC}"
+echo -e "${GREEN}✓ Fetch berhasil (tags dan main)${NC}"
 echo ""
 
 # 5. Update ke v1.0.18 (versi terbaru)

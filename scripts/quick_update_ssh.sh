@@ -38,14 +38,19 @@ fi
 echo "✓ Git repository ditemukan"
 echo ""
 
-# Fetch latest dari GitHub
-echo "[4/6] Mengambil update dari GitHub..."
+# Fetch latest dari GitHub (termasuk tags)
+echo "[4/6] Mengambil update dari GitHub (termasuk tags)..."
+git fetch origin --tags
+if [ $? -ne 0 ]; then
+    echo "Error: Gagal fetch tags dari GitHub"
+    exit 1
+fi
 git fetch origin main
 if [ $? -ne 0 ]; then
     echo "Error: Gagal fetch dari GitHub"
     exit 1
 fi
-echo "✓ Fetch berhasil"
+echo "✓ Fetch berhasil (tags dan main)"
 echo ""
 
 # Update ke versi terbaru (v1.0.18)
