@@ -24,14 +24,15 @@ $sesi_id = intval($_GET['sesi_id'] ?? 0);
 $filter_status = $_GET['status'] ?? '';
 
 // Get sesi list untuk filter (hanya ujian harian, bukan assessment)
+// Tampilkan semua sesi ujian harian yang dibuat oleh guru ini
 $stmt = $pdo->prepare("SELECT s.*, u.judul as judul_ujian, m.nama_mapel,
                       (SELECT COUNT(*) FROM sesi_peserta WHERE id_sesi = s.id) as total_peserta
                       FROM sesi_ujian s
                       INNER JOIN ujian u ON s.id_ujian = u.id
                       INNER JOIN mapel m ON u.id_mapel = m.id
                       WHERE u.id_guru = ?
-                      AND (u.tipe_asesmen IS NULL OR u.tipe_asesmen = '')
-                      ORDER BY s.waktu_mulai DESC");
+                      AND (u.tipe_asesmen IS NULL OR u.tipe_asesmen = '' OR u.tipe_asesmen NOT IN ('sumatip', 'sumatip_tengah_semester', 'sumatip_akhir_semester', 'sumatip_akhir_tahun'))
+                      ORDER BY s.waktu_mulai DESC, s.id DESC");
 $stmt->execute([$_SESSION['user_id']]);
 $sesi_list = $stmt->fetchAll();
 
@@ -198,14 +199,24 @@ if ($sesi_id) {
                 <label class="form-label">Pilih Sesi Ujian</label>
                 <select class="form-select" name="sesi_id" onchange="this.form.submit()">
                     <option value="">-- Pilih Sesi --</option>
-                    <?php foreach ($sesi_list as $sesi): ?>
-                        <option value="<?php echo $sesi['id']; ?>" <?php echo $sesi_id == $sesi['id'] ? 'selected' : ''; ?>>
-                            <?php echo escape($sesi['judul_ujian']); ?> - 
-                            <?php echo escape($sesi['nama_mapel']); ?> - 
-                            <?php echo format_date($sesi['waktu_mulai'], 'd/m/Y H:i'); ?>
-                        </option>
-                    <?php endforeach; ?>
+                    <?php if (empty($sesi_list)): ?>
+                        <option value="" disabled>Tidak ada sesi ujian harian</option>
+                    <?php else: ?>
+                        <?php foreach ($sesi_list as $sesi): ?>
+                            <option value="<?php echo $sesi['id']; ?>" <?php echo $sesi_id == $sesi['id'] ? 'selected' : ''; ?>>
+                                <?php echo escape($sesi['judul_ujian']); ?> - 
+                                <?php echo escape($sesi['nama_mapel']); ?> - 
+                                <?php echo escape($sesi['nama_sesi'] ?? 'Sesi'); ?> - 
+                                <?php echo format_date($sesi['waktu_mulai'], 'd/m/Y H:i'); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
                 </select>
+                <?php if (empty($sesi_list)): ?>
+                    <small class="text-muted d-block mt-2">
+                        <i class="fas fa-info-circle"></i> Belum ada sesi ujian harian. Buat ujian dan sesi terlebih dahulu.
+                    </small>
+                <?php endif; ?>
             </div>
             <?php if ($sesi_id): ?>
             <div class="col-md-3">
