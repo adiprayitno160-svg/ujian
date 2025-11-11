@@ -1,0 +1,68 @@
+╔══════════════════════════════════════════════════════════════╗
+║   SCRIPT UPDATE VIA SSH - QUICK COPY-PASTE                  ║
+╚══════════════════════════════════════════════════════════════╝
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSI 1: QUICK UPDATE (Paling Cepat - Tanpa Backup)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd /www/wwwroot/8.215.192.2 && git fetch origin main && git reset --hard origin/main && git clean -fd && echo "Update selesai! Versi: $(git describe --tags --abbrev=0 2>/dev/null || echo 'Unknown')"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSI 2: SAFE UPDATE (Dengan Backup Database - RECOMMENDED)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd /www/wwwroot/8.215.192.2 && mkdir -p backups && mysqldump -u$(grep "define('DB_USER'" config/config.php | head -1 | cut -d"'" -f4) -p$(grep "define('DB_PASS'" config/config.php | head -1 | cut -d"'" -f4) $(grep "define('DB_NAME'" config/config.php | head -1 | cut -d"'" -f4) > backups/backup_$(date +%Y%m%d_%H%M%S).sql 2>/dev/null && git fetch origin main && git reset --hard origin/main && git clean -fd && echo "Update selesai! Versi: $(git describe --tags --abbrev=0 2>/dev/null || echo 'Unknown')"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSI 3: UPDATE KE VERSI SPESIFIK (v1.0.16)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd /www/wwwroot/8.215.192.2 && git fetch origin && git checkout tags/v1.0.16 && git reset --hard tags/v1.0.16 && echo "Update ke v1.0.16 selesai!"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSI 4: UPDATE DENGAN MANUAL DATABASE CONFIG
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd /www/wwwroot/8.215.192.2 && mkdir -p backups && mysqldump -uUSERNAME -pPASSWORD DATABASE_NAME > backups/backup_$(date +%Y%m%d_%H%M%S).sql && git fetch origin main && git reset --hard origin/main && git clean -fd && echo "Update selesai! Versi: $(git describe --tags --abbrev=0 2>/dev/null || echo 'Unknown')"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VERSI 5: UPDATE DENGAN VALIDASI (Paling Aman)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+cd /www/wwwroot/8.215.192.2 && echo "=== UPDATE SISTEM UJAN ===" && echo "Versi saat ini: $(git describe --tags --abbrev=0 2>/dev/null || echo 'Unknown')" && echo "Commit saat ini: $(git rev-parse --short HEAD 2>/dev/null || echo 'Unknown')" && echo "" && echo "1. Backup database..." && mkdir -p backups && mysqldump -u$(grep "define('DB_USER'" config/config.php | head -1 | cut -d"'" -f4) -p$(grep "define('DB_PASS'" config/config.php | head -1 | cut -d"'" -f4) $(grep "define('DB_NAME'" config/config.php | head -1 | cut -d"'" -f4) > backups/backup_$(date +%Y%m%d_%H%M%S).sql 2>/dev/null && echo "   ✓ Backup berhasil" && echo "" && echo "2. Fetch latest changes..." && git fetch origin main && echo "   ✓ Fetch berhasil" && echo "" && echo "3. Update files..." && git reset --hard origin/main && git clean -fd && echo "   ✓ Update berhasil" && echo "" && echo "=== UPDATE SELESAI ===" && echo "Versi baru: $(git describe --tags --abbrev=0 2>/dev/null || echo 'Unknown')" && echo "Commit baru: $(git rev-parse --short HEAD 2>/dev/null || echo 'Unknown')"
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CARA PENGGUNAAN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Login ke server via SSH
+2. Copy salah satu script di atas (satu baris penuh)
+3. Paste ke terminal SSH
+4. Tekan Enter
+5. Selesai! ✅
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CATATAN:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  PATH SUDAH DIKONFIGURASI: /www/wwwroot/8.215.192.2
+   Jika path berbeda, ganti dengan path sebenarnya
+
+⚠️  VERSI 4: Ganti USERNAME, PASSWORD, DATABASE_NAME dengan:
+   - USERNAME = username database MySQL
+   - PASSWORD = password database MySQL  
+   - DATABASE_NAME = nama database
+
+⚠️  REKOMENDASI:
+   - Versi 1: Paling cepat (tanpa backup) ⚡
+   - Versi 2: Aman dengan backup otomatis (RECOMMENDED) ⭐
+   - Versi 5: Paling aman dengan validasi lengkap 🛡️
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
