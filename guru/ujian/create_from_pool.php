@@ -2,6 +2,7 @@
 /**
  * Create Ujian from Arsip Soal - Guru
  * Sistem Ujian dan Pekerjaan Rumah (UJAN)
+ * Halaman untuk membuat ujian baru dengan memilih soal dari arsip soal
  */
 
 require_once __DIR__ . '/../../config/config.php';
@@ -177,7 +178,7 @@ if ($pool_id) {
 <?php else: ?>
     <form method="POST" id="createUjianForm">
         <div class="row g-3">
-            <!-- Pool Selection -->
+            <!-- Arsip Soal Selection -->
             <div class="col-12">
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-body">

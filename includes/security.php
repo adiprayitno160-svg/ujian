@@ -201,65 +201,11 @@ function get_anti_contek_settings($ujian_id) {
 
 /**
  * Log anti contek event
+ * DISABLED: Fitur Anti Contek telah dihapus
  */
 function log_anti_contek_event($ujian_id, $siswa_id, $sesi_id, $action_type, $description, $warning_level = 1) {
-    global $pdo;
-    
-    try {
-        $stmt = $pdo->prepare("INSERT INTO anti_contek_logs 
-                              (id_ujian, id_siswa, id_sesi, action_type, description, warning_level) 
-                              VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$ujian_id, $siswa_id, $sesi_id, $action_type, $description, $warning_level]);
-        
-        // Update warning count in nilai table
-        $stmt = $pdo->prepare("UPDATE nilai SET warning_count = warning_count + 1 
-                              WHERE id_ujian = ? AND id_siswa = ? AND id_sesi = ?");
-        $stmt->execute([$ujian_id, $siswa_id, $sesi_id]);
-        
-        // Check if max warnings reached
-        $settings = get_anti_contek_settings($ujian_id);
-        if ($settings) {
-            $stmt = $pdo->prepare("SELECT warning_count FROM nilai 
-                                  WHERE id_ujian = ? AND id_siswa = ? AND id_sesi = ?");
-            $stmt->execute([$ujian_id, $siswa_id, $sesi_id]);
-            $nilai = $stmt->fetch();
-            
-            if ($nilai && $nilai['warning_count'] >= $settings['max_warnings']) {
-                // Mark as fraud and require relogin (time continues)
-                // Reset all answers (not lock) for fraud
-                $pdo->beginTransaction();
-                
-                // Delete all answers (reset) - not lock, but reset
-                $stmt = $pdo->prepare("DELETE FROM jawaban_siswa 
-                                      WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
-                $stmt->execute([$sesi_id, $ujian_id, $siswa_id]);
-                
-                $stmt = $pdo->prepare("UPDATE nilai 
-                                      SET is_suspicious = 1, 
-                                          is_fraud = 1,
-                                          fraud_reason = ?,
-                                          fraud_detected_at = NOW(),
-                                          requires_relogin = 1,
-                                          answers_locked = 0
-                                      WHERE id_ujian = ? AND id_siswa = ? AND id_sesi = ?");
-                $reason = "Terlalu banyak pelanggaran keamanan (warning count: {$nilai['warning_count']})";
-                $stmt->execute([$reason, $ujian_id, $siswa_id, $sesi_id]);
-                
-                $pdo->commit();
-                
-                return [
-                    'fraud' => true, 
-                    'requires_logout' => true,
-                    'message' => 'Fraud terdeteksi. Anda harus login ulang. Waktu ujian terus berjalan.'
-                ];
-            }
-        }
-        
-        return ['auto_submit' => false];
-    } catch (PDOException $e) {
-        error_log("Log anti contek event error: " . $e->getMessage());
-        return ['auto_submit' => false, 'error' => $e->getMessage()];
-    }
+    // Fitur Anti Contek telah dihapus - fungsi ini tidak melakukan apa-apa
+    return ['auto_submit' => false, 'anti_contek_disabled' => true];
 }
 
 /**

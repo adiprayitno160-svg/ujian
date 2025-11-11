@@ -138,8 +138,8 @@ unset($ujian);
         <div class="row g-3 mt-3">
             <div class="col-md-3">
                 <a href="<?php echo base_url('guru/ujian/create_from_pool.php'); ?>" class="btn btn-secondary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="min-height: 100px;">
-                    <i class="fas fa-database fa-2x mb-2"></i>
-                    <span>Buat dari Pool</span>
+                    <i class="fas fa-archive fa-2x mb-2"></i>
+                    <span>Buat dari Arsip Soal</span>
                 </a>
             </div>
             <div class="col-md-3">

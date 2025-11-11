@@ -775,6 +775,13 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                             <span class="menu-badge">OP</span>
                         </span>
                     </a>
+                    <a href="<?php echo base_url('operator-reset-fraud-lock'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'reset_fraud_lock.php' && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-unlock-alt"></i>
+                        <span class="menu-label">
+                            Reset Fraud Lock
+                            <span class="menu-badge">OP</span>
+                        </span>
+                    </a>
                     
                     <!-- Template Raport -->
                     <a href="<?php echo base_url('operator-template-raport'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'template_raport.php' && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
@@ -808,6 +815,15 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <i class="fas fa-calendar"></i>
                         <span class="menu-label">
                             Sesi
+                            <span class="menu-badge">OP</span>
+                        </span>
+                    </a>
+                    
+                    <!-- Request Token -->
+                    <a href="<?php echo base_url('operator-token-requests'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/token_requests.php') !== false && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-bell"></i>
+                        <span class="menu-label">
+                            Request Token
                             <span class="menu-badge">OP</span>
                         </span>
                     </a>

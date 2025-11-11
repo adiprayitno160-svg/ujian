@@ -44,16 +44,24 @@ try {
         // Log security event
         log_security_event($user_id, $sesi_id, 'security_violation', $reason, true);
         
-        // Log anti contek event if ujian_id is provided
+        // Log anti contek event if ujian_id is provided and anti_contek is enabled
         if ($ujian_id > 0) {
-            log_anti_contek_event(
-                $ujian_id, 
-                $user_id, 
-                $sesi_id, 
-                $violation_type, 
-                $reason, 
-                3 // High warning level
-            );
+            // Check if anti_contek is enabled for this ujian
+            $stmt = $pdo->prepare("SELECT anti_contek_enabled FROM ujian WHERE id = ?");
+            $stmt->execute([$ujian_id]);
+            $ujian = $stmt->fetch();
+            
+            // Only log anti contek event if anti_contek is enabled
+            if ($ujian && ($ujian['anti_contek_enabled'] ?? 0)) {
+                log_anti_contek_event(
+                    $ujian_id, 
+                    $user_id, 
+                    $sesi_id, 
+                    $violation_type, 
+                    $reason, 
+                    3 // High warning level
+                );
+            }
             
             // Check if this is a cheating violation (not just an error)
             $is_cheating = in_array($violation_type, [

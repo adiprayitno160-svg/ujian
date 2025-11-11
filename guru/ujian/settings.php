@@ -32,17 +32,18 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $acak_soal = isset($_POST['acak_soal']) ? 1 : 0;
     $acak_opsi = isset($_POST['acak_opsi']) ? 1 : 0;
-    $anti_contek_enabled = isset($_POST['anti_contek']) ? 1 : 0;
+    $anti_contek_enabled = 0; // DISABLED: Fitur Anti Contek telah dihapus
     $min_submit_minutes = intval($_POST['min_submit_minutes'] ?? 0);
     $ai_correction_enabled = isset($_POST['ai_correction']) ? 1 : 0;
     $show_review_mode = isset($_POST['show_review_mode']) ? 1 : 0;
     
     try {
+        // DISABLED: anti_contek_enabled tidak lagi digunakan
         $stmt = $pdo->prepare("UPDATE ujian SET 
-                              acak_soal = ?, acak_opsi = ?, anti_contek_enabled = ?, 
+                              acak_soal = ?, acak_opsi = ?, 
                               min_submit_minutes = ?, ai_correction_enabled = ?, show_review_mode = ?
                               WHERE id = ?");
-        $stmt->execute([$acak_soal, $acak_opsi, $anti_contek_enabled, $min_submit_minutes, $ai_correction_enabled, $show_review_mode, $ujian_id]);
+        $stmt->execute([$acak_soal, $acak_opsi, $min_submit_minutes, $ai_correction_enabled, $show_review_mode, $ujian_id]);
         
         $success = 'Pengaturan berhasil disimpan';
         log_activity('update_ujian_settings', 'ujian', $ujian_id);
@@ -100,17 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
             
-            <div class="mb-4">
-                <h5>Pengaturan Keamanan</h5>
-                <div class="form-check form-switch mb-3">
-                    <input class="form-check-input" type="checkbox" id="anti_contek" name="anti_contek" 
-                           <?php echo ($ujian['anti_contek_enabled'] ?? 0) ? 'checked' : ''; ?>>
-                    <label class="form-check-label" for="anti_contek">
-                        Aktifkan Fitur Anti Contek
-                    </label>
-                    <small class="d-block text-muted">Mendeteksi tab switching, copy-paste, dan aktivitas mencurigakan</small>
-                </div>
-            </div>
+            <!-- DISABLED: Fitur Anti Contek telah dihapus -->
             
             <div class="mb-4">
                 <h5>Pengaturan Waktu</h5>

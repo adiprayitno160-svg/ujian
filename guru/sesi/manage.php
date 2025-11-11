@@ -52,6 +52,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$id]);
         $success = 'Sesi dibatalkan';
         $sesi = get_sesi($id);
+    } elseif ($action === 'update_token_required') {
+        // Fix: Ambil value dari POST (bisa '0', '1', atau 0, 1)
+        $token_required = isset($_POST['token_required']) ? intval($_POST['token_required']) : 0;
+        try {
+            $stmt = $pdo->prepare("UPDATE sesi_ujian SET token_required = ? WHERE id = ?");
+            $stmt->execute([$token_required, $id]);
+            $success = $token_required ? 'Token diaktifkan' : 'Token dinonaktifkan';
+            $sesi = get_sesi($id);
+            log_activity('update_token_required', 'sesi_ujian', $id);
+        } catch (PDOException $e) {
+            error_log("Update token_required error: " . $e->getMessage());
+            $error = 'Terjadi kesalahan: ' . $e->getMessage();
+        }
     } elseif ($action === 'delete_peserta') {
         $peserta_id = intval($_POST['peserta_id'] ?? 0);
         $tipe_assign = sanitize($_POST['tipe_assign'] ?? '');
@@ -149,6 +162,22 @@ $tokens = $stmt->fetchAll();
                             ?>">
                                 <?php echo ucfirst($sesi['status']); ?>
                             </span>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Token Required</th>
+                        <td>
+                            <form method="POST" style="display:inline;" onsubmit="return confirm('<?php echo ($sesi['token_required'] ? 'Nonaktifkan' : 'Aktifkan'); ?> token requirement untuk sesi ini?');">
+                                <input type="hidden" name="action" value="update_token_required">
+                                <input type="hidden" name="token_required" value="<?php echo $sesi['token_required'] ? '0' : '1'; ?>">
+                                <span class="badge bg-<?php echo $sesi['token_required'] ? 'warning' : 'secondary'; ?> me-2">
+                                    <?php echo $sesi['token_required'] ? 'Ya' : 'Tidak'; ?>
+                                </span>
+                                <button type="submit" class="btn btn-sm btn-<?php echo $sesi['token_required'] ? 'secondary' : 'warning'; ?>">
+                                    <i class="fas fa-<?php echo $sesi['token_required'] ? 'toggle-off' : 'toggle-on'; ?>"></i>
+                                    <?php echo $sesi['token_required'] ? 'Nonaktifkan' : 'Aktifkan'; ?>
+                                </button>
+                            </form>
                         </td>
                     </tr>
                 </table>

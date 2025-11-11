@@ -122,49 +122,57 @@ try {
             true // is_suspicious
         );
         
-        // Check anti contek settings
-        $settings = get_anti_contek_settings($ujian_id);
-        if ($settings && $settings['enabled']) {
-            // Log anti contek event
-            log_anti_contek_event($ujian_id, $_SESSION['user_id'], $sesi_id, $action, $description);
-            
-            // Check warning count
-            $stmt = $pdo->prepare("SELECT warning_count FROM nilai 
-                                  WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
-            $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
-            $nilai = $stmt->fetch();
-            
-            if ($nilai && $nilai['warning_count'] >= $settings['max_warnings']) {
-                // Mark as fraud and require relogin
-                // Reset all answers (not lock) for fraud
-                $pdo->beginTransaction();
+        // Check if anti_contek is enabled for this ujian
+        $stmt = $pdo->prepare("SELECT anti_contek_enabled FROM ujian WHERE id = ?");
+        $stmt->execute([$ujian_id]);
+        $ujian = $stmt->fetch();
+        
+        // Only process anti contek if enabled in ujian table
+        if ($ujian && ($ujian['anti_contek_enabled'] ?? 0)) {
+            // Check anti contek settings
+            $settings = get_anti_contek_settings($ujian_id);
+            if ($settings && $settings['enabled']) {
+                // Log anti contek event
+                log_anti_contek_event($ujian_id, $_SESSION['user_id'], $sesi_id, $action, $description);
                 
-                // Delete all answers (reset) - not lock, but reset
-                $stmt = $pdo->prepare("DELETE FROM jawaban_siswa 
+                // Check warning count
+                $stmt = $pdo->prepare("SELECT warning_count FROM nilai 
                                       WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
                 $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
+                $nilai = $stmt->fetch();
                 
-                // Mark as fraud (but don't lock answers - they're reset)
-                $reason = "Terlalu banyak pelanggaran keamanan (warning count: {$nilai['warning_count']})";
-                $stmt = $pdo->prepare("UPDATE nilai 
-                                      SET is_suspicious = 1, 
-                                          is_fraud = 1,
-                                          fraud_reason = ?,
-                                          fraud_detected_at = NOW(),
-                                          requires_relogin = 1,
-                                          answers_locked = 0
-                                      WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
-                $stmt->execute([$reason, $sesi_id, $ujian_id, $_SESSION['user_id']]);
-                
-                $pdo->commit();
-                
-                echo json_encode([
-                    'success' => false,
-                    'fraud' => true,
-                    'requires_logout' => true,
-                    'message' => 'Fraud terdeteksi. Anda harus login ulang. Waktu ujian terus berjalan.'
-                ]);
-                exit;
+                if ($nilai && $nilai['warning_count'] >= $settings['max_warnings']) {
+                    // Mark as fraud and require relogin
+                    // Reset all answers (not lock) for fraud
+                    $pdo->beginTransaction();
+                    
+                    // Delete all answers (reset) - not lock, but reset
+                    $stmt = $pdo->prepare("DELETE FROM jawaban_siswa 
+                                          WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+                    $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
+                    
+                    // Mark as fraud (but don't lock answers - they're reset)
+                    $reason = "Terlalu banyak pelanggaran keamanan (warning count: {$nilai['warning_count']})";
+                    $stmt = $pdo->prepare("UPDATE nilai 
+                                          SET is_suspicious = 1, 
+                                              is_fraud = 1,
+                                              fraud_reason = ?,
+                                              fraud_detected_at = NOW(),
+                                              requires_relogin = 1,
+                                              answers_locked = 0
+                                          WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+                    $stmt->execute([$reason, $sesi_id, $ujian_id, $_SESSION['user_id']]);
+                    
+                    $pdo->commit();
+                    
+                    echo json_encode([
+                        'success' => false,
+                        'fraud' => true,
+                        'requires_logout' => true,
+                        'message' => 'Fraud terdeteksi. Anda harus login ulang. Waktu ujian terus berjalan.'
+                    ]);
+                    exit;
+                }
             }
         }
     }
