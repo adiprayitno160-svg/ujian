@@ -1,0 +1,41 @@
+==========================================
+  VERIFIKASI UPDATE - Copy Paste
+==========================================
+
+Setelah update, verifikasi dengan perintah berikut:
+
+--------------------------------------------------
+CEK VERSI SAAT INI:
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2 && git describe --tags 2>/dev/null || git rev-parse --short HEAD
+
+--------------------------------------------------
+CEK STATUS GIT:
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2 && git status
+
+--------------------------------------------------
+CEK TAG YANG TERSEDIA:
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2 && git tag -l
+
+--------------------------------------------------
+CEK VERSI DI CONFIG:
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2 && grep "APP_VERSION" config/config.php
+
+--------------------------------------------------
+SET PERMISSIONS (jika perlu):
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2
+chmod -R 755 .
+chmod -R 777 assets/uploads cache backups 2>/dev/null
+chown -R www-data:www-data . 2>/dev/null || chown -R apache:apache . 2>/dev/null
+
+--------------------------------------------------
+CLEAR CACHE:
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2 && rm -rf cache/* 2>/dev/null && echo "Cache cleared"
+
+==========================================
+
