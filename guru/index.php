@@ -72,6 +72,7 @@ try {
                     <div class="flex-grow-1 ms-3">
                         <h6 class="text-muted mb-0">Total Ujian</h6>
                         <h3 class="mb-0"><?php echo $stats['total_ujian']; ?></h3>
+                        <small class="text-muted">Jumlah total ujian yang telah dibuat</small>
                     </div>
                 </div>
             </div>
@@ -90,6 +91,7 @@ try {
                     <div class="flex-grow-1 ms-3">
                         <h6 class="text-muted mb-0">Sesi Aktif</h6>
                         <h3 class="mb-0"><?php echo $stats['active_sesi']; ?></h3>
+                        <small class="text-muted">Sesi ujian yang sedang berlangsung</small>
                     </div>
                 </div>
             </div>
@@ -108,6 +110,7 @@ try {
                     <div class="flex-grow-1 ms-3">
                         <h6 class="text-muted mb-0">Total PR</h6>
                         <h3 class="mb-0"><?php echo $stats['total_pr']; ?></h3>
+                        <small class="text-muted">Jumlah pekerjaan rumah yang dibuat</small>
                     </div>
                 </div>
             </div>
@@ -126,6 +129,7 @@ try {
                     <div class="flex-grow-1 ms-3">
                         <h6 class="text-muted mb-0">Menunggu Review</h6>
                         <h3 class="mb-0"><?php echo $stats['pending_review']; ?></h3>
+                        <small class="text-muted">PR yang sudah dikumpulkan dan perlu dinilai</small>
                     </div>
                 </div>
             </div>

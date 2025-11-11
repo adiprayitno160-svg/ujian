@@ -307,7 +307,6 @@ $routes = [
     
     // Guru routes
     'guru-about' => 'guru/about.php',
-    'guru-profile' => 'guru/profile.php',
     
     // Operator routes
     'operator' => 'operator/index.php',

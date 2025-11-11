@@ -101,26 +101,57 @@ unset($ujian);
 
 <div class="row mb-4">
     <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center">
-            <h2 class="fw-bold">Daftar Ulangan Harian</h2>
-            <?php if ($_SESSION['role'] === 'guru'): ?>
-                <div class="d-flex">
-                    <div class="btn-group">
-                        <a href="<?php echo base_url('guru/ujian/create.php'); ?>" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Buat Ulangan Harian Baru
-                        </a>
-                        <a href="<?php echo base_url('guru/ujian/create_from_pool.php'); ?>" class="btn btn-outline-primary">
-                            <i class="fas fa-database"></i> Buat dari Pool
-                        </a>
-                    </div>
-                    <a href="<?php echo base_url('guru/absensi/list.php'); ?>" class="btn btn-info text-white ms-2">
-                        <i class="fas fa-user-check"></i> Absensi Ulangan Harian
-                    </a>
-                </div>
-            <?php endif; ?>
+        <h2 class="fw-bold">Daftar Ulangan Harian</h2>
+    </div>
+</div>
+
+<?php if ($_SESSION['role'] === 'guru'): ?>
+<div class="card border-0 shadow-sm mb-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3"><i class="fas fa-tools"></i> Menu Utama</h5>
+        <div class="row g-3">
+            <div class="col-md-3">
+                <a href="<?php echo base_url('guru/ujian/create.php'); ?>" class="btn btn-primary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="min-height: 100px;">
+                    <i class="fas fa-plus fa-2x mb-2"></i>
+                    <span>Buat Ulangan Harian Baru</span>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="<?php echo base_url('guru/ujian/list.php'); ?>" class="btn btn-info text-white w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="min-height: 100px;">
+                    <i class="fas fa-list fa-2x mb-2"></i>
+                    <span>Daftar Ulangan Harian</span>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="<?php echo base_url('guru-ujian-templates'); ?>" class="btn btn-success w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="min-height: 100px;">
+                    <i class="fas fa-file-code fa-2x mb-2"></i>
+                    <span>Template</span>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="<?php echo base_url('guru/sesi/list.php'); ?>" class="btn btn-warning text-white w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="min-height: 100px;">
+                    <i class="fas fa-calendar fa-2x mb-2"></i>
+                    <span>Sesi</span>
+                </a>
+            </div>
+        </div>
+        <div class="row g-3 mt-3">
+            <div class="col-md-3">
+                <a href="<?php echo base_url('guru/ujian/create_from_pool.php'); ?>" class="btn btn-secondary w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="min-height: 100px;">
+                    <i class="fas fa-database fa-2x mb-2"></i>
+                    <span>Buat dari Pool</span>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="<?php echo base_url('guru/absensi/list.php'); ?>" class="btn btn-danger w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3" style="min-height: 100px;">
+                    <i class="fas fa-user-check fa-2x mb-2"></i>
+                    <span>Absensi Ulangan Harian</span>
+                </a>
+            </div>
         </div>
     </div>
 </div>
+<?php endif; ?>
 
 <div class="card border-0 shadow-sm mb-4">
     <div class="card-body">

@@ -177,3 +177,4 @@ $recent_activities = $stmt->fetchAll();
 
 
 
+

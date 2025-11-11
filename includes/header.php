@@ -714,63 +714,37 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <span class="menu-label">Pengaturan AI</span>
                     </a>
                 <?php elseif ($_SESSION['role'] === 'guru'): ?>
-                    <a href="<?php echo base_url('guru/manage_siswa.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_siswa.php' && strpos($_SERVER['REQUEST_URI'], '/guru/') !== false) ? 'active' : ''; ?>">
-                        <i class="fas fa-user-graduate"></i>
-                        <span class="menu-label">Kelola Siswa</span>
-                    </a>
-                    <?php 
-                    // Check if we're on any ujian-related page (ujian, template, or sesi)
-                    $is_ujian_page = strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false || 
-                                     strpos($_SERVER['REQUEST_URI'], '/sesi/') !== false ||
-                                     strpos($_SERVER['REQUEST_URI'], '/templates.php') !== false;
-                    $is_template_page = strpos($_SERVER['REQUEST_URI'], '/templates.php') !== false;
-                    $is_sesi_page = strpos($_SERVER['REQUEST_URI'], '/sesi/') !== false && strpos($_SERVER['REQUEST_URI'], '/templates.php') === false;
-                    ?>
-                    <div class="menu-item has-submenu <?php echo $is_ujian_page ? 'expanded' : ''; ?>" onclick="this.classList.toggle('expanded'); event.preventDefault();">
+                    <a href="<?php echo base_url('guru/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false || strpos($_SERVER['REQUEST_URI'], '/sesi/') !== false || strpos($_SERVER['REQUEST_URI'], '/templates.php') !== false) ? 'active' : ''; ?>" title="Kelola ulangan harian, buat ujian, template dan sesi ujian">
                         <i class="fas fa-file-alt"></i>
                         <span class="menu-label">Ulangan Harian</span>
-                        <div class="submenu">
-                            <a href="<?php echo base_url('guru/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false && !$is_template_page && !$is_sesi_page) ? 'active' : ''; ?>" onclick="event.stopPropagation();">
-                                <i class="fas fa-list"></i>
-                                <span class="menu-label">Daftar Ulangan Harian</span>
-                            </a>
-                            <a href="<?php echo base_url('guru-ujian-templates'); ?>" class="menu-item <?php echo $is_template_page ? 'active' : ''; ?>" onclick="event.stopPropagation();">
-                                <i class="fas fa-file-code"></i>
-                                <span class="menu-label">Template</span>
-                            </a>
-                            <a href="<?php echo base_url('guru/sesi/list.php'); ?>" class="menu-item <?php echo $is_sesi_page ? 'active' : ''; ?>" onclick="event.stopPropagation();">
-                                <i class="fas fa-calendar"></i>
-                                <span class="menu-label">Sesi</span>
-                            </a>
-                        </div>
-                    </div>
-                    <a href="<?php echo base_url('guru/pr/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/pr/') !== false) ? 'active' : ''; ?>">
+                    </a>
+                    <a href="<?php echo base_url('guru/pr/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/pr/') !== false) ? 'active' : ''; ?>" title="Buat dan kelola pekerjaan rumah, lihat pengumpulan dan nilai PR siswa">
                         <i class="fas fa-tasks"></i>
                         <span class="menu-label">PR</span>
                     </a>
-                    <a href="<?php echo base_url('guru/tugas/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/tugas/') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('guru/tugas/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/tugas/') !== false) ? 'active' : ''; ?>" title="Buat dan kelola tugas, lihat pengumpulan dan nilai tugas siswa">
                         <i class="fas fa-clipboard-list"></i>
                         <span class="menu-label">Tugas</span>
                     </a>
-                    <a href="<?php echo base_url('guru/penilaian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/penilaian/') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('guru/penilaian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/penilaian/') !== false) ? 'active' : ''; ?>" title="Input dan kelola nilai manual untuk siswa">
                         <i class="fas fa-star"></i>
                         <span class="menu-label">Penilaian Manual</span>
                     </a>
                     <?php if (can_create_assessment_soal()): ?>
-                        <a href="<?php echo base_url('guru-assessment-soal-create'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/assessment/soal/') !== false) ? 'active' : ''; ?>">
+                        <a href="<?php echo base_url('guru-assessment-soal-create'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/assessment/soal/') !== false) ? 'active' : ''; ?>" title="Buat soal untuk assessment SUMATIP">
                             <i class="fas fa-file-question"></i>
                             <span class="menu-label">Pembuatan Soal Assessment</span>
                         </a>
                     <?php endif; ?>
                     <?php if (has_operator_access()): ?>
-                        <a href="<?php echo base_url('operator/index.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/operator/') !== false && strpos($_SERVER['REQUEST_URI'], '/assessment/') === false) ? 'active' : ''; ?>">
+                        <a href="<?php echo base_url('operator/index.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/operator/') !== false && strpos($_SERVER['REQUEST_URI'], '/assessment/') === false) ? 'active' : ''; ?>" title="Akses menu operator untuk kelola data dan sistem">
                             <i class="fas fa-user-cog"></i>
                             <span class="menu-label">
                                 Operator
                                 <span class="menu-badge">OP</span>
                             </span>
                         </a>
-                        <a href="<?php echo base_url('operator-assessment-index'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/assessment/') !== false) ? 'active' : ''; ?>">
+                        <a href="<?php echo base_url('operator-assessment-index'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/assessment/') !== false) ? 'active' : ''; ?>" title="Kelola assessment SUMATIP dan soal assessment">
                             <i class="fas fa-clipboard-check"></i>
                             <span class="menu-label">
                                 Assessment
@@ -779,11 +753,7 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         </a>
                     <?php endif; ?>
                     <hr style="margin: 0.5rem 1.5rem; border-color: rgba(255, 255, 255, 0.2);">
-                    <a href="<?php echo base_url('guru-profile'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'profile.php' && strpos($_SERVER['REQUEST_URI'], '/guru/') !== false) || strpos($_SERVER['REQUEST_URI'], 'guru-profile') !== false ? 'active' : ''; ?>">
-                        <i class="fas fa-user-cog"></i>
-                        <span class="menu-label">Pengaturan</span>
-                    </a>
-                    <a href="<?php echo base_url('guru-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/guru/') !== false) || strpos($_SERVER['REQUEST_URI'], 'guru-about') !== false ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('guru-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/guru/') !== false) || strpos($_SERVER['REQUEST_URI'], 'guru-about') !== false ? 'active' : ''; ?>" title="Informasi tentang sistem dan versi aplikasi">
                         <i class="fas fa-info-circle"></i>
                         <span class="menu-label">Informasi</span>
                     </a>
@@ -906,31 +876,31 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <span class="menu-label">Pengaturan</span>
                     </a>
                 <?php elseif ($_SESSION['role'] === 'siswa'): ?>
-                    <a href="<?php echo base_url('siswa-dashboard'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/dashboard.php') !== false || (basename($_SERVER['PHP_SELF']) == 'index.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false)) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa-dashboard'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/dashboard.php') !== false || (basename($_SERVER['PHP_SELF']) == 'index.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false)) ? 'active' : ''; ?>" title="Dashboard utama, lihat statistik dan ringkasan aktivitas">
                         <i class="fas fa-tachometer-alt"></i>
                         <span class="menu-label">Dashboard</span>
                     </a>
-                    <a href="<?php echo base_url('siswa/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false) ? 'active' : ''; ?>" title="Lihat daftar ujian yang tersedia dan riwayat ujian yang telah dikerjakan">
                         <i class="fas fa-file-alt"></i>
                         <span class="menu-label">Ujian</span>
                     </a>
-                    <a href="<?php echo base_url('siswa/pr/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/pr/') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa/pr/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/pr/') !== false) ? 'active' : ''; ?>" title="Lihat daftar pekerjaan rumah yang diberikan dan kumpulkan tugas">
                         <i class="fas fa-tasks"></i>
                         <span class="menu-label">PR</span>
                     </a>
-                    <a href="<?php echo base_url('siswa/tugas/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/tugas/') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa/tugas/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/tugas/') !== false) ? 'active' : ''; ?>" title="Lihat daftar tugas yang diberikan dan kumpulkan tugas">
                         <i class="fas fa-clipboard-list"></i>
                         <span class="menu-label">Tugas</span>
                     </a>
-                    <a href="<?php echo base_url('siswa-progress'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/progress.php') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa-progress'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/progress.php') !== false) ? 'active' : ''; ?>" title="Lihat progress belajar dan perkembangan nilai">
                         <i class="fas fa-chart-line"></i>
                         <span class="menu-label">Progress</span>
                     </a>
-                    <a href="<?php echo base_url('siswa/raport/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/raport/') !== false && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa/raport/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/raport/') !== false && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>" title="Lihat raport nilai dan hasil belajar">
                         <i class="fas fa-file-alt"></i>
                         <span class="menu-label">Raport</span>
                     </a>
-                    <a href="<?php echo base_url('siswa-notifications'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/notifications.php') !== false) ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa-notifications'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/notifications.php') !== false) ? 'active' : ''; ?>" title="Lihat notifikasi tentang ujian, tugas, dan pengumuman">
                         <i class="fas fa-bell"></i>
                         <span class="menu-label">Notifikasi</span>
                         <?php if ($unread_notification_count > 0): ?>
@@ -946,7 +916,7 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                             if (function_exists('is_siswa_kelas_IX') && function_exists('is_menu_verifikasi_aktif')) {
                                 if (is_siswa_kelas_IX($id_siswa) && is_menu_verifikasi_aktif($id_siswa)) {
                                     ?>
-                                    <a href="<?php echo base_url('siswa/verifikasi_dokumen/index.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/verifikasi_dokumen/') !== false) ? 'active' : ''; ?>">
+                                    <a href="<?php echo base_url('siswa/verifikasi_dokumen/index.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/verifikasi_dokumen/') !== false) ? 'active' : ''; ?>" title="Upload dan verifikasi dokumen kelulusan (hanya untuk kelas IX)">
                                         <i class="fas fa-file-shield"></i>
                                         <span class="menu-label">Verifikasi Dokumen</span>
                                     </a>
@@ -956,14 +926,14 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         }
                     }
                     ?>
-                    <a href="<?php echo base_url('siswa/profile.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'profile.php') ? 'active' : ''; ?>">
+                    <a href="<?php echo base_url('siswa/profile.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'profile.php') ? 'active' : ''; ?>" title="Ubah profil dan pengaturan akun">
                         <i class="fas fa-user"></i>
                         <span class="menu-label">Profile</span>
                     </a>
                 <?php endif; ?>
                 
                 <?php if (is_logged_in() && isset($_SESSION['role']) && $_SESSION['role'] === 'siswa'): ?>
-                <a href="<?php echo base_url('siswa-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>">
+                <a href="<?php echo base_url('siswa-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>" title="Informasi tentang sistem dan versi aplikasi">
                     <i class="fas fa-info-circle"></i>
                     <span class="menu-label">Informasi</span>
                 </a>

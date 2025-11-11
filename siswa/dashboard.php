@@ -247,6 +247,7 @@ try {
                 </div>
                 <h3 class="mb-1"><?php echo $stats['total_ujian']; ?></h3>
                 <p class="text-muted mb-0">Total Ujian</p>
+                <small class="text-muted d-block mt-1">Jumlah ujian yang telah diselesaikan</small>
             </div>
         </div>
     </div>
@@ -258,6 +259,7 @@ try {
                 </div>
                 <h3 class="mb-1"><?php echo number_format($stats['rata_rata'], 1); ?></h3>
                 <p class="text-muted mb-0">Rata-rata Nilai</p>
+                <small class="text-muted d-block mt-1">Rata-rata nilai dari semua ujian</small>
             </div>
         </div>
     </div>
@@ -269,6 +271,7 @@ try {
                 </div>
                 <h3 class="mb-1"><?php echo $unread_count; ?></h3>
                 <p class="text-muted mb-0">Notifikasi Baru</p>
+                <small class="text-muted d-block mt-1">Notifikasi yang belum dibaca</small>
             </div>
         </div>
     </div>
@@ -286,24 +289,28 @@ try {
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-3">
-                        <a href="<?php echo base_url('siswa-ujian-list'); ?>" class="btn btn-outline-primary w-100">
+                        <a href="<?php echo base_url('siswa-ujian-list'); ?>" class="btn btn-outline-primary w-100" title="Lihat daftar ujian yang tersedia dan riwayat ujian yang telah dikerjakan">
                             <i class="fas fa-clipboard-list"></i> Daftar Ujian
                         </a>
+                        <small class="text-muted d-block mt-1 text-center">Lihat dan kerjakan ujian</small>
                     </div>
                     <div class="col-md-3">
-                        <a href="<?php echo base_url('siswa/pr/list.php'); ?>" class="btn btn-outline-success w-100">
+                        <a href="<?php echo base_url('siswa/pr/list.php'); ?>" class="btn btn-outline-success w-100" title="Lihat daftar pekerjaan rumah yang diberikan dan kumpulkan tugas">
                             <i class="fas fa-tasks"></i> Daftar PR
                         </a>
+                        <small class="text-muted d-block mt-1 text-center">Kerjakan dan kumpulkan PR</small>
                     </div>
                     <div class="col-md-3">
-                        <a href="<?php echo base_url('siswa/tugas/list.php'); ?>" class="btn btn-outline-warning w-100">
+                        <a href="<?php echo base_url('siswa/tugas/list.php'); ?>" class="btn btn-outline-warning w-100" title="Lihat daftar tugas yang diberikan dan kumpulkan tugas">
                             <i class="fas fa-clipboard-list"></i> Daftar Tugas
                         </a>
+                        <small class="text-muted d-block mt-1 text-center">Kerjakan dan kumpulkan tugas</small>
                     </div>
                     <div class="col-md-3">
-                        <a href="<?php echo base_url('siswa/raport/list.php'); ?>" class="btn btn-outline-info w-100">
+                        <a href="<?php echo base_url('siswa/raport/list.php'); ?>" class="btn btn-outline-info w-100" title="Lihat raport nilai dan hasil belajar">
                             <i class="fas fa-file-alt"></i> Raport
                         </a>
+                        <small class="text-muted d-block mt-1 text-center">Lihat raport nilai</small>
                     </div>
                 </div>
             </div>
