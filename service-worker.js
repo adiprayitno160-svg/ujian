@@ -1,8 +1,8 @@
 // Service Worker for UJAN PWA
-// Version: 1.0.14
+// Version: 1.0.15
 
-const CACHE_NAME = 'ujan-v1.0.14';
-const RUNTIME_CACHE = 'ujan-runtime-v1.0.14';
+const CACHE_NAME = 'ujan-v1.0.15';
+const RUNTIME_CACHE = 'ujan-runtime-v1.0.15';
 
 // Assets to cache on install
 const STATIC_ASSETS = [

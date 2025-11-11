@@ -1,0 +1,28 @@
+# ============================================
+# ONE-LINER UPDATE VIA SSH
+# ============================================
+# Copy paste satu baris ini saja!
+# ============================================
+
+# GANTI /path/to/UJAN dengan path aplikasi Anda
+cd /path/to/UJAN && git stash && git pull origin main && git log --oneline -1
+
+
+# ============================================
+# CONTOH ONE-LINER YANG SUDAH SIAP PAKAI
+# ============================================
+
+# XAMPP
+cd /opt/lampp/htdocs/UJAN && git stash && git pull origin main && git log --oneline -1
+
+# Standard Linux
+cd /var/www/html/UJAN && git stash && git pull origin main && git log --oneline -1
+
+# cPanel
+cd ~/public_html/UJAN && git stash && git pull origin main && git log --oneline -1
+
+# Dengan backup database (ganti DB_USER, DB_PASS, DB_NAME)
+cd /var/www/html/UJAN && mysqldump -u DB_USER -pDB_PASS DB_NAME > backups/backup_$(date +%Y%m%d_%H%M%S).sql && git stash && git pull origin main && git log --oneline -1
+
+# ============================================
+
