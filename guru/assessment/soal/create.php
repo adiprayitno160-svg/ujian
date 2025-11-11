@@ -166,17 +166,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Validate and sanitize data before insert
+            // Helper function for string length (compatible with servers without mbstring)
+            $strlen_func = function_exists('mb_strlen') ? 'mb_strlen' : 'strlen';
+            
             // Trim pertanyaan and validate length
             $pertanyaan = trim($pertanyaan);
             if (empty($pertanyaan)) {
                 throw new Exception('Pertanyaan tidak boleh kosong');
             }
-            if (mb_strlen($pertanyaan) > 5000) {
+            if ($strlen_func($pertanyaan) > 5000) {
                 throw new Exception('Pertanyaan terlalu panjang. Maksimal 5000 karakter.');
             }
             
             // Validate kunci_jawaban length
-            if (!empty($kunci_jawaban) && mb_strlen($kunci_jawaban) > 500) {
+            if (!empty($kunci_jawaban) && $strlen_func($kunci_jawaban) > 500) {
                 throw new Exception('Kunci jawaban terlalu panjang. Maksimal 500 karakter.');
             }
             
@@ -189,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             
             // Validate media_path length if provided
-            if (!empty($media_path) && mb_strlen($media_path) > 255) {
+            if (!empty($media_path) && $strlen_func($media_path) > 255) {
                 throw new Exception('Path media terlalu panjang');
             }
             
@@ -200,7 +203,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db_media_type = !empty($media_type) ? $media_type : null;
             
             // Log data before insert for debugging (sanitized)
-            error_log("Create assessment soal - Data: ujian_id=$ujian_id, tipe=$tipe_soal, pertanyaan_len=" . mb_strlen($pertanyaan) . ", opsi_json_len=" . ($opsi_json ? mb_strlen($opsi_json) : 0) . ", kunci_len=" . mb_strlen($db_kunci_jawaban));
+            error_log("Create assessment soal - Data: ujian_id=$ujian_id, tipe=$tipe_soal, pertanyaan_len=" . $strlen_func($pertanyaan) . ", opsi_json_len=" . ($opsi_json ? $strlen_func($opsi_json) : 0) . ", kunci_len=" . $strlen_func($db_kunci_jawaban));
             
             // Insert soal with error handling
             try {
@@ -296,7 +299,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'tipe_asesmen' => $_POST['tipe_asesmen'] ?? null,
                     'id_mapel' => $_POST['id_mapel'] ?? null,
                     'tipe_soal' => $_POST['tipe_soal'] ?? null,
-                    'pertanyaan_length' => isset($_POST['pertanyaan']) ? mb_strlen($_POST['pertanyaan']) : 0,
+                    'pertanyaan_length' => isset($_POST['pertanyaan']) ? (function_exists('mb_strlen') ? mb_strlen($_POST['pertanyaan']) : strlen($_POST['pertanyaan'])) : 0,
                 ]
             ];
             
