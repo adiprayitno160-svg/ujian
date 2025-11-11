@@ -271,5 +271,37 @@ function require_role($roles) {
     if (!in_array($_SESSION['role'], $roles)) {
         redirect('');
     }
+    
+    // For students: automatically check exam mode restriction
+    // This locks students from accessing other pages when in exam mode
+    if ($_SESSION['role'] === 'siswa') {
+        // Load security functions if not already loaded
+        if (!function_exists('check_exam_mode_restriction')) {
+            require_once __DIR__ . '/../includes/security.php';
+        }
+        
+        // Get current page info
+        $current_page = $_SERVER['PHP_SELF'] ?? '';
+        $request_uri = $_SERVER['REQUEST_URI'] ?? '';
+        $current_page_basename = basename($current_page);
+        
+        // Pages that are always allowed (exam-related pages)
+        $exam_pages = ['take.php', 'submit.php', 'hasil.php', 'review.php'];
+        $is_exam_page = false;
+        foreach ($exam_pages as $exam_page) {
+            if (strpos($current_page_basename, $exam_page) !== false || strpos($request_uri, $exam_page) !== false) {
+                $is_exam_page = true;
+                break;
+            }
+        }
+        
+        // Also allow API endpoints
+        $is_api = (strpos($request_uri, '/api/') !== false);
+        
+        // Only check restriction if NOT on exam page or API
+        if (!$is_exam_page && !$is_api) {
+            check_exam_mode_restriction();
+        }
+    }
 }
 

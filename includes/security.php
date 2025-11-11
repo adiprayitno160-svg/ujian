@@ -386,6 +386,10 @@ function get_current_exam_sesi_id() {
 /**
  * Check and redirect if student tries to access other pages while in exam mode
  * Call this function on student pages (except exam and submit pages)
+ * 
+ * SISTEM LOCK: Setelah klik mulai ujian, siswa TIDAK BISA kembali ke halaman siswa lainnya
+ * kecuali halaman ujian itu sendiri. Jika terpaksa kembali karena masalah, perlu request token
+ * untuk melanjutkan kembali.
  */
 function check_exam_mode_restriction($allowed_pages = []) {
     // If not in exam mode, allow access
@@ -393,19 +397,21 @@ function check_exam_mode_restriction($allowed_pages = []) {
         return true;
     }
     
-    // Get current page
+    // Get current page and full request URI
     $current_page = $_SERVER['PHP_SELF'] ?? '';
     $current_page = basename($current_page);
+    $request_uri = $_SERVER['REQUEST_URI'] ?? '';
     
-    // Pages that are always allowed even in exam mode
+    // Pages that are always allowed even in exam mode (SANGAT TERBATAS)
     $always_allowed = [
-        'take.php',           // Exam page
-        'submit.php',         // Submit page
-        'hasil.php',          // Results page
-        'list.php',           // Exam list page (students need to see available exams)
-        'logout.php',         // Logout (should end exam mode)
-        'api'                 // API endpoints (for auto-save, etc.)
+        'take.php',           // Exam page (halaman ujian)
+        'submit.php',         // Submit page (halaman submit)
+        'hasil.php',          // Results page (halaman hasil)
+        'logout.php',         // Logout (harus bisa logout)
     ];
+    
+    // API endpoints are allowed (for auto-save, etc.)
+    $is_api = (strpos($request_uri, '/api/') !== false);
     
     // Check if current page is allowed
     $is_allowed = false;
@@ -416,20 +422,45 @@ function check_exam_mode_restriction($allowed_pages = []) {
         }
     }
     
-    // Check additional allowed pages
+    // Allow API endpoints
+    if ($is_api) {
+        $is_allowed = true;
+    }
+    
+    // Check additional allowed pages (should be minimal)
     foreach ($allowed_pages as $allowed) {
-        if (strpos($current_page, $allowed) !== false) {
+        if (strpos($current_page, $allowed) !== false || strpos($request_uri, $allowed) !== false) {
             $is_allowed = true;
             break;
         }
     }
     
-    // If not allowed, redirect back to exam
+    // If not allowed, redirect back to exam with error message
     if (!$is_allowed) {
         $sesi_id = get_current_exam_sesi_id();
         if ($sesi_id) {
-            $_SESSION['error_message'] = 'Anda sedang dalam ujian. Silakan selesaikan ujian terlebih dahulu.';
-            redirect('siswa/ujian/take.php?id=' . $sesi_id);
+            // Check if student needs token to continue
+            global $pdo;
+            try {
+                $stmt = $pdo->prepare("SELECT requires_token FROM nilai 
+                                      WHERE id_sesi = ? AND id_siswa = ? AND status = 'sedang_mengerjakan'");
+                $stmt->execute([$sesi_id, $_SESSION['user_id']]);
+                $nilai = $stmt->fetch();
+                
+                if ($nilai && $nilai['requires_token']) {
+                    // Student needs token to continue - redirect to exam page (which will show token request)
+                    $_SESSION['error_message'] = 'Anda sedang dalam ujian. Untuk melanjutkan, Anda perlu memasukkan token yang telah diberikan.';
+                    redirect('siswa/ujian/take.php?id=' . $sesi_id);
+                } else {
+                    // Normal case - just redirect to exam
+                    $_SESSION['error_message'] = 'Anda sedang dalam ujian. Silakan selesaikan ujian terlebih dahulu sebelum mengakses halaman lain.';
+                    redirect('siswa/ujian/take.php?id=' . $sesi_id);
+                }
+            } catch (PDOException $e) {
+                error_log("Error checking exam restriction: " . $e->getMessage());
+                $_SESSION['error_message'] = 'Anda sedang dalam ujian. Silakan selesaikan ujian terlebih dahulu.';
+                redirect('siswa/ujian/take.php?id=' . $sesi_id);
+            }
         } else {
             // If sesi_id is not available, clear exam mode
             clear_exam_mode();

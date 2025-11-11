@@ -158,16 +158,14 @@ try {
     redirect('siswa-ujian-list');
 }
 
-// DISABLED: Fitur Anti Contek telah dihapus - tidak ada pengecekan fraud flags
-// Semua pengecekan fraud flags telah dinonaktifkan
-
 if (!$nilai) {
+    // First time starting exam - create nilai record
     try {
         $stmt = $pdo->prepare("INSERT INTO nilai (id_sesi, id_ujian, id_siswa, status, waktu_mulai, device_info, ip_address) 
                               VALUES (?, ?, ?, 'sedang_mengerjakan', NOW(), ?, ?)");
         $stmt->execute([$sesi_id, $sesi['id_ujian'], $_SESSION['user_id'], get_device_info(), get_client_ip()]);
         
-        // Set exam mode in session
+        // Set exam mode in session - LOCK student from accessing other pages
         set_exam_mode($sesi_id, $sesi['id_ujian']);
         
         // Auto-absensi: create absensi record
@@ -200,24 +198,26 @@ if (!$nilai) {
     clear_exam_mode();
     redirect('siswa-ujian-hasil?id=' . $sesi_id);
 } else {
-    // Exam already started - check for normal disruption (requires token)
-    // Hanya cek requires_token jika ini adalah assessment dengan token_required aktif
-    // Note: $token_required_setting akan didefinisikan di baris 309
+    // Exam already started - check if requires_token
+    // Jika requires_token = true, student perlu token untuk melanjutkan (kecuali fraud)
+    $requires_token = isset($nilai['requires_token']) && ($nilai['requires_token'] == 1 || $nilai['requires_token'] === '1');
+    
+    // Check token requirement (for assessment with token_required setting)
     $token_required_setting_temp = isset($sesi['token_required']) && ($sesi['token_required'] == 1 || $sesi['token_required'] === '1');
     
-    if ($is_assessment && $token_required_setting_temp && 
-        isset($nilai['answers_locked']) && $nilai['answers_locked'] && 
-        isset($nilai['requires_token']) && $nilai['requires_token']) {
-        // Normal disruption - answers locked, need token to resume (hanya untuk assessment)
+    // If requires_token is set OR (assessment with token_required and answers_locked), need token verification
+    if ($requires_token || ($is_assessment && $token_required_setting_temp && 
+        isset($nilai['answers_locked']) && $nilai['answers_locked'])) {
+        // Normal disruption - need token to resume
         // Check if token is already verified
         $token_verified_key = 'token_verified_' . $sesi_id;
         if (!isset($_SESSION[$token_verified_key]) || !$_SESSION[$token_verified_key]) {
             // Token not verified yet - will be handled by token verification below
-            $need_auth = true;
+            // This will show token request form
         }
     }
     
-    // Set exam mode
+    // Set exam mode - LOCK student from accessing other pages
     set_exam_mode($sesi_id, $sesi['id_ujian']);
 }
 
@@ -301,14 +301,15 @@ $token_verified_key = 'token_verified_' . $sesi_id;
 $token_id_key = 'token_id_' . $sesi_id;
 $need_auth = false;
 $token_error = '';
+$need_token_contact_admin = false; // Flag untuk non-assessment yang butuh token tapi token belum tersedia
 
 // Determine if token is required
-// Token hanya diperlukan jika:
-// 1. Ujian adalah assessment yang dikelola operator (punya tipe_asesmen) DAN
-// 2. token_required = 1 di sesi_ujian
-// Note: $is_assessment sudah didefinisikan di baris 148
+// Token diperlukan jika:
+// 1. Ujian adalah assessment yang dikelola operator (punya tipe_asesmen) DAN token_required = 1 di sesi_ujian, ATAU
+// 2. requires_token = 1 di nilai table (set untuk semua jenis ujian jika ada masalah)
+// Note: $is_assessment sudah didefinisikan di baris 148, $requires_token sudah didefinisikan di baris 220
 $token_required_setting = isset($sesi['token_required']) && ($sesi['token_required'] == 1 || $sesi['token_required'] === '1');
-$token_required = $is_assessment && $token_required_setting; // Hanya aktif untuk assessment dengan token_required = 1
+$token_required = ($is_assessment && $token_required_setting) || $requires_token; // Aktif untuk assessment dengan token_required atau jika requires_token di set
 
 // Ensure token_usage table has sesi_id column (check once at the beginning)
 try {
@@ -484,6 +485,28 @@ if ($token_required) {
 // Only need auth if token is required and not yet verified
 if ($token_required && !$token_verified) {
     $need_auth = true;
+    
+    // If requires_token is set but it's not an assessment, check if token exists
+    if ($requires_token && !$is_assessment) {
+        // For non-assessments with requires_token, check if token exists
+        $stmt = $pdo->prepare("SELECT COUNT(*) as token_count FROM token_ujian 
+                              WHERE id_sesi = ? AND status = 'active' AND expires_at > NOW()");
+        $stmt->execute([$sesi_id]);
+        $token_count = $stmt->fetchColumn();
+        
+        if ($token_count == 0) {
+            // No token available - show blocking message
+            // We'll show this in the auth form as a special case
+            $need_token_contact_admin = true;
+        } else {
+            // Token exists - show token input form
+            $need_token_contact_admin = false;
+        }
+    } else {
+        $need_token_contact_admin = false;
+    }
+} else {
+    $need_token_contact_admin = false;
 }
 
 // Validate that we have all required data before including header
@@ -799,45 +822,62 @@ if ($need_auth) {
                         <?php endif; ?>
                         <?php endif; ?>
                         <?php endif; ?>
+                        <?php endif; ?>
                     
-                        <form method="POST" id="tokenForm">
-                            <input type="hidden" name="id" value="<?php echo $sesi_id; ?>">
-                            
-                            <div class="mb-3">
-                                <label for="token" class="form-label">
-                                    <i class="fas fa-key me-1"></i> Token Ujian
-                                </label>
-                                <input type="text" 
-                                       class="form-control text-center" 
-                                       id="token" 
-                                       name="token" 
-                                       maxlength="6" 
-                                       pattern="[0-9]{6}"
-                                       placeholder="Masukkan 6 digit token"
-                                       style="font-size: 1.1rem; letter-spacing: 0.4rem; padding: 10px;"
-                                       value="<?php 
-                                       echo isset($_POST['token']) ? escape($_POST['token']) : 
-                                            ($active_token_for_sesi ? escape($active_token_for_sesi) : 
-                                            ($existing_request && $existing_request['token'] ? escape($existing_request['token']) : '')); 
-                                       ?>"
-                                       required 
-                                       autofocus>
-                                <small class="text-muted" style="font-size: 0.8rem;">Token 6 digit yang diberikan oleh pengawas</small>
+                        <?php if ($need_token_contact_admin): ?>
+                            <!-- For non-assessments with requires_token but no token available -->
+                            <div class="alert alert-warning">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                <strong>Token Diperlukan</strong><br>
+                                <p class="mb-2">Untuk melanjutkan ujian, Anda perlu token dari administrator.</p>
+                                <p class="mb-0"><strong>Silakan hubungi administrator atau pengawas ujian untuk mendapatkan token.</strong></p>
                             </div>
-                            
-                            <button type="submit" name="verify_auth" class="btn btn-verify mt-2 w-100">
-                                <i class="fas fa-check-circle me-2"></i>Verifikasi & Lanjutkan Ujian
-                            </button>
-                            
-                            <?php 
-                            // Hanya tampilkan button Request Token jika ini adalah assessment yang dikelola operator
-                            if ($is_assessment && $token_required_setting && (!$existing_request || $existing_request['status'] === 'rejected')): 
-                            ?>
-                            <button type="button" class="btn btn-outline-info mt-2 w-100" id="btnRequestToken" onclick="requestToken()">
-                                <i class="fas fa-paper-plane me-2"></i>Request Token Baru
-                            </button>
-                            <?php endif; ?>
-                        </form>
+                            <div class="text-center mt-3">
+                                <a href="<?php echo base_url('siswa-ujian-list'); ?>" class="btn btn-secondary">
+                                    <i class="fas fa-arrow-left me-2"></i>Kembali ke Daftar Ujian
+                                </a>
+                            </div>
+                        <?php else: ?>
+                            <!-- Normal token input form -->
+                            <form method="POST" id="tokenForm">
+                                <input type="hidden" name="id" value="<?php echo $sesi_id; ?>">
+                                
+                                <div class="mb-3">
+                                    <label for="token" class="form-label">
+                                        <i class="fas fa-key me-1"></i> Token Ujian
+                                    </label>
+                                    <input type="text" 
+                                           class="form-control text-center" 
+                                           id="token" 
+                                           name="token" 
+                                           maxlength="6" 
+                                           pattern="[0-9]{6}"
+                                           placeholder="Masukkan 6 digit token"
+                                           style="font-size: 1.1rem; letter-spacing: 0.4rem; padding: 10px;"
+                                           value="<?php 
+                                           echo isset($_POST['token']) ? escape($_POST['token']) : 
+                                                ($active_token_for_sesi ? escape($active_token_for_sesi) : 
+                                                (isset($existing_request) && $existing_request && isset($existing_request['token']) ? escape($existing_request['token']) : '')); 
+                                           ?>"
+                                           required 
+                                           autofocus>
+                                    <small class="text-muted" style="font-size: 0.8rem;">Token 6 digit yang diberikan oleh pengawas</small>
+                                </div>
+                                
+                                <button type="submit" name="verify_auth" class="btn btn-verify mt-2 w-100">
+                                    <i class="fas fa-check-circle me-2"></i>Verifikasi & Lanjutkan Ujian
+                                </button>
+                                
+                                <?php 
+                                // Hanya tampilkan button Request Token jika ini adalah assessment yang dikelola operator
+                                if ($is_assessment && $token_required_setting && (!isset($existing_request) || !$existing_request || $existing_request['status'] === 'rejected')): 
+                                ?>
+                                <button type="button" class="btn btn-outline-info mt-2 w-100" id="btnRequestToken" onclick="requestToken()">
+                                    <i class="fas fa-paper-plane me-2"></i>Request Token Baru
+                                </button>
+                                <?php endif; ?>
+                            </form>
+                        <?php endif; ?>
                     </div>
                 </div>
             </div>
@@ -1169,32 +1209,61 @@ if ($current_soal_data['tipe_soal'] === 'matching') {
     
     .nav-toggle-btn {
         position: fixed;
-        right: 20px;
+        right: 24px;
         top: 50%;
         transform: translateY(-50%);
         z-index: 1002;
-        background: #0066cc;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
         border: none;
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
+        width: 56px;
+        height: 56px;
+        border-radius: 16px;
         cursor: pointer;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4), 
+                    0 4px 12px rgba(0, 0, 0, 0.15),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 1.2rem;
-        transition: all 0.3s ease;
+        font-size: 1.3rem;
+        transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
     }
     
     .nav-toggle-btn:hover {
-        background: #0052a3;
-        transform: translateY(-50%) scale(1.1);
+        background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+        transform: translateY(-50%) scale(1.08) translateY(-2px);
+        box-shadow: 0 12px 32px rgba(102, 126, 234, 0.5), 
+                    0 6px 16px rgba(0, 0, 0, 0.2),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+    
+    .nav-toggle-btn:active {
+        transform: translateY(-50%) scale(0.95);
+        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3), 
+                    0 2px 6px rgba(0, 0, 0, 0.15);
     }
     
     .nav-toggle-btn.sidebar-open {
-        right: 320px;
+        right: 324px;
+        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+        box-shadow: 0 8px 24px rgba(245, 87, 108, 0.4), 
+                    0 4px 12px rgba(0, 0, 0, 0.15),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    }
+    
+    .nav-toggle-btn.sidebar-open:hover {
+        background: linear-gradient(135deg, #f5576c 0%, #f093fb 100%);
+        box-shadow: 0 12px 32px rgba(245, 87, 108, 0.5), 
+                    0 6px 16px rgba(0, 0, 0, 0.2),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+    
+    .nav-toggle-btn i {
+        transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        display: inline-block;
     }
     
     .question-card {
@@ -1358,7 +1427,7 @@ if ($current_soal_data['tipe_soal'] === 'matching') {
         }
         
         .nav-toggle-btn.sidebar-open {
-            right: 20px;
+            right: 24px;
         }
     }
     
@@ -1617,17 +1686,11 @@ if (isset($hide_navbar) && $hide_navbar) {
                     </button>
                     
                     <?php if ($current_soal < $total_soal): ?>
-                    <a href="<?php echo base_url('siswa/ujian/review.php?id=' . $sesi_id); ?>" class="btn btn-info">
-                        <i class="fas fa-list-check"></i> Review
-                    </a>
                     <button type="button" class="btn btn-primary" 
                             onclick="goToSoal(<?php echo $current_soal + 1; ?>)">
                         Selanjutnya <i class="fas fa-chevron-right"></i>
                     </button>
                     <?php else: ?>
-                    <a href="<?php echo base_url('siswa/ujian/review.php?id=' . $sesi_id); ?>" class="btn btn-info">
-                        <i class="fas fa-list-check"></i> Review
-                    </a>
                     <button type="button" class="btn btn-success" id="submitBtn" <?php echo $can_submit_now ? '' : 'disabled'; ?> onclick="submitExam()">
                         <i class="fas fa-check"></i> Selesai
                     </button>
@@ -1870,12 +1933,21 @@ function toggleNavigation() {
     main.classList.toggle('sidebar-open');
     toggleBtn.classList.toggle('sidebar-open');
     
+    // Smooth icon transition
     if (sidebar.classList.contains('show')) {
-        toggleIcon.classList.remove('fa-list');
-        toggleIcon.classList.add('fa-times');
+        toggleIcon.style.transform = 'rotate(180deg)';
+        setTimeout(() => {
+            toggleIcon.classList.remove('fa-list');
+            toggleIcon.classList.add('fa-times');
+            toggleIcon.style.transform = 'rotate(0deg)';
+        }, 200);
     } else {
-        toggleIcon.classList.remove('fa-times');
-        toggleIcon.classList.add('fa-list');
+        toggleIcon.style.transform = 'rotate(180deg)';
+        setTimeout(() => {
+            toggleIcon.classList.remove('fa-times');
+            toggleIcon.classList.add('fa-list');
+            toggleIcon.style.transform = 'rotate(0deg)';
+        }, 200);
     }
 }
 
