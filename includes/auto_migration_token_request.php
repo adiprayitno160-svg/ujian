@@ -58,3 +58,4 @@ function run_token_request_migration() {
 // Migration will be called from database.php after connection is established
 // Don't auto-run here to avoid issues
 
+

@@ -16,12 +16,13 @@ if (!has_operator_access()) {
     redirect('index.php');
 }
 
-$page_title = 'Daftar Sesi';
+$page_title = 'Daftar Sesi Assessment';
 include __DIR__ . '/../../includes/header.php';
 
 global $pdo;
 
-// Get all sesi
+// Get all sesi - HANYA untuk assessment (bukan ulangan harian)
+// Halaman ini khusus untuk ujian assessment yang dikelola oleh operator
 $status_filter = $_GET['status'] ?? '';
 
 $sql = "SELECT s.*, u.judul as judul_ujian, m.nama_mapel, u2.nama as nama_guru,
@@ -30,7 +31,7 @@ $sql = "SELECT s.*, u.judul as judul_ujian, m.nama_mapel, u2.nama as nama_guru,
         INNER JOIN ujian u ON s.id_ujian = u.id
         INNER JOIN mapel m ON u.id_mapel = m.id
         INNER JOIN users u2 ON u.id_guru = u2.id
-        WHERE 1=1";
+        WHERE u.tipe_asesmen IN ('sumatip', 'sumatip_tengah_semester', 'sumatip_akhir_semester', 'sumatip_akhir_tahun')";
 
 $params = [];
 
@@ -48,7 +49,8 @@ $sesi_list = $stmt->fetchAll();
 
 <div class="row mb-4">
     <div class="col-12">
-        <h2 class="fw-bold">Daftar Sesi</h2>
+        <h2 class="fw-bold">Daftar Sesi Assessment</h2>
+        <p class="text-muted">Halaman ini khusus untuk sesi ujian assessment (SUMATIP) yang dikelola oleh operator. Untuk sesi ulangan harian, silakan gunakan menu Ulangan Harian di dashboard guru.</p>
     </div>
 </div>
 

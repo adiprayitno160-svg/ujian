@@ -26,6 +26,17 @@ if (!$sesi) {
     redirect('operator/sesi/list.php');
 }
 
+// Validasi: Hanya sesi assessment yang bisa dikelola di halaman operator
+// Sesi ulangan harian harus dikelola melalui menu guru
+global $pdo;
+$stmt = $pdo->prepare("SELECT u.tipe_asesmen FROM ujian u INNER JOIN sesi_ujian s ON u.id = s.id_ujian WHERE s.id = ?");
+$stmt->execute([$sesi_id]);
+$ujian = $stmt->fetch();
+if (!$ujian || !in_array($ujian['tipe_asesmen'], ['sumatip', 'sumatip_tengah_semester', 'sumatip_akhir_semester', 'sumatip_akhir_tahun'])) {
+    // Ini bukan sesi assessment, redirect ke list
+    redirect('operator/sesi/list.php');
+}
+
 $page_title = 'Manage Sesi';
 include __DIR__ . '/../../includes/header.php';
 
