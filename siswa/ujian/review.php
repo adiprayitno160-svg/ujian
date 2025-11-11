@@ -11,6 +11,14 @@ require_once __DIR__ . '/../../includes/functions.php';
 require_once __DIR__ . '/../../includes/functions_sumatip.php';
 require_once __DIR__ . '/../../includes/security.php';
 
+// Define constant to indicate we're on exam page (prevents redirect loops)
+if (!defined('ON_EXAM_PAGE')) {
+    define('ON_EXAM_PAGE', true);
+}
+if (session_status() === PHP_SESSION_ACTIVE) {
+    $_SESSION['on_exam_page'] = true;
+}
+
 require_role('siswa');
 check_session_timeout();
 

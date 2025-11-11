@@ -14,7 +14,7 @@
 // Prevent direct access
 if (!defined('APP_NAME')) {
     define('APP_NAME', 'Sistem Ujian dan Pekerjaan Rumah');
-    define('APP_VERSION', '1.0.18');
+    define('APP_VERSION', '1.0.21');
     
     // Auto-detect APP_URL based on server environment
     $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' || 
@@ -280,26 +280,54 @@ function require_role($roles) {
             require_once __DIR__ . '/../includes/security.php';
         }
         
-        // Get current page info
-        $current_page = $_SERVER['PHP_SELF'] ?? '';
+        // Prevent redirect loops - check constant first (set by exam pages)
+        if (defined('ON_EXAM_PAGE') && ON_EXAM_PAGE) {
+            return; // Already on exam page, skip check to prevent loop
+        }
+        
+        // Also check session flag as backup
+        if (isset($_SESSION['on_exam_page']) && $_SESSION['on_exam_page']) {
+            return; // Already on exam page, skip check to prevent loop
+        }
+        
+        // Get current page info - use SCRIPT_NAME which is more reliable
+        $script_name = $_SERVER['SCRIPT_NAME'] ?? '';
         $request_uri = $_SERVER['REQUEST_URI'] ?? '';
-        $current_page_basename = basename($current_page);
         
         // Pages that are always allowed (exam-related pages)
-        $exam_pages = ['take.php', 'submit.php', 'hasil.php', 'review.php'];
+        // Check full path to be more accurate
         $is_exam_page = false;
-        foreach ($exam_pages as $exam_page) {
-            if (strpos($current_page_basename, $exam_page) !== false || strpos($request_uri, $exam_page) !== false) {
+        
+        // Check if we're on an exam page using SCRIPT_NAME (most reliable)
+        if (strpos($script_name, '/ujian/take.php') !== false ||
+            strpos($script_name, '/ujian/submit.php') !== false ||
+            strpos($script_name, '/ujian/hasil.php') !== false ||
+            strpos($script_name, '/ujian/review.php') !== false) {
+            $is_exam_page = true;
+        }
+        
+        // Also check REQUEST_URI as fallback (for clean URLs and physical paths)
+        if (!$is_exam_page) {
+            if (strpos($request_uri, '/ujian/take') !== false ||
+                strpos($request_uri, '/ujian/submit') !== false ||
+                strpos($request_uri, '/ujian/hasil') !== false ||
+                strpos($request_uri, '/ujian/review') !== false ||
+                strpos($request_uri, 'siswa-ujian-take') !== false ||
+                strpos($request_uri, 'siswa-ujian-submit') !== false ||
+                strpos($request_uri, 'siswa-ujian-hasil') !== false ||
+                strpos($request_uri, 'siswa-ujian-review') !== false) {
                 $is_exam_page = true;
-                break;
             }
         }
         
-        // Also allow API endpoints
-        $is_api = (strpos($request_uri, '/api/') !== false);
+        // Also allow API endpoints and logout
+        $is_api = (strpos($request_uri, '/api/') !== false || strpos($script_name, '/api/') !== false);
+        $is_logout = (strpos($request_uri, 'logout') !== false || strpos($script_name, 'logout') !== false);
         
-        // Only check restriction if NOT on exam page or API
-        if (!$is_exam_page && !$is_api) {
+        // Only check restriction if NOT on exam page, API, or logout
+        // The check_exam_mode_restriction() function itself will check if we're on exam page
+        // and prevent redirect loops, so we can call it safely
+        if (!$is_exam_page && !$is_api && !$is_logout) {
             check_exam_mode_restriction();
         }
     }

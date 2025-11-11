@@ -5,6 +5,13 @@
  * UNBK Style - One Question Per Page
  */
 
+// Define constant to indicate we're on exam page (prevents redirect loops)
+// MUST be defined BEFORE loading config.php to prevent redirect loops
+// This is checked in check_exam_mode_restriction() and require_role() to prevent loops
+if (!defined('ON_EXAM_PAGE')) {
+    define('ON_EXAM_PAGE', true);
+}
+
 // Enable error reporting FIRST, before any other code
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
@@ -64,6 +71,11 @@ try {
     require_once __DIR__ . '/../../includes/security.php';
 } catch (Throwable $e) {
     die("Error loading security: " . htmlspecialchars($e->getMessage()) . " in " . $e->getFile() . " on line " . $e->getLine());
+}
+
+// Set session flag as backup (constant already defined at top of file)
+if (session_status() === PHP_SESSION_ACTIVE) {
+    $_SESSION['on_exam_page'] = true;
 }
 
 require_role('siswa');
@@ -792,15 +804,17 @@ if ($need_auth) {
                             error_log("Error fetching token request: " . $e->getMessage());
                         }
                         
-                        if ($existing_request):
-                            if ($existing_request['status'] === 'pending'):
+                        if ($existing_request) {
+                            if ($existing_request['status'] === 'pending') {
                         ?>
                             <div class="alert alert-info">
                                 <i class="fas fa-clock me-2"></i>
                                 <strong>Request Token Dikirim</strong><br>
                                 <small>Request token Anda sedang menunggu persetujuan operator. Silakan tunggu atau hubungi operator.</small>
                             </div>
-                        <?php elseif ($existing_request['status'] === 'approved' && $existing_request['token']): ?>
+                        <?php 
+                            } elseif ($existing_request['status'] === 'approved' && $existing_request['token']) {
+                        ?>
                             <div class="alert alert-success">
                                 <i class="fas fa-check-circle me-2"></i>
                                 <strong>Token Tersedia!</strong><br>
@@ -809,7 +823,9 @@ if ($need_auth) {
                                     <small>Disetujui oleh: <?php echo escape($existing_request['approved_by_name']); ?></small>
                                 <?php endif; ?>
                             </div>
-                        <?php elseif ($existing_request['status'] === 'rejected'): ?>
+                        <?php 
+                            } elseif ($existing_request['status'] === 'rejected') {
+                        ?>
                             <div class="alert alert-warning">
                                 <i class="fas fa-times-circle me-2"></i>
                                 <strong>Request Ditolak</strong><br>
@@ -819,9 +835,10 @@ if ($need_auth) {
                                     <small>Request token Anda ditolak. Silakan request token baru.</small>
                                 <?php endif; ?>
                             </div>
-                        <?php endif; ?>
-                        <?php endif; ?>
-                        <?php endif; ?>
+                        <?php 
+                            }
+                        }
+                        ?>
                         <?php endif; ?>
                     
                         <?php if ($need_token_contact_admin): ?>

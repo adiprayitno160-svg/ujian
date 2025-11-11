@@ -299,6 +299,9 @@ function clear_exam_mode($sesi_id = null) {
     unset($_SESSION['exam_ujian_id']);
     unset($_SESSION['exam_start_time']);
     
+    // Clear on_exam_page flag (allow access to other pages)
+    unset($_SESSION['on_exam_page']);
+    
     // Clear token verification for this sesi if sesi_id is provided
     if ($sesi_to_clear) {
         $token_verified_key = 'token_verified_' . $sesi_to_clear;
@@ -397,10 +400,53 @@ function check_exam_mode_restriction($allowed_pages = []) {
         return true;
     }
     
+    // Prevent redirect loops - check if we're already on an exam page
+    // First check constant (set by exam pages) - most reliable
+    if (defined('ON_EXAM_PAGE') && ON_EXAM_PAGE) {
+        return true; // Already on exam page, allow access
+    }
+    
+    // Also check session flag as backup
+    if (isset($_SESSION['on_exam_page']) && $_SESSION['on_exam_page']) {
+        return true; // Already on exam page, allow access
+    }
+    
+    $script_name = $_SERVER['SCRIPT_NAME'] ?? '';
+    $request_uri = $_SERVER['REQUEST_URI'] ?? '';
+    
+    // Check if we're already on an exam page - if so, don't redirect (prevent loop)
+    $is_exam_page = false;
+    
+    // Check script name (physical file path)
+    if (strpos($script_name, '/ujian/take.php') !== false ||
+        strpos($script_name, '/ujian/submit.php') !== false ||
+        strpos($script_name, '/ujian/hasil.php') !== false ||
+        strpos($script_name, '/ujian/review.php') !== false) {
+        $is_exam_page = true;
+    }
+    
+    // Check request URI (clean URLs and physical paths)
+    if (!$is_exam_page) {
+        if (strpos($request_uri, '/ujian/take') !== false ||
+            strpos($request_uri, '/ujian/submit') !== false ||
+            strpos($request_uri, '/ujian/hasil') !== false ||
+            strpos($request_uri, '/ujian/review') !== false ||
+            strpos($request_uri, 'siswa-ujian-take') !== false ||
+            strpos($request_uri, 'siswa-ujian-submit') !== false ||
+            strpos($request_uri, 'siswa-ujian-hasil') !== false ||
+            strpos($request_uri, 'siswa-ujian-review') !== false) {
+            $is_exam_page = true;
+        }
+    }
+    
+    // If already on exam page, allow access (prevent redirect loop)
+    if ($is_exam_page) {
+        return true;
+    }
+    
     // Get current page and full request URI
     $current_page = $_SERVER['PHP_SELF'] ?? '';
     $current_page = basename($current_page);
-    $request_uri = $_SERVER['REQUEST_URI'] ?? '';
     
     // Pages that are always allowed even in exam mode (SANGAT TERBATAS)
     $always_allowed = [
@@ -439,6 +485,14 @@ function check_exam_mode_restriction($allowed_pages = []) {
     if (!$is_allowed) {
         $sesi_id = get_current_exam_sesi_id();
         if ($sesi_id) {
+            // Double-check: if we're already on exam page (constant or session flag), don't redirect
+            if (defined('ON_EXAM_PAGE') && ON_EXAM_PAGE) {
+                return true; // Already on exam page, allow access
+            }
+            if (isset($_SESSION['on_exam_page']) && $_SESSION['on_exam_page']) {
+                return true; // Already on exam page, allow access
+            }
+            
             // Check if student needs token to continue
             global $pdo;
             try {
@@ -450,16 +504,18 @@ function check_exam_mode_restriction($allowed_pages = []) {
                 if ($nilai && $nilai['requires_token']) {
                     // Student needs token to continue - redirect to exam page (which will show token request)
                     $_SESSION['error_message'] = 'Anda sedang dalam ujian. Untuk melanjutkan, Anda perlu memasukkan token yang telah diberikan.';
-                    redirect('siswa/ujian/take.php?id=' . $sesi_id);
                 } else {
                     // Normal case - just redirect to exam
                     $_SESSION['error_message'] = 'Anda sedang dalam ujian. Silakan selesaikan ujian terlebih dahulu sebelum mengakses halaman lain.';
-                    redirect('siswa/ujian/take.php?id=' . $sesi_id);
                 }
+                
+                // Redirect to exam page using clean URL to avoid routing issues
+                // The constant ON_EXAM_PAGE will be set when take.php loads, preventing further redirects
+                redirect('siswa-ujian-take?id=' . $sesi_id);
             } catch (PDOException $e) {
                 error_log("Error checking exam restriction: " . $e->getMessage());
                 $_SESSION['error_message'] = 'Anda sedang dalam ujian. Silakan selesaikan ujian terlebih dahulu.';
-                redirect('siswa/ujian/take.php?id=' . $sesi_id);
+                redirect('siswa-ujian-take?id=' . $sesi_id);
             }
         } else {
             // If sesi_id is not available, clear exam mode

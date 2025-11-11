@@ -48,6 +48,11 @@ function login($username, $password) {
  * This will clear all session data including token verifications
  */
 function logout() {
+    // Clear exam mode if in exam
+    if (function_exists('clear_exam_mode')) {
+        clear_exam_mode();
+    }
+    
     // Clear all token verifications before destroying session
     if (isset($_SESSION)) {
         foreach ($_SESSION as $key => $value) {
@@ -55,6 +60,8 @@ function logout() {
                 unset($_SESSION[$key]);
             }
         }
+        // Clear on_exam_page flag
+        unset($_SESSION['on_exam_page']);
     }
     
     $_SESSION = array();
