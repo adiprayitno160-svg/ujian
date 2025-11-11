@@ -102,6 +102,9 @@ $mapel_list = $stmt->fetchAll();
                     <p class="text-muted mb-2">
                         <i class="fas fa-book"></i> <?php echo escape($tugas['nama_mapel']); ?>
                     </p>
+                    <p class="text-muted mb-2">
+                        <i class="fas fa-user-tie"></i> Guru: <?php echo escape($tugas['nama_guru'] ?? 'N/A'); ?>
+                    </p>
                     <p class="mb-2">
                         <i class="fas fa-calendar"></i> 
                         <strong>Deadline:</strong> 

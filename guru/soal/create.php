@@ -385,23 +385,41 @@ $ujian_list = $stmt->fetchAll();
             <!-- Media Upload Section -->
             <div class="mb-3">
                 <label for="soal_media" class="form-label">
-                    <i class="fas fa-image me-1"></i> Media Soal (Gambar)
+                    <i class="fas fa-image me-1"></i> Media Soal (Gambar) <span class="text-muted fw-normal">(Opsional)</span>
                 </label>
                 <input type="file" 
                        class="form-control" 
                        id="soal_media" 
                        name="soal_media" 
-                       accept="image/*"
+                       accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
                        onchange="handleMediaUpload(this)">
-                <small class="text-muted">
-                    Format yang didukung: Gambar (JPG, PNG, GIF, WebP - maks. 500KB)
-                </small>
+                <div class="alert alert-info mt-2 mb-0">
+                    <div class="d-flex align-items-start">
+                        <i class="fas fa-info-circle me-2 mt-1"></i>
+                        <div>
+                            <strong>Format yang Didukung:</strong>
+                            <ul class="mb-1 mt-1">
+                                <li><strong>JPG/JPEG</strong> - Format gambar standar</li>
+                                <li><strong>PNG</strong> - Format dengan transparansi</li>
+                                <li><strong>GIF</strong> - Format animasi (statis)</li>
+                                <li><strong>WebP</strong> - Format modern dengan kompresi tinggi</li>
+                            </ul>
+                            <strong>Ukuran Maksimal: 500KB (512.000 bytes)</strong><br>
+                            <small class="text-muted">Ukuran file yang lebih kecil akan mempercepat loading saat ujian.</small>
+                        </div>
+                    </div>
+                </div>
+                <div id="media_upload_error" class="alert alert-danger mt-2" style="display:none;">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <span id="media_error_message"></span>
+                </div>
                 <div id="media_preview" class="mt-2" style="display:none;">
-                    <div class="alert alert-info d-flex justify-content-between align-items-center">
+                    <div class="alert alert-success d-flex justify-content-between align-items-center">
                         <div>
                             <i class="fas fa-check-circle me-2"></i>
                             <span id="media_filename"></span>
                             <span class="badge bg-primary ms-2" id="media_type_badge"></span>
+                            <span class="badge bg-info ms-2" id="media_size_badge"></span>
                         </div>
                         <button type="button" class="btn btn-sm btn-danger" onclick="removeMedia()">
                             <i class="fas fa-times"></i> Hapus
@@ -423,7 +441,7 @@ $ujian_list = $stmt->fetchAll();
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <input type="file" class="form-control form-control-sm" 
                                    id="opsi_a_image" name="opsi_a_image" 
-                                   accept="image/*" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" 
                                    onchange="handleOptionImageUpload(this, 'opsi_a')">
                             <button type="button" class="btn btn-sm btn-danger" 
                                     id="remove_opsi_a_image" 
@@ -432,6 +450,7 @@ $ujian_list = $stmt->fetchAll();
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
+                        <small class="text-muted d-block mb-2">Format: JPG, PNG, GIF, WebP | Maks: 100KB</small>
                         <div id="opsi_a_preview" class="mt-2" style="display:none;">
                             <img id="opsi_a_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
                         </div>
@@ -445,7 +464,7 @@ $ujian_list = $stmt->fetchAll();
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <input type="file" class="form-control form-control-sm" 
                                    id="opsi_b_image" name="opsi_b_image" 
-                                   accept="image/*" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" 
                                    onchange="handleOptionImageUpload(this, 'opsi_b')">
                             <button type="button" class="btn btn-sm btn-danger" 
                                     id="remove_opsi_b_image" 
@@ -454,6 +473,7 @@ $ujian_list = $stmt->fetchAll();
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
+                        <small class="text-muted d-block mb-2">Format: JPG, PNG, GIF, WebP | Maks: 100KB</small>
                         <div id="opsi_b_preview" class="mt-2" style="display:none;">
                             <img id="opsi_b_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
                         </div>
@@ -467,7 +487,7 @@ $ujian_list = $stmt->fetchAll();
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <input type="file" class="form-control form-control-sm" 
                                    id="opsi_c_image" name="opsi_c_image" 
-                                   accept="image/*" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" 
                                    onchange="handleOptionImageUpload(this, 'opsi_c')">
                             <button type="button" class="btn btn-sm btn-danger" 
                                     id="remove_opsi_c_image" 
@@ -476,6 +496,7 @@ $ujian_list = $stmt->fetchAll();
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
+                        <small class="text-muted d-block mb-2">Format: JPG, PNG, GIF, WebP | Maks: 100KB</small>
                         <div id="opsi_c_preview" class="mt-2" style="display:none;">
                             <img id="opsi_c_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
                         </div>
@@ -489,7 +510,7 @@ $ujian_list = $stmt->fetchAll();
                         <div class="d-flex align-items-center gap-2 mb-2">
                             <input type="file" class="form-control form-control-sm" 
                                    id="opsi_d_image" name="opsi_d_image" 
-                                   accept="image/*" 
+                                   accept="image/jpeg,image/jpg,image/png,image/gif,image/webp" 
                                    onchange="handleOptionImageUpload(this, 'opsi_d')">
                             <button type="button" class="btn btn-sm btn-danger" 
                                     id="remove_opsi_d_image" 
@@ -498,6 +519,7 @@ $ujian_list = $stmt->fetchAll();
                                 <i class="fas fa-times"></i>
                             </button>
                         </div>
+                        <small class="text-muted d-block mb-2">Format: JPG, PNG, GIF, WebP | Maks: 100KB</small>
                         <div id="opsi_d_preview" class="mt-2" style="display:none;">
                             <img id="opsi_d_preview_img" src="" class="img-thumbnail" style="max-width: 200px; max-height: 150px;">
                         </div>
@@ -799,7 +821,30 @@ function removeMatchingItem(btn) {
 // Media upload handling
 function handleMediaUpload(input) {
     const file = input.files[0];
+    const errorDiv = document.getElementById('media_upload_error');
+    const errorMessage = document.getElementById('media_error_message');
+    
+    // Hide error message initially
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+    }
+    
     if (!file) {
+        removeMedia();
+        return;
+    }
+    
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        const errorMsg = 'Format file tidak didukung. Hanya JPG, PNG, GIF, dan WebP yang diizinkan.';
+        if (errorDiv && errorMessage) {
+            errorMessage.textContent = errorMsg;
+            errorDiv.style.display = 'block';
+        } else {
+            alert(errorMsg);
+        }
+        input.value = '';
         removeMedia();
         return;
     }
@@ -807,7 +852,15 @@ function handleMediaUpload(input) {
     // Validate file size (max 500KB for images)
     const maxSize = 512000; // 500KB
     if (file.size > maxSize) {
-        alert('Ukuran file terlalu besar. Maksimal: 500KB');
+        const fileSizeKB = (file.size / 1024).toFixed(2);
+        const maxSizeKB = (maxSize / 1024).toFixed(0);
+        const errorMsg = `Ukuran file terlalu besar: ${fileSizeKB} KB. Maksimal: ${maxSizeKB} KB (500 KB).`;
+        if (errorDiv && errorMessage) {
+            errorMessage.textContent = errorMsg;
+            errorDiv.style.display = 'block';
+        } else {
+            alert(errorMsg);
+        }
         input.value = '';
         removeMedia();
         return;
@@ -830,22 +883,43 @@ function handleMediaUpload(input) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
+            // Hide error if shown
+            if (errorDiv) {
+                errorDiv.style.display = 'none';
+            }
+            
             document.getElementById('media_path').value = data.path;
             document.getElementById('media_type').value = data.media_type;
             document.getElementById('media_type_badge').textContent = data.media_type === 'gambar' ? 'Gambar' : 'Video';
+            
+            // Show file size
+            const fileSizeKB = data.size ? (data.size / 1024).toFixed(2) : (file.size / 1024).toFixed(2);
+            document.getElementById('media_size_badge').textContent = fileSizeKB + ' KB';
             
             // Show preview (only images)
             document.getElementById('media_preview_content').innerHTML = 
                 '<img src="' + data.url + '" class="img-thumbnail" style="max-width: 400px; max-height: 300px;">';
         } else {
-            alert('Error: ' + data.message);
+            const errorMsg = 'Error: ' + (data.message || 'Gagal mengupload file');
+            if (errorDiv && errorMessage) {
+                errorMessage.textContent = errorMsg;
+                errorDiv.style.display = 'block';
+            } else {
+                alert(errorMsg);
+            }
             input.value = '';
             removeMedia();
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Terjadi kesalahan saat mengupload file');
+        const errorMsg = 'Terjadi kesalahan saat mengupload file. Pastikan koneksi internet stabil dan coba lagi.';
+        if (errorDiv && errorMessage) {
+            errorMessage.textContent = errorMsg;
+            errorDiv.style.display = 'block';
+        } else {
+            alert(errorMsg);
+        }
         input.value = '';
         removeMedia();
     });
@@ -857,6 +931,12 @@ function removeMedia() {
     document.getElementById('media_type').value = '';
     document.getElementById('media_preview').style.display = 'none';
     document.getElementById('media_preview_content').innerHTML = '';
+    
+    // Hide error message
+    const errorDiv = document.getElementById('media_upload_error');
+    if (errorDiv) {
+        errorDiv.style.display = 'none';
+    }
 }
 
 // Handle option image upload
@@ -867,18 +947,20 @@ function handleOptionImageUpload(input, optionKey) {
         return;
     }
     
-    // Validate file size (max 100KB for images)
-    const maxSize = 102400; // 100KB
-    if (file.size > maxSize) {
-        alert('Ukuran file terlalu besar. Maksimal: 100KB');
+    // Validate file type first
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+        alert('Format file tidak didukung. Hanya JPG, PNG, GIF, dan WebP yang diizinkan. Maksimal: 100KB untuk gambar opsi jawaban.');
         input.value = '';
         removeOptionImage(optionKey);
         return;
     }
     
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-        alert('Hanya file gambar yang diizinkan');
+    // Validate file size (max 100KB for option images)
+    const maxSize = 102400; // 100KB
+    if (file.size > maxSize) {
+        const fileSizeKB = (file.size / 1024).toFixed(2);
+        alert(`Ukuran file terlalu besar: ${fileSizeKB} KB. Maksimal: 100 KB untuk gambar opsi jawaban.`);
         input.value = '';
         removeOptionImage(optionKey);
         return;
@@ -911,14 +993,15 @@ function handleOptionImageUpload(input, optionKey) {
             previewImg.alt = file.name;
             removeBtn.style.display = 'block';
         } else {
-            alert('Error: ' + data.message);
+            const errorMsg = data.message || 'Gagal mengupload file';
+            alert('Error: ' + errorMsg + '\n\nPastikan:\n- Format file: JPG, PNG, GIF, atau WebP\n- Ukuran maksimal: 100KB\n- Koneksi internet stabil');
             input.value = '';
             removeOptionImage(optionKey);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Terjadi kesalahan saat mengupload file');
+        alert('Terjadi kesalahan saat mengupload file. Pastikan koneksi internet stabil dan coba lagi.');
         input.value = '';
         removeOptionImage(optionKey);
     });

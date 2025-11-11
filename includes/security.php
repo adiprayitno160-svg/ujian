@@ -225,12 +225,33 @@ function log_anti_contek_event($ujian_id, $siswa_id, $sesi_id, $action_type, $de
             $nilai = $stmt->fetch();
             
             if ($nilai && $nilai['warning_count'] >= $settings['max_warnings']) {
-                // Mark as suspicious and auto-submit
-                $stmt = $pdo->prepare("UPDATE nilai SET is_suspicious = 1, status = 'selesai' 
-                                      WHERE id_ujian = ? AND id_siswa = ? AND id_sesi = ?");
-                $stmt->execute([$ujian_id, $siswa_id, $sesi_id]);
+                // Mark as fraud and require relogin (time continues)
+                // Reset all answers (not lock) for fraud
+                $pdo->beginTransaction();
                 
-                return ['auto_submit' => true, 'message' => 'Ujian otomatis diselesaikan karena terlalu banyak pelanggaran'];
+                // Delete all answers (reset) - not lock, but reset
+                $stmt = $pdo->prepare("DELETE FROM jawaban_siswa 
+                                      WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+                $stmt->execute([$sesi_id, $ujian_id, $siswa_id]);
+                
+                $stmt = $pdo->prepare("UPDATE nilai 
+                                      SET is_suspicious = 1, 
+                                          is_fraud = 1,
+                                          fraud_reason = ?,
+                                          fraud_detected_at = NOW(),
+                                          requires_relogin = 1,
+                                          answers_locked = 0
+                                      WHERE id_ujian = ? AND id_siswa = ? AND id_sesi = ?");
+                $reason = "Terlalu banyak pelanggaran keamanan (warning count: {$nilai['warning_count']})";
+                $stmt->execute([$reason, $ujian_id, $siswa_id, $sesi_id]);
+                
+                $pdo->commit();
+                
+                return [
+                    'fraud' => true, 
+                    'requires_logout' => true,
+                    'message' => 'Fraud terdeteksi. Anda harus login ulang. Waktu ujian terus berjalan.'
+                ];
             }
         }
         
@@ -323,11 +344,29 @@ function set_exam_mode($sesi_id, $ujian_id) {
 /**
  * Clear exam mode from session (exam finished or cancelled)
  */
-function clear_exam_mode() {
+function clear_exam_mode($sesi_id = null) {
+    $sesi_to_clear = $sesi_id ?? ($_SESSION['exam_sesi_id'] ?? null);
+    
+    // Clear exam mode session variables
     unset($_SESSION['exam_mode']);
     unset($_SESSION['exam_sesi_id']);
     unset($_SESSION['exam_ujian_id']);
     unset($_SESSION['exam_start_time']);
+    
+    // Clear token verification for this sesi if sesi_id is provided
+    if ($sesi_to_clear) {
+        $token_verified_key = 'token_verified_' . $sesi_to_clear;
+        $token_id_key = 'token_id_' . $sesi_to_clear;
+        unset($_SESSION[$token_verified_key]);
+        unset($_SESSION[$token_id_key]);
+    } else {
+        // Clear all token verifications if no specific sesi_id
+        foreach ($_SESSION as $key => $value) {
+            if (strpos($key, 'token_verified_') === 0 || strpos($key, 'token_id_') === 0) {
+                unset($_SESSION[$key]);
+            }
+        }
+    }
 }
 
 /**

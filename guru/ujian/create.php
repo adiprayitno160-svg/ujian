@@ -60,13 +60,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 redirect('guru/ujian/detail.php?id=' . $ujian_id);
             } catch (PDOException $e) {
                 error_log("Create ujian error: " . $e->getMessage());
-                $error = 'Terjadi kesalahan saat membuat ujian';
+                
+                // Provide more specific error messages
+                $error_code = $e->getCode();
+                if ($error_code == 23000) {
+                    $error = 'Terjadi kesalahan: Data duplikat atau tidak valid. Pastikan semua field diisi dengan benar.';
+                } elseif ($error_code == 22001) {
+                    $error = 'Terjadi kesalahan: Data terlalu panjang. Pastikan judul dan deskripsi tidak melebihi batas yang diizinkan.';
+                } elseif ($error_code == 42000 || $error_code == '42S02') {
+                    $error = 'Terjadi kesalahan: Masalah dengan database. Silakan hubungi administrator.';
+                } else {
+                    $error = 'Terjadi kesalahan saat membuat ujian. Pastikan semua field wajib diisi dengan benar.';
+                    if (strpos($e->getMessage(), 'judul') !== false) {
+                        $error .= ' Periksa judul ujian.';
+                    } elseif (strpos($e->getMessage(), 'id_mapel') !== false) {
+                        $error .= ' Periksa mata pelajaran yang dipilih.';
+                    } elseif (strpos($e->getMessage(), 'durasi') !== false) {
+                        $error .= ' Periksa durasi ujian (harus lebih dari 0).';
+                    }
+                }
+            } catch (Exception $e) {
+                error_log("Create ujian error: " . $e->getMessage());
+                $error = 'Terjadi kesalahan saat membuat ujian: ' . htmlspecialchars($e->getMessage());
             }
         }
     }
 }
 
-$page_title = 'Buat Ujian Baru';
+$page_title = 'Buat Ulangan Harian Baru';
 $role_css = 'guru';
 include __DIR__ . '/../../includes/header.php';
 
@@ -77,7 +98,7 @@ $mapel_list = get_mapel_by_guru($_SESSION['user_id']);
 
 <div class="row mb-4">
     <div class="col-12">
-        <h2 class="fw-bold">Buat Ujian Baru</h2>
+        <h2 class="fw-bold">Buat Ulangan Harian Baru</h2>
     </div>
 </div>
 
@@ -107,9 +128,9 @@ $mapel_list = get_mapel_by_guru($_SESSION['user_id']);
         <div class="card-body">
             <form method="POST">
                 <div class="mb-3">
-                    <label for="judul" class="form-label">Judul Ujian <span class="text-danger">*</span></label>
+                    <label for="judul" class="form-label">Judul Ulangan Harian <span class="text-danger">*</span></label>
                     <input type="text" class="form-control" id="judul" name="judul" required 
-                           placeholder="Contoh: Ujian Tengah Semester Matematika">
+                           placeholder="Contoh: Ulangan Harian Matematika">
                 </div>
                 
                 <div class="mb-3">

@@ -17,11 +17,17 @@ include __DIR__ . '/../../includes/header.php';
 
 global $pdo;
 
-$id = intval($_GET['id'] ?? 0);
+// Support both 'id' (for guru) and 'sesi_id' (for operator) parameters
+$id = intval($_GET['id'] ?? $_GET['sesi_id'] ?? 0);
 $sesi = get_sesi($id);
 
 if (!$sesi) {
-    redirect('guru/sesi/list.php');
+    // Redirect based on role
+    if (has_operator_access()) {
+        redirect('operator/sesi/list.php');
+    } else {
+        redirect('guru/sesi/list.php');
+    }
 }
 
 $error = '';
@@ -63,6 +69,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (PDOException $e) {
             $error = 'Terjadi kesalahan: ' . $e->getMessage();
         }
+    } elseif ($action === 'release_all') {
+        // Release all active tokens (revoke them)
+        try {
+            $stmt = $pdo->prepare("UPDATE token_ujian SET status = 'revoked' WHERE id_sesi = ? AND status = 'active'");
+            $stmt->execute([$id]);
+            $success = 'Semua token berhasil di-release';
+        } catch (PDOException $e) {
+            $error = 'Terjadi kesalahan: ' . $e->getMessage();
+        }
+    } elseif ($action === 'auto_generate') {
+        // Auto-generate token with 15 minutes expiration for operators
+        if (has_operator_access()) {
+            try {
+                // Revoke all active tokens first
+                $stmt = $pdo->prepare("UPDATE token_ujian SET status = 'revoked' WHERE id_sesi = ? AND status = 'active'");
+                $stmt->execute([$id]);
+                
+                // Generate new token (expires in 15 minutes)
+                do {
+                    $token = generate_token();
+                    $stmt = $pdo->prepare("SELECT id FROM token_ujian WHERE token = ?");
+                    $stmt->execute([$token]);
+                } while ($stmt->fetch());
+                
+                $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
+                
+                $stmt = $pdo->prepare("INSERT INTO token_ujian 
+                                      (id_sesi, token, created_by, expires_at, max_usage, status) 
+                                      VALUES (?, ?, ?, ?, NULL, 'active')");
+                $stmt->execute([$id, $token, $_SESSION['user_id'], $expires_at]);
+                
+                $success = "Token baru berhasil dibuat: <strong>$token</strong> (Expires in 15 minutes)";
+                log_activity('auto_generate_token', 'token_ujian', $pdo->lastInsertId());
+            } catch (PDOException $e) {
+                $error = 'Terjadi kesalahan: ' . $e->getMessage();
+            }
+        }
     }
 }
 
@@ -81,7 +124,7 @@ $tokens = $stmt->fetchAll();
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center">
             <h2 class="fw-bold">Kelola Token: <?php echo escape($sesi['nama_sesi']); ?></h2>
-            <a href="<?php echo base_url('guru/sesi/manage.php?id=' . $id); ?>" class="btn btn-secondary">
+            <a href="<?php echo has_operator_access() ? base_url('operator/sesi/manage.php?id=' . $id) : base_url('guru/sesi/manage.php?id=' . $id); ?>" class="btn btn-secondary">
                 <i class="fas fa-arrow-left"></i> Kembali
             </a>
         </div>
@@ -107,6 +150,24 @@ $tokens = $stmt->fetchAll();
                 <h5 class="mb-0"><i class="fas fa-key"></i> Generate Token</h5>
             </div>
             <div class="card-body">
+                <?php if (has_operator_access()): ?>
+                    <div class="mb-3">
+                        <form method="POST" id="autoGenerateForm">
+                            <input type="hidden" name="action" value="auto_generate">
+                            <button type="submit" class="btn btn-success w-100 mb-2">
+                                <i class="fas fa-sync-alt"></i> Generate & Release (15 menit)
+                            </button>
+                        </form>
+                        <form method="POST" onsubmit="return confirm('Yakin release semua token aktif?');">
+                            <input type="hidden" name="action" value="release_all">
+                            <button type="submit" class="btn btn-warning w-100">
+                                <i class="fas fa-ban"></i> Release Semua Token
+                            </button>
+                        </form>
+                        <hr>
+                        <small class="text-muted">Auto-generate akan membuat token baru setiap 15 menit dan me-revoke token lama</small>
+                    </div>
+                <?php endif; ?>
                 <form method="POST">
                     <input type="hidden" name="action" value="generate">
                     <div class="mb-3">
@@ -124,6 +185,19 @@ $tokens = $stmt->fetchAll();
                 </form>
             </div>
         </div>
+        <?php if (has_operator_access()): ?>
+        <div class="card border-0 shadow-sm mt-3">
+            <div class="card-header bg-info text-white">
+                <h6 class="mb-0"><i class="fas fa-clock"></i> Auto-Generate (Operator)</h6>
+            </div>
+            <div class="card-body">
+                <p class="small text-muted">Token akan otomatis di-generate setiap 15 menit. Klik tombol di atas untuk memulai.</p>
+                <div id="autoGenerateStatus" class="alert alert-info d-none">
+                    <small>Auto-generate aktif. Token berikutnya akan dibuat dalam: <span id="countdown">15:00</span></small>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
     </div>
     
     <div class="col-md-8">
@@ -185,5 +259,62 @@ $tokens = $stmt->fetchAll();
         </div>
     </div>
 </div>
+
+<?php if (has_operator_access()): ?>
+<script>
+// Auto-generate token every 15 minutes for operators
+let autoGenerateInterval = null;
+let countdownInterval = null;
+let countdownSeconds = 900; // 15 minutes in seconds
+
+function startAutoGenerate() {
+    // Clear existing intervals
+    if (autoGenerateInterval) clearInterval(autoGenerateInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
+    
+    // Show status
+    const statusEl = document.getElementById('autoGenerateStatus');
+    if (statusEl) {
+        statusEl.classList.remove('d-none');
+    }
+    
+    // Start countdown
+    function updateCountdown() {
+        const countdownEl = document.getElementById('countdown');
+        if (countdownEl) {
+            const minutes = Math.floor(countdownSeconds / 60);
+            const seconds = countdownSeconds % 60;
+            countdownEl.textContent = 
+                String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');
+        }
+        
+        if (countdownSeconds <= 0) {
+            countdownSeconds = 900; // Reset to 15 minutes
+        } else {
+            countdownSeconds--;
+        }
+    }
+    
+    updateCountdown();
+    countdownInterval = setInterval(updateCountdown, 1000);
+    
+    // Auto-generate token every 15 minutes
+    autoGenerateInterval = setInterval(function() {
+        // Submit the auto-generate form
+        const form = document.getElementById('autoGenerateForm');
+        if (form) {
+            form.submit();
+        }
+    }, 900000); // 15 minutes = 900000 milliseconds
+}
+
+// Start auto-generate if operator just enabled it
+document.addEventListener('DOMContentLoaded', function() {
+    <?php if (has_operator_access() && isset($_POST['action']) && $_POST['action'] === 'auto_generate'): ?>
+    startAutoGenerate();
+    <?php endif; ?>
+});
+</script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>

@@ -445,12 +445,21 @@ if ($sesi_id) {
                 if (!empty($tidak_hadir_list)): 
                 ?>
                     <div class="alert alert-danger mt-3">
-                        <h6><i class="fas fa-exclamation-triangle"></i> Siswa yang Tidak Hadir:</h6>
-                        <ul class="mb-0">
-                            <?php foreach ($tidak_hadir_list as $item): ?>
-                                <li><strong><?php echo escape($item['nama_siswa']); ?></strong> (NIS: <?php echo escape($item['nis']); ?>) - Kelas: <?php echo escape($item['nama_kelas'] ?? '-'); ?></li>
-                            <?php endforeach; ?>
-                        </ul>
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6><i class="fas fa-exclamation-triangle"></i> Siswa yang Tidak Hadir:</h6>
+                                <ul class="mb-0">
+                                    <?php foreach ($tidak_hadir_list as $item): ?>
+                                        <li><strong><?php echo escape($item['nama_siswa']); ?></strong> (NIS: <?php echo escape($item['nis']); ?>) - Kelas: <?php echo escape($item['nama_kelas'] ?? '-'); ?></li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            </div>
+                            <div>
+                                <a href="<?php echo base_url('guru/absensi/retake.php?sesi_id=' . $sesi_id); ?>" class="btn btn-warning">
+                                    <i class="fas fa-redo"></i> Buat Retake Exam
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 <?php endif; ?>
             <?php endif; ?>

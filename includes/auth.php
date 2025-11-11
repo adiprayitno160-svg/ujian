@@ -45,8 +45,18 @@ function login($username, $password) {
 
 /**
  * Logout user
+ * This will clear all session data including token verifications
  */
 function logout() {
+    // Clear all token verifications before destroying session
+    if (isset($_SESSION)) {
+        foreach ($_SESSION as $key => $value) {
+            if (strpos($key, 'token_verified_') === 0 || strpos($key, 'token_id_') === 0) {
+                unset($_SESSION[$key]);
+            }
+        }
+    }
+    
     $_SESSION = array();
     
     if (isset($_COOKIE[session_name()])) {

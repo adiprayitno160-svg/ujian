@@ -33,28 +33,83 @@ $tahun_ajaran = get_tahun_ajaran_aktif();
 
 // Get available sesi
 // Check both individual assignment and kelas assignment
-$stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, u.tipe_asesmen, u.is_mandatory, m.nama_mapel,
-                      (SELECT status FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) as status_nilai
-                      FROM sesi_ujian s
-                      INNER JOIN ujian u ON s.id_ujian = u.id
-                      INNER JOIN mapel m ON u.id_mapel = m.id
-                      WHERE s.status = 'aktif'
-                      AND EXISTS (
-                          SELECT 1 FROM sesi_peserta sp
-                          WHERE sp.id_sesi = s.id
-                          AND (
-                              -- Individual assignment
-                              (sp.id_user = ? AND sp.tipe_assign = 'individual')
-                              OR
-                              -- Kelas assignment - check if siswa is in the assigned kelas
-                              (sp.tipe_assign = 'kelas' AND sp.id_kelas IN (
-                                  SELECT id_kelas FROM user_kelas 
-                                  WHERE id_user = ? AND tahun_ajaran = ?
-                              ))
+// Include retake sessions and exclude completed exams older than 1 week (except retake)
+// Check if is_retake column exists
+$check_retake_col = false;
+try {
+    $check_stmt = $pdo->query("SHOW COLUMNS FROM sesi_ujian LIKE 'is_retake'");
+    $check_retake_col = $check_stmt->rowCount() > 0;
+} catch (PDOException $e) {
+    // Column doesn't exist yet, will be created by migration
+}
+
+if ($check_retake_col) {
+    $stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, u.tipe_asesmen, u.is_mandatory, m.nama_mapel,
+                          (SELECT status FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) as status_nilai,
+                          (SELECT waktu_submit FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) as waktu_submit_nilai
+                          FROM sesi_ujian s
+                          INNER JOIN ujian u ON s.id_ujian = u.id
+                          INNER JOIN mapel m ON u.id_mapel = m.id
+                          WHERE s.status = 'aktif'
+                          AND EXISTS (
+                              SELECT 1 FROM sesi_peserta sp
+                              WHERE sp.id_sesi = s.id
+                              AND (
+                                  -- Individual assignment
+                                  (sp.id_user = ? AND sp.tipe_assign = 'individual')
+                                  OR
+                                  -- Kelas assignment - check if siswa is in the assigned kelas
+                                  (sp.tipe_assign = 'kelas' AND sp.id_kelas IN (
+                                      SELECT id_kelas FROM user_kelas 
+                                      WHERE id_user = ? AND tahun_ajaran = ?
+                                  ))
+                              )
                           )
-                      )
-                      ORDER BY s.waktu_mulai ASC");
-$stmt->execute([$siswa_id, $siswa_id, $siswa_id, $tahun_ajaran]);
+                          AND (
+                              -- Include retake sessions always
+                              (s.is_retake = 1 AND s.original_sesi_id IS NOT NULL)
+                              OR
+                              -- Include regular sessions that are not completed or completed recently
+                              (s.is_retake IS NULL OR s.is_retake = 0)
+                              AND NOT (
+                                  (SELECT status FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) = 'selesai'
+                                  AND (SELECT waktu_submit FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) IS NOT NULL
+                                  AND (SELECT waktu_submit FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) < DATE_SUB(NOW(), INTERVAL 7 DAY)
+                              )
+                          )
+                          ORDER BY s.waktu_mulai ASC");
+    $stmt->execute([$siswa_id, $siswa_id, $siswa_id, $siswa_id, $tahun_ajaran, $siswa_id, $siswa_id, $siswa_id]);
+} else {
+    // Fallback query without retake columns
+    $stmt = $pdo->prepare("SELECT DISTINCT s.*, u.judul, u.durasi, u.tipe_asesmen, u.is_mandatory, m.nama_mapel,
+                          (SELECT status FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) as status_nilai,
+                          (SELECT waktu_submit FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) as waktu_submit_nilai
+                          FROM sesi_ujian s
+                          INNER JOIN ujian u ON s.id_ujian = u.id
+                          INNER JOIN mapel m ON u.id_mapel = m.id
+                          WHERE s.status = 'aktif'
+                          AND EXISTS (
+                              SELECT 1 FROM sesi_peserta sp
+                              WHERE sp.id_sesi = s.id
+                              AND (
+                                  -- Individual assignment
+                                  (sp.id_user = ? AND sp.tipe_assign = 'individual')
+                                  OR
+                                  -- Kelas assignment - check if siswa is in the assigned kelas
+                                  (sp.tipe_assign = 'kelas' AND sp.id_kelas IN (
+                                      SELECT id_kelas FROM user_kelas 
+                                      WHERE id_user = ? AND tahun_ajaran = ?
+                                  ))
+                              )
+                          )
+                          AND NOT (
+                              (SELECT status FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) = 'selesai'
+                              AND (SELECT waktu_submit FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) IS NOT NULL
+                              AND (SELECT waktu_submit FROM nilai WHERE id_sesi = s.id AND id_siswa = ?) < DATE_SUB(NOW(), INTERVAL 7 DAY)
+                          )
+                          ORDER BY s.waktu_mulai ASC");
+    $stmt->execute([$siswa_id, $siswa_id, $siswa_id, $siswa_id, $tahun_ajaran, $siswa_id, $siswa_id, $siswa_id]);
+}
 $sesi_list = $stmt->fetchAll();
 ?>
 
@@ -98,6 +153,25 @@ $sesi_list = $stmt->fetchAll();
                         <tr>
                             <td>
                                 <?php echo escape($sesi['judul']); ?>
+                                <?php 
+                                // Check if this is a retake session
+                                try {
+                                    $check_retake_col = $pdo->query("SHOW COLUMNS FROM sesi_ujian LIKE 'is_retake'");
+                                    if ($check_retake_col->rowCount() > 0) {
+                                        $check_retake = $pdo->prepare("SELECT is_retake, original_sesi_id FROM sesi_ujian WHERE id = ?");
+                                        $check_retake->execute([$sesi['id']]);
+                                        $retake_info = $check_retake->fetch();
+                                        if ($retake_info && $retake_info['is_retake'] == 1): 
+                                        ?>
+                                            <span class="badge bg-warning text-dark ms-1">
+                                                <i class="fas fa-redo"></i> Retake
+                                            </span>
+                                        <?php endif;
+                                    }
+                                } catch (PDOException $e) {
+                                    // Column doesn't exist, skip retake badge
+                                }
+                                ?>
                                 <?php if (!empty($sesi['tipe_asesmen']) && $sesi['tipe_asesmen'] !== 'regular'): ?>
                                     <span class="badge <?php echo get_sumatip_badge_class($sesi['tipe_asesmen']); ?> ms-1">
                                         <?php echo get_sumatip_badge_label($sesi['tipe_asesmen']); ?>

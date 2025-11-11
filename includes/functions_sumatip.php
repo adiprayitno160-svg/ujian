@@ -385,6 +385,141 @@ function aggregate_nilai_semua_mapel($tahun_ajaran, $semester) {
 }
 
 /**
+ * Create jadwal assessment by tingkat (all classes in level)
+ */
+function create_jadwal_assessment_by_tingkat($data) {
+    global $pdo;
+    
+    try {
+        $pdo->beginTransaction();
+        
+        $tingkat = $data['tingkat'];
+        $tanggal = $data['tanggal'];
+        $waktu_mulai = $data['waktu_mulai'];
+        $waktu_selesai = $data['waktu_selesai'];
+        $tahun_ajaran = get_tahun_ajaran_aktif();
+        
+        // Get all kelas in the tingkat
+        $stmt = $pdo->prepare("SELECT id, nama_kelas FROM kelas WHERE tingkat = ? AND tahun_ajaran = ? AND status = 'active'");
+        $stmt->execute([$tingkat, $tahun_ajaran]);
+        $kelas_list = $stmt->fetchAll();
+        
+        if (empty($kelas_list)) {
+            throw new Exception("Tidak ada kelas ditemukan untuk tingkat " . $tingkat);
+        }
+        
+        // Get ujian info
+        $stmt = $pdo->prepare("SELECT durasi FROM ujian WHERE id = ?");
+        $stmt->execute([$data['id_ujian']]);
+        $ujian = $stmt->fetch();
+        
+        if (!$ujian) {
+            throw new Exception("Ujian tidak ditemukan");
+        }
+        
+        // Create single sesi for all classes in the level (shared sesi)
+        $sesi_id = null;
+        if (!empty($data['create_sesi'])) {
+            $datetime_mulai = $tanggal . ' ' . $waktu_mulai . ':00';
+            $datetime_selesai = $tanggal . ' ' . $waktu_selesai . ':00';
+            
+            $nama_sesi = "Assessment Tingkat " . $tingkat . " - " . date('d/m/Y H:i', strtotime($datetime_mulai));
+            
+            $stmt_sesi = $pdo->prepare("INSERT INTO sesi_ujian 
+                                       (id_ujian, nama_sesi, waktu_mulai, waktu_selesai, durasi, status)
+                                       VALUES (?, ?, ?, ?, ?, 'aktif')");
+            $stmt_sesi->execute([
+                $data['id_ujian'],
+                $nama_sesi,
+                $datetime_mulai,
+                $datetime_selesai,
+                $ujian['durasi']
+            ]);
+            
+            $sesi_id = $pdo->lastInsertId();
+            
+            // Assign sesi to all classes in the tingkat
+            foreach ($kelas_list as $kelas) {
+                // Get all siswa in this kelas
+                $stmt_siswa = $pdo->prepare("SELECT u.id FROM users u
+                                            INNER JOIN user_kelas uk ON u.id = uk.id_user
+                                            WHERE uk.id_kelas = ? 
+                                            AND uk.tahun_ajaran = ?
+                                            AND u.role = 'siswa'
+                                            AND u.status = 'active'");
+                $stmt_siswa->execute([$kelas['id'], $tahun_ajaran]);
+                $siswa_list = $stmt_siswa->fetchAll();
+                
+                // Assign sesi to kelas (for tracking)
+                $stmt_peserta = $pdo->prepare("INSERT INTO sesi_peserta (id_sesi, id_kelas, tipe_assign)
+                                              VALUES (?, ?, 'kelas')
+                                              ON DUPLICATE KEY UPDATE id_sesi = id_sesi");
+                $stmt_peserta->execute([$sesi_id, $kelas['id']]);
+            }
+        }
+        
+        // Create jadwal for each kelas
+        $jadwal_ids = [];
+        foreach ($kelas_list as $kelas) {
+            // Check for overlap
+            $stmt = $pdo->prepare("SELECT id FROM jadwal_assessment 
+                                  WHERE id_kelas = ? 
+                                  AND tanggal = ?
+                                  AND status = 'aktif'
+                                  AND (
+                                      (waktu_mulai <= ? AND waktu_selesai >= ?)
+                                      OR (waktu_mulai <= ? AND waktu_selesai >= ?)
+                                      OR (waktu_mulai >= ? AND waktu_selesai <= ?)
+                                  )");
+            $stmt->execute([
+                $kelas['id'],
+                $tanggal,
+                $waktu_mulai, $waktu_mulai,
+                $waktu_selesai, $waktu_selesai,
+                $waktu_mulai, $waktu_selesai
+            ]);
+            
+            if ($stmt->fetch()) {
+                // Skip if overlap, but continue with other classes
+                error_log("Jadwal overlap untuk kelas " . $kelas['nama_kelas'] . " - skipped");
+                continue;
+            }
+            
+            // Insert jadwal
+            $stmt = $pdo->prepare("INSERT INTO jadwal_assessment 
+                                  (id_ujian, id_kelas, tingkat, tanggal, waktu_mulai, waktu_selesai, 
+                                   status, is_susulan, id_jadwal_utama, id_sesi, created_by)
+                                  VALUES (?, ?, ?, ?, ?, ?, 'aktif', ?, ?, ?, ?)");
+            $stmt->execute([
+                $data['id_ujian'],
+                $kelas['id'],
+                $tingkat,
+                $tanggal,
+                $waktu_mulai,
+                $waktu_selesai,
+                $data['is_susulan'] ?? 0,
+                $data['id_jadwal_utama'] ?? null,
+                $sesi_id,
+                $data['created_by']
+            ]);
+            
+            $jadwal_ids[] = $pdo->lastInsertId();
+        }
+        
+        if (empty($jadwal_ids)) {
+            throw new Exception("Gagal membuat jadwal. Mungkin terjadi overlap dengan jadwal yang sudah ada.");
+        }
+        
+        $pdo->commit();
+        return $jadwal_ids;
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        error_log("Create jadwal assessment by tingkat error: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+/**
  * Create jadwal assessment
  */
 function create_jadwal_assessment($data) {
@@ -425,26 +560,8 @@ function create_jadwal_assessment($data) {
         $kelas = $stmt->fetch();
         $tingkat = $kelas['tingkat'] ?? null;
         
-        // Insert jadwal
-        $stmt = $pdo->prepare("INSERT INTO jadwal_assessment 
-                              (id_ujian, id_kelas, tingkat, tanggal, waktu_mulai, waktu_selesai, 
-                               status, is_susulan, id_jadwal_utama, created_by)
-                              VALUES (?, ?, ?, ?, ?, ?, 'aktif', ?, ?, ?)");
-        $stmt->execute([
-            $data['id_ujian'],
-            $data['id_kelas'],
-            $tingkat,
-            $tanggal,
-            $waktu_mulai,
-            $waktu_selesai,
-            $data['is_susulan'] ?? 0,
-            $data['id_jadwal_utama'] ?? null,
-            $data['created_by']
-        ]);
-        
-        $jadwal_id = $pdo->lastInsertId();
-        
         // Create sesi if needed
+        $sesi_id = null;
         if (!empty($data['create_sesi'])) {
             $stmt_ujian = $pdo->prepare("SELECT durasi FROM ujian WHERE id = ?");
             $stmt_ujian->execute([$data['id_ujian']]);
@@ -456,7 +573,7 @@ function create_jadwal_assessment($data) {
                 
                 $stmt_sesi = $pdo->prepare("INSERT INTO sesi_ujian 
                                            (id_ujian, nama_sesi, waktu_mulai, waktu_selesai, durasi, status)
-                                           VALUES (?, ?, ?, ?, ?, 'draft')");
+                                           VALUES (?, ?, ?, ?, ?, 'aktif')");
                 $nama_sesi = "Sesi " . date('d/m/Y H:i', strtotime($datetime_mulai));
                 $stmt_sesi->execute([
                     $data['id_ujian'],
@@ -468,11 +585,33 @@ function create_jadwal_assessment($data) {
                 
                 $sesi_id = $pdo->lastInsertId();
                 
-                // Update jadwal dengan id_sesi
-                $stmt_update = $pdo->prepare("UPDATE jadwal_assessment SET id_sesi = ? WHERE id = ?");
-                $stmt_update->execute([$sesi_id, $jadwal_id]);
+                // Assign sesi to kelas
+                $stmt_peserta = $pdo->prepare("INSERT INTO sesi_peserta (id_sesi, id_kelas, tipe_assign)
+                                              VALUES (?, ?, 'kelas')
+                                              ON DUPLICATE KEY UPDATE id_sesi = id_sesi");
+                $stmt_peserta->execute([$sesi_id, $data['id_kelas']]);
             }
         }
+        
+        // Insert jadwal
+        $stmt = $pdo->prepare("INSERT INTO jadwal_assessment 
+                              (id_ujian, id_kelas, tingkat, tanggal, waktu_mulai, waktu_selesai, 
+                               status, is_susulan, id_jadwal_utama, id_sesi, created_by)
+                              VALUES (?, ?, ?, ?, ?, ?, 'aktif', ?, ?, ?, ?)");
+        $stmt->execute([
+            $data['id_ujian'],
+            $data['id_kelas'],
+            $tingkat,
+            $tanggal,
+            $waktu_mulai,
+            $waktu_selesai,
+            $data['is_susulan'] ?? 0,
+            $data['id_jadwal_utama'] ?? null,
+            $sesi_id,
+            $data['created_by']
+        ]);
+        
+        $jadwal_id = $pdo->lastInsertId();
         
         $pdo->commit();
         return $jadwal_id;
@@ -584,6 +723,240 @@ function create_absensi($id_sesi, $id_siswa, $id_pr = null, $status = 'hadir', $
     } catch (PDOException $e) {
         error_log("Create absensi error: " . $e->getMessage());
         return false;
+    }
+}
+
+/**
+ * Create retake sesi for students who didn't attend daily exam
+ */
+function create_retake_sesi($sesi_id, $siswa_ids, $waktu_mulai, $waktu_selesai, $created_by = null) {
+    global $pdo;
+    
+    try {
+        // Run migration first to ensure columns exist
+        if (file_exists(__DIR__ . '/auto_migration_retake.php')) {
+            require_once __DIR__ . '/auto_migration_retake.php';
+            run_retake_migration();
+        }
+        
+        $pdo->beginTransaction();
+        
+        // Get original sesi info
+        $stmt = $pdo->prepare("SELECT s.*, u.durasi, u.judul 
+                              FROM sesi_ujian s 
+                              INNER JOIN ujian u ON s.id_ujian = u.id 
+                              WHERE s.id = ?");
+        $stmt->execute([$sesi_id]);
+        $original_sesi = $stmt->fetch();
+        
+        if (!$original_sesi) {
+            throw new Exception('Sesi tidak ditemukan');
+        }
+        
+        // Check if columns exist, if not use basic insert
+        $check_cols = $pdo->query("SHOW COLUMNS FROM sesi_ujian LIKE 'is_retake'");
+        $has_retake_cols = $check_cols->rowCount() > 0;
+        
+        // Create new sesi for retake
+        $nama_sesi = $original_sesi['nama_sesi'] . ' - Retake';
+        
+        if ($has_retake_cols) {
+            $stmt = $pdo->prepare("INSERT INTO sesi_ujian 
+                                  (id_ujian, nama_sesi, waktu_mulai, waktu_selesai, durasi, status, is_retake, original_sesi_id)
+                                  VALUES (?, ?, ?, ?, ?, 'aktif', 1, ?)");
+            $stmt->execute([
+                $original_sesi['id_ujian'],
+                $nama_sesi,
+                $waktu_mulai,
+                $waktu_selesai,
+                $original_sesi['durasi'],
+                $sesi_id // original_sesi_id
+            ]);
+        } else {
+            // Fallback: create sesi without retake columns
+            $stmt = $pdo->prepare("INSERT INTO sesi_ujian 
+                                  (id_ujian, nama_sesi, waktu_mulai, waktu_selesai, durasi, status)
+                                  VALUES (?, ?, ?, ?, ?, 'aktif')");
+            $stmt->execute([
+                $original_sesi['id_ujian'],
+                $nama_sesi,
+                $waktu_mulai,
+                $waktu_selesai,
+                $original_sesi['durasi']
+            ]);
+        }
+        
+        $retake_sesi_id = $pdo->lastInsertId();
+        
+        // Assign siswa to retake sesi
+        foreach ($siswa_ids as $siswa_id) {
+            $siswa_id = intval($siswa_id);
+            
+            // Assign individual
+            $stmt = $pdo->prepare("INSERT INTO sesi_peserta 
+                                  (id_sesi, id_user, tipe_assign) 
+                                  VALUES (?, ?, 'individual')
+                                  ON DUPLICATE KEY UPDATE id_sesi = id_sesi");
+            $stmt->execute([$retake_sesi_id, $siswa_id]);
+            
+            // Check if absensi exists, create if not
+            $stmt = $pdo->prepare("SELECT id FROM absensi_ujian WHERE id_sesi = ? AND id_siswa = ?");
+            $stmt->execute([$sesi_id, $siswa_id]);
+            $absensi = $stmt->fetch();
+            
+            if ($absensi) {
+                // Update existing absensi
+                $check_retake_col = $pdo->query("SHOW COLUMNS FROM absensi_ujian LIKE 'retake_sesi_id'");
+                if ($check_retake_col->rowCount() > 0) {
+                    $stmt = $pdo->prepare("UPDATE absensi_ujian 
+                                          SET retake_sesi_id = ?, status_absen = 'retake'
+                                          WHERE id_sesi = ? AND id_siswa = ?");
+                    $stmt->execute([$retake_sesi_id, $sesi_id, $siswa_id]);
+                } else {
+                    // Try to update status to retake (might fail if enum doesn't have retake)
+                    try {
+                        $stmt = $pdo->prepare("UPDATE absensi_ujian 
+                                              SET status_absen = 'retake'
+                                              WHERE id_sesi = ? AND id_siswa = ?");
+                        $stmt->execute([$sesi_id, $siswa_id]);
+                    } catch (PDOException $e) {
+                        // If enum doesn't support retake, just log
+                        error_log("Cannot update status to retake: " . $e->getMessage());
+                    }
+                }
+            } else {
+                // Create absensi with retake status
+                try {
+                    $stmt = $pdo->prepare("INSERT INTO absensi_ujian 
+                                          (id_sesi, id_siswa, status_absen, waktu_absen, metode_absen)
+                                          VALUES (?, ?, 'retake', NOW(), 'auto')");
+                    $stmt->execute([$sesi_id, $siswa_id]);
+                } catch (PDOException $e) {
+                    // If retake status not supported, use tidak_hadir
+                    $stmt = $pdo->prepare("INSERT INTO absensi_ujian 
+                                          (id_sesi, id_siswa, status_absen, waktu_absen, metode_absen)
+                                          VALUES (?, ?, 'tidak_hadir', NOW(), 'auto')");
+                    $stmt->execute([$sesi_id, $siswa_id]);
+                }
+            }
+        }
+        
+        $pdo->commit();
+        return $retake_sesi_id;
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log("Create retake sesi error: " . $e->getMessage());
+        throw $e;
+    }
+}
+
+/**
+ * Get students who need retake (didn't attend daily exam)
+ */
+function get_students_need_retake($sesi_id) {
+    global $pdo;
+    
+    try {
+        // Get ujian info to check if it's daily exam (not assessment)
+        $stmt = $pdo->prepare("SELECT u.tipe_asesmen FROM sesi_ujian s 
+                              INNER JOIN ujian u ON s.id_ujian = u.id 
+                              WHERE s.id = ?");
+        $stmt->execute([$sesi_id]);
+        $ujian_info = $stmt->fetch();
+        
+        // Only for daily exams (tipe_asesmen is null or empty)
+        if ($ujian_info && !empty($ujian_info['tipe_asesmen'])) {
+            return []; // Not a daily exam, no retake needed
+        }
+        
+        // Get all assigned students from sesi_peserta
+        $tahun_ajaran = get_tahun_ajaran_aktif();
+        
+        // Get individual assignments
+        $stmt = $pdo->prepare("SELECT DISTINCT u.id, u.nama, u.username
+                              FROM sesi_peserta sp
+                              INNER JOIN users u ON sp.id_user = u.id
+                              WHERE sp.id_sesi = ?
+                              AND sp.tipe_assign = 'individual'
+                              AND u.role = 'siswa'
+                              AND u.status = 'active'");
+        $stmt->execute([$sesi_id]);
+        $individual_students = $stmt->fetchAll();
+        
+        // Get kelas assignments
+        $stmt = $pdo->prepare("SELECT DISTINCT u.id, u.nama, u.username, k.nama_kelas
+                              FROM sesi_peserta sp
+                              INNER JOIN user_kelas uk ON sp.id_kelas = uk.id_kelas
+                              INNER JOIN users u ON uk.id_user = u.id
+                              LEFT JOIN kelas k ON uk.id_kelas = k.id
+                              WHERE sp.id_sesi = ?
+                              AND sp.tipe_assign = 'kelas'
+                              AND uk.tahun_ajaran = ?
+                              AND u.role = 'siswa'
+                              AND u.status = 'active'");
+        $stmt->execute([$sesi_id, $tahun_ajaran]);
+        $kelas_students = $stmt->fetchAll();
+        
+        // Merge and get unique students
+        $all_students = [];
+        $seen_ids = [];
+        
+        foreach ($individual_students as $student) {
+            if (!in_array($student['id'], $seen_ids)) {
+                $seen_ids[] = $student['id'];
+                $all_students[] = $student;
+            }
+        }
+        
+        foreach ($kelas_students as $student) {
+            if (!in_array($student['id'], $seen_ids)) {
+                $seen_ids[] = $student['id'];
+                $all_students[] = $student;
+            }
+        }
+        
+        // Check if retake_sesi_id column exists
+        $check_col = $pdo->query("SHOW COLUMNS FROM absensi_ujian LIKE 'retake_sesi_id'");
+        $has_retake_col = $check_col->rowCount() > 0;
+        
+        // Filter students who didn't attend (no nilai or status_absen = 'tidak_hadir')
+        $need_retake = [];
+        foreach ($all_students as $student) {
+            $student_id = $student['id'];
+            
+            // Check if student has nilai with status selesai
+            $stmt = $pdo->prepare("SELECT status FROM nilai WHERE id_sesi = ? AND id_siswa = ? AND status = 'selesai'");
+            $stmt->execute([$sesi_id, $student_id]);
+            $nilai = $stmt->fetch();
+            
+            // Check absensi
+            if ($has_retake_col) {
+                $stmt = $pdo->prepare("SELECT status_absen, retake_sesi_id FROM absensi_ujian WHERE id_sesi = ? AND id_siswa = ?");
+            } else {
+                $stmt = $pdo->prepare("SELECT status_absen FROM absensi_ujian WHERE id_sesi = ? AND id_siswa = ?");
+            }
+            $stmt->execute([$sesi_id, $student_id]);
+            $absensi = $stmt->fetch();
+            
+            // Need retake if: no nilai selesai or status_absen = 'tidak_hadir', and not already has retake sesi
+            $has_retake = $has_retake_col && $absensi && !empty($absensi['retake_sesi_id']);
+            
+            if (!$nilai && (!$absensi || $absensi['status_absen'] === 'tidak_hadir') && !$has_retake) {
+                $need_retake[] = [
+                    'id' => $student_id,
+                    'nama' => $student['nama'],
+                    'username' => $student['username'],
+                    'kelas' => $student['nama_kelas'] ?? '-'
+                ];
+            }
+        }
+        
+        return $need_retake;
+    } catch (PDOException $e) {
+        error_log("Get students need retake error: " . $e->getMessage());
+        return [];
     }
 }
 

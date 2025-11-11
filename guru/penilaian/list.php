@@ -166,8 +166,17 @@ if ($id_mapel && $id_kelas && !empty($siswa_list)) {
 
 <div class="row mb-4">
     <div class="col-12">
-        <h2 class="fw-bold">Penilaian Manual</h2>
-        <p class="text-muted">Input nilai manual untuk siswa berdasarkan mata pelajaran yang Anda ampu</p>
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h2 class="fw-bold">Penilaian Manual - UTS</h2>
+                <p class="text-muted mb-0">Penilaian manual hanya untuk nilai UTS. Nilai tugas dan UAS dihitung dari hasil tugas dan ujian.</p>
+            </div>
+            <div>
+                <a href="<?php echo base_url('guru/penilaian/import.php'); ?>" class="btn btn-success">
+                    <i class="fas fa-file-excel"></i> Import Excel
+                </a>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -324,9 +333,7 @@ if ($id_mapel && $id_kelas && !empty($siswa_list)) {
                                 <th width="5%">No</th>
                                 <th width="10%">NIS</th>
                                 <th width="20%">Nama Siswa</th>
-                                <th width="12%">Nilai Tugas</th>
-                                <th width="12%">Nilai UTS</th>
-                                <th width="12%">Nilai UAS</th>
+                                <th width="15%">Nilai UTS</th>
                                 <th width="12%">Nilai Akhir</th>
                                 <th width="10%">Predikat</th>
                                 <th width="10%">Status</th>
@@ -348,35 +355,15 @@ if ($id_mapel && $id_kelas && !empty($siswa_list)) {
                                         <input type="hidden" name="penilaian[<?php echo $siswa['id']; ?>][id_siswa]" value="<?php echo $siswa['id']; ?>">
                                         <input type="number" 
                                                class="form-control form-control-sm" 
-                                               name="penilaian[<?php echo $siswa['id']; ?>][nilai_tugas]" 
-                                               value="<?php echo $penilaian ? number_format($penilaian['nilai_tugas'], 2, '.', '') : ''; ?>"
-                                               step="0.01" 
-                                               min="0" 
-                                               max="100"
-                                               placeholder="0-100"
-                                               <?php echo ($penilaian && ($penilaian['status'] == 'submitted' || $penilaian['status'] == 'approved')) ? 'readonly' : ''; ?>>
-                                    </td>
-                                    <td>
-                                        <input type="number" 
-                                               class="form-control form-control-sm" 
                                                name="penilaian[<?php echo $siswa['id']; ?>][nilai_uts]" 
                                                value="<?php echo $penilaian ? number_format($penilaian['nilai_uts'], 2, '.', '') : ''; ?>"
                                                step="0.01" 
                                                min="0" 
                                                max="100"
                                                placeholder="0-100"
+                                               required
                                                <?php echo ($penilaian && ($penilaian['status'] == 'submitted' || $penilaian['status'] == 'approved')) ? 'readonly' : ''; ?>>
-                                    </td>
-                                    <td>
-                                        <input type="number" 
-                                               class="form-control form-control-sm" 
-                                               name="penilaian[<?php echo $siswa['id']; ?>][nilai_uas]" 
-                                               value="<?php echo $penilaian ? number_format($penilaian['nilai_uas'], 2, '.', '') : ''; ?>"
-                                               step="0.01" 
-                                               min="0" 
-                                               max="100"
-                                               placeholder="0-100"
-                                               <?php echo ($penilaian && ($penilaian['status'] == 'submitted' || $penilaian['status'] == 'approved')) ? 'readonly' : ''; ?>>
+                                        <small class="text-muted">Penilaian manual hanya untuk UTS</small>
                                     </td>
                                     <td>
                                         <input type="number" 
@@ -460,10 +447,14 @@ if ($id_mapel && $id_kelas && !empty($siswa_list)) {
                 </div>
                 
                 <div class="mt-3">
+                    <a href="<?php echo base_url('guru-penilaian-export-template'); ?>?id_mapel=<?php echo $id_mapel; ?>&id_kelas=<?php echo $id_kelas; ?>&tahun_ajaran=<?php echo urlencode($tahun_ajaran); ?>&semester=<?php echo urlencode($semester); ?>" 
+                       class="btn btn-success" target="_blank">
+                        <i class="fas fa-file-excel"></i> Download Template Excel
+                    </a>
                     <button type="submit" class="btn btn-primary" name="action" value="save">
                         <i class="fas fa-save"></i> Simpan Nilai
                     </button>
-                    <button type="submit" class="btn btn-success" name="action" value="submit" onclick="return confirm('Apakah Anda yakin ingin mengumpulkan nilai ini ke operator? Setelah dikumpulkan, nilai tidak bisa diubah lagi.');">
+                    <button type="submit" class="btn btn-info" name="action" value="submit" onclick="return confirm('Apakah Anda yakin ingin mengumpulkan nilai ini ke operator? Setelah dikumpulkan, nilai tidak bisa diubah lagi.');">
                         <i class="fas fa-paper-plane"></i> Kumpulkan ke Operator
                     </button>
                 </div>

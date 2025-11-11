@@ -1,11 +1,8 @@
+# Set default index file
 DirectoryIndex index.php index.html
 
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    
-    # Auto-detect base path dynamically
-    RewriteCond %{REQUEST_URI}::$1 ^(.*?/)(.*)::\2$
-    RewriteRule ^(.*)$ - [E=BASE:%1]
     
     # IMPORTANT: Block direct access to config, includes, backups folders FIRST
     # This pattern matches /config/, /includes/, /backups/ anywhere in the URL
@@ -17,18 +14,25 @@ DirectoryIndex index.php index.html
     RewriteCond %{REQUEST_URI} /(assets|api)/ [NC]
     RewriteRule ^ - [L]
     
-    # Skip rewrite for existing files and directories (but not config/includes/backups)
-    # But don't skip if it's the root directory (empty path)
+    # Skip rewrite for existing files (but not config/includes/backups)
+    # Allow direct access to PHP files, but route clean URLs through router
     RewriteCond %{REQUEST_URI} !/(config|includes|backups)(/|$) [NC]
-    RewriteCond %{REQUEST_URI} !^/?$ [NC]
-    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -f
+    RewriteRule ^ - [L]
+    
+    # Skip rewrite for existing directories (but not config/includes/backups)
+    RewriteCond %{REQUEST_URI} !/(config|includes|backups)(/|$) [NC]
     RewriteCond %{REQUEST_FILENAME} -d
     RewriteRule ^ - [L]
     
-    # Route to router.php for all requests (including root)
-    RewriteCond %{REQUEST_FILENAME} !-f
-    RewriteCond %{REQUEST_FILENAME} !-d
+    # Route all other requests (including root and clean URLs) to router.php
     RewriteRule ^(.*)$ router.php [L,QSA]
+</IfModule>
+
+# Fallback: If mod_rewrite is not available, ensure index.php is loaded for root
+<IfModule !mod_rewrite.c>
+    # This is a fallback - mod_rewrite should be enabled for full functionality
+    # Root requests will use DirectoryIndex (index.php) automatically
 </IfModule>
 
 # Prevent directory listing

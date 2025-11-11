@@ -87,16 +87,30 @@ function get_tugas_by_student($student_id, $filters = []) {
     global $pdo;
     
     try {
-        $sql = "SELECT DISTINCT t.*, m.nama_mapel,
+        $sql = "SELECT DISTINCT t.*, m.nama_mapel, u.nama as nama_guru,
                 (SELECT status FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) as status_submission,
-                (SELECT nilai FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) as nilai_submission
+                (SELECT nilai FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) as nilai_submission,
+                (SELECT waktu_submit FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) as waktu_submit_submission
                 FROM tugas t
                 INNER JOIN mapel m ON t.id_mapel = m.id
+                INNER JOIN users u ON t.id_guru = u.id
                 INNER JOIN tugas_kelas tk ON t.id = tk.id_tugas
                 INNER JOIN user_kelas uk ON tk.id_kelas = uk.id_kelas
                 WHERE uk.id_user = ? AND t.status = 'published'";
         
-        $params = [$student_id, $student_id, $student_id];
+        $params = [$student_id, $student_id, $student_id, $student_id];
+        
+        // Exclude completed tasks older than 1 week
+        $sql .= " AND (
+            (SELECT status FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) IS NULL
+            OR (SELECT status FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) NOT IN ('sudah_dikumpulkan', 'dinilai', 'terlambat')
+            OR (SELECT waktu_submit FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) IS NULL
+            OR (SELECT waktu_submit FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        )";
+        $params[] = $student_id;
+        $params[] = $student_id;
+        $params[] = $student_id;
+        $params[] = $student_id;
         
         if (isset($filters['status'])) {
             $sql .= " AND (SELECT status FROM tugas_submission WHERE id_tugas = t.id AND id_siswa = ?) = ?";

@@ -281,6 +281,8 @@ $routes = [
     'guru-tugas-delete' => 'guru/tugas/delete.php',
     'guru-penilaian-list' => 'guru/penilaian/list.php',
     'guru-penilaian-save' => 'guru/penilaian/save.php',
+    'guru-penilaian-import' => 'guru/penilaian/import.php',
+    'guru-penilaian-export-template' => 'guru/penilaian/export_template.php',
     
     // Siswa routes
     'siswa' => 'siswa/index.php',
@@ -319,6 +321,11 @@ $routes = [
     'operator-sesi-manage' => 'operator/sesi/manage.php',
     'operator-sesi-assign-peserta' => 'operator/sesi/assign_peserta.php',
     'operator-sesi-manage-token' => 'operator/sesi/manage_token.php',
+    'operator-tugas-list' => 'operator/tugas/list.php',
+    'operator-tugas-create' => 'operator/tugas/create.php',
+    'operator-tugas-detail' => 'operator/tugas/detail.php',
+    'operator-tugas-edit' => 'operator/tugas/edit.php',
+    'operator-tugas-review' => 'operator/tugas/review.php',
     'operator-monitoring-realtime' => 'operator/monitoring/realtime.php',
     
     // Operator Assessment routes
@@ -358,6 +365,7 @@ $routes = [
     // Guru Absensi routes
     'guru-absensi-list' => 'guru/absensi/list.php',
     'guru-absensi-export' => 'guru/absensi/export.php',
+    'guru-absensi-retake' => 'guru/absensi/retake.php',
 ];
 
 // Check if route exists

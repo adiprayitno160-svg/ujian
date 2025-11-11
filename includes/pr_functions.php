@@ -97,16 +97,30 @@ function get_pr_by_student($student_id, $filters = []) {
     global $pdo;
     
     try {
-        $sql = "SELECT DISTINCT p.*, m.nama_mapel,
+        $sql = "SELECT DISTINCT p.*, m.nama_mapel, u.nama as nama_guru,
                 (SELECT status FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) as status_submission,
-                (SELECT nilai FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) as nilai_submission
+                (SELECT nilai FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) as nilai_submission,
+                (SELECT waktu_submit FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) as waktu_submit_submission
                 FROM pr p
                 INNER JOIN mapel m ON p.id_mapel = m.id
+                INNER JOIN users u ON p.id_guru = u.id
                 INNER JOIN pr_kelas pk ON p.id = pk.id_pr
                 INNER JOIN user_kelas uk ON pk.id_kelas = uk.id_kelas
                 WHERE uk.id_user = ?";
         
-        $params = [$student_id, $student_id, $student_id];
+        $params = [$student_id, $student_id, $student_id, $student_id];
+        
+        // Exclude completed PR older than 1 week
+        $sql .= " AND (
+            (SELECT status FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) IS NULL
+            OR (SELECT status FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) NOT IN ('sudah_dikumpulkan', 'dinilai', 'terlambat')
+            OR (SELECT waktu_submit FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) IS NULL
+            OR (SELECT waktu_submit FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        )";
+        $params[] = $student_id;
+        $params[] = $student_id;
+        $params[] = $student_id;
+        $params[] = $student_id;
         
         if (isset($filters['status'])) {
             $sql .= " AND (SELECT status FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) = ?";

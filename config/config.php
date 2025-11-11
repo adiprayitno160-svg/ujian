@@ -133,7 +133,7 @@ define('AUTO_SAVE_INTERVAL', 30);
 
 // Minimum submit minutes (default)
 // Siswa harus menunggu minimal 3 menit setelah mulai ujian sebelum bisa submit
-define('DEFAULT_MIN_SUBMIT_MINUTES', 3);
+define('DEFAULT_MIN_SUBMIT_MINUTES', 0); // Set to 0 to disable minimum submit time restriction
 
 // Verifikasi Dokumen Settings
 define('VERIFIKASI_MIN_FILE_SIZE', 102400); // 100KB in bytes (minimum size)

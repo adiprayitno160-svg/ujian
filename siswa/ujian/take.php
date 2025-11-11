@@ -155,6 +155,14 @@ try {
     redirect('siswa-ujian-list');
 }
 
+// Check for fraud flag - force logout if fraud detected
+if ($nilai && ($nilai['is_fraud'] || $nilai['requires_relogin'])) {
+    // Fraud detected - force logout
+    $_SESSION['error_message'] = 'Fraud terdeteksi: ' . ($nilai['fraud_reason'] ?? 'Pelanggaran keamanan terdeteksi') . '. Silakan login ulang. Waktu ujian terus berjalan.';
+    logout();
+    redirect('siswa/login.php?fraud=1&sesi_id=' . $sesi_id);
+}
+
 if (!$nilai) {
     try {
         $stmt = $pdo->prepare("INSERT INTO nilai (id_sesi, id_ujian, id_siswa, status, waktu_mulai, device_info, ip_address) 
@@ -194,7 +202,20 @@ if (!$nilai) {
     clear_exam_mode();
     redirect('siswa-ujian-hasil?id=' . $sesi_id);
 } else {
-    // Exam already started - set exam mode
+    // Exam already started - check for normal disruption (requires token)
+    if (isset($nilai['answers_locked']) && $nilai['answers_locked'] && 
+        isset($nilai['requires_token']) && $nilai['requires_token'] && 
+        (!isset($nilai['is_fraud']) || !$nilai['is_fraud'])) {
+        // Normal disruption - answers locked, need token to resume
+        // Check if token is already verified
+        $token_verified_key = 'token_verified_' . $sesi_id;
+        if (!isset($_SESSION[$token_verified_key]) || !$_SESSION[$token_verified_key]) {
+            // Token not verified yet - will be handled by token verification below
+            $need_auth = true;
+        }
+    }
+    
+    // Set exam mode
     set_exam_mode($sesi_id, $sesi['id_ujian']);
 }
 
@@ -224,16 +245,21 @@ try {
     redirect('siswa-ujian-list');
 }
 
-// Get saved answers
-$stmt = $pdo->prepare("SELECT id_soal, jawaban, jawaban_json, is_ragu FROM jawaban_siswa 
+// Get saved answers (including locked status - but locked only after submit)
+$stmt = $pdo->prepare("SELECT id_soal, jawaban, jawaban_json, is_ragu, is_locked FROM jawaban_siswa 
                       WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
 $stmt->execute([$sesi_id, $sesi['id_ujian'], $_SESSION['user_id']]);
 $saved_answers = [];
 $ragu_soal = [];
+$locked_answers = [];
 foreach ($stmt->fetchAll() as $ans) {
     $saved_answers[$ans['id_soal']] = $ans;
     if ($ans['is_ragu']) {
         $ragu_soal[] = $ans['id_soal'];
+    }
+    if ($ans['is_locked'] && $nilai && $nilai['status'] === 'selesai') {
+        // Only consider locked if exam is finished
+        $locked_answers[] = $ans['id_soal'];
     }
 }
 
@@ -255,11 +281,11 @@ $sisa_waktu = max(0, $waktu_selesai->getTimestamp() - $now->getTimestamp());
 $elapsed_seconds = $now->getTimestamp() - $waktu_mulai->getTimestamp();
 $elapsed_seconds = max(0, $elapsed_seconds);
 
-// Get min_submit_minutes from ujian or use default
-$min_submit_minutes = $ujian['min_submit_minutes'] ?? DEFAULT_MIN_SUBMIT_MINUTES;
-$min_submit_seconds = $min_submit_minutes * 60;
-$can_submit_now = $elapsed_seconds >= $min_submit_seconds;
-$seconds_until_submit_enabled = max(0, $min_submit_seconds - $elapsed_seconds);
+// Minimum submit time restriction removed - students can finish anytime
+// Finish button is always available (only restricted by time limit)
+$can_submit_now = true;
+$min_submit_seconds = 0;
+$seconds_until_submit_enabled = 0;
 
 // Get current soal
 $current_soal_data = $soal_list[$current_soal - 1] ?? null;
@@ -270,6 +296,7 @@ if (!$current_soal_data) {
 
 // Check authentication (token only) - before header
 $token_verified_key = 'token_verified_' . $sesi_id;
+$token_id_key = 'token_id_' . $sesi_id;
 $need_auth = false;
 $token_error = '';
 
@@ -293,14 +320,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_auth'])) {
             } elseif ($token['max_usage'] && $token['current_usage'] >= $token['max_usage']) {
                 $token_error = 'Token sudah mencapai batas penggunaan';
             } else {
-                // Token valid - record usage
-                $stmt = $pdo->prepare("INSERT INTO token_usage (id_token, id_user, ip_address, device_info) VALUES (?, ?, ?, ?)");
-                $stmt->execute([$token['id'], $_SESSION['user_id'], get_client_ip(), get_device_info()]);
+                // Check if this user already used a token for this session
+                $stmt = $pdo->prepare("SELECT id_token FROM token_usage 
+                                      WHERE id_user = ? AND sesi_id = ? 
+                                      ORDER BY created_at DESC LIMIT 1");
+                $stmt->execute([$_SESSION['user_id'], $sesi_id]);
+                $existing_usage = $stmt->fetch();
                 
-                $stmt = $pdo->prepare("UPDATE token_ujian SET current_usage = current_usage + 1 WHERE id = ?");
-                $stmt->execute([$token['id']]);
+                // Check if token was already used by another user (prevent token sharing)
+                $stmt = $pdo->prepare("SELECT COUNT(DISTINCT id_user) as user_count 
+                                      FROM token_usage 
+                                      WHERE id_token = ? AND sesi_id = ?");
+                $stmt->execute([$token['id'], $sesi_id]);
+                $token_users = $stmt->fetch();
                 
-                $_SESSION[$token_verified_key] = true;
+                if ($token_users && $token_users['user_count'] > 0) {
+                    // Token already used by someone else - prevent reuse
+                    $token_error = 'Token ini sudah digunakan. Setiap siswa harus menggunakan token yang berbeda.';
+                } else {
+                    // Token valid and not used by others - record usage
+                    if (!$existing_usage || $existing_usage['id_token'] != $token['id']) {
+                        // New token usage for this user
+                        try {
+                            // Check if token_usage table has sesi_id column, if not, add it
+                            $check_col = $pdo->query("SHOW COLUMNS FROM token_usage LIKE 'sesi_id'");
+                            if ($check_col->rowCount() == 0) {
+                                $pdo->exec("ALTER TABLE token_usage ADD COLUMN sesi_id INT DEFAULT NULL AFTER id_user");
+                            }
+                        } catch (PDOException $e) {
+                            // Column might already exist, ignore error
+                        }
+                        
+                        $stmt = $pdo->prepare("INSERT INTO token_usage (id_token, id_user, sesi_id, ip_address, device_info) 
+                                              VALUES (?, ?, ?, ?, ?)");
+                        $stmt->execute([$token['id'], $_SESSION['user_id'], $sesi_id, get_client_ip(), get_device_info()]);
+                        
+                        $stmt = $pdo->prepare("UPDATE token_ujian SET current_usage = current_usage + 1 WHERE id = ?");
+                        $stmt->execute([$token['id']]);
+                    }
+                    
+                    // Store verification in session and bind to user
+                    $_SESSION[$token_verified_key] = true;
+                    $_SESSION[$token_id_key] = $token['id'];
+                }
                 
                 // Redirect to same page to continue
                 redirect('siswa-ujian-take?id=' . $sesi_id);
@@ -313,9 +375,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verify_auth'])) {
 // If token is not required, automatically mark as verified
 if (!$sesi['token_required']) {
     $_SESSION[$token_verified_key] = true;
+    $token_verified = true;
+} else {
+    // Check if token was verified in session
+    $token_verified = isset($_SESSION[$token_verified_key]) && $_SESSION[$token_verified_key];
+    
+    // If verified in session, verify token is still valid in database
+    if ($token_verified && isset($_SESSION[$token_id_key])) {
+        $stored_token_id = $_SESSION[$token_id_key];
+        $stmt = $pdo->prepare("SELECT * FROM token_ujian 
+                              WHERE id = ? AND id_sesi = ? AND status = 'active' 
+                              AND expires_at > NOW()");
+        $stmt->execute([$stored_token_id, $sesi_id]);
+        $token_still_valid = $stmt->fetch();
+        
+        if (!$token_still_valid) {
+            // Token is no longer valid - clear verification
+            unset($_SESSION[$token_verified_key]);
+            unset($_SESSION[$token_id_key]);
+            $token_verified = false;
+        } else {
+            // Also check if student has a valid token_usage record for this sesi
+            // This ensures token is bound to user and sesi
+            $stmt = $pdo->prepare("SELECT id FROM token_usage 
+                                  WHERE id_token = ? AND id_user = ? 
+                                  AND (sesi_id IS NULL OR sesi_id = ?)");
+            $stmt->execute([$stored_token_id, $_SESSION['user_id'], $sesi_id]);
+            $usage_record = $stmt->fetch();
+            
+            if (!$usage_record) {
+                // No usage record - require re-authentication
+                // This prevents token sharing between users
+                unset($_SESSION[$token_verified_key]);
+                unset($_SESSION[$token_id_key]);
+                $token_verified = false;
+            } else {
+                // Additional check: ensure token was used by this specific user
+                // Prevent token sharing by checking token_usage records
+                $stmt = $pdo->prepare("SELECT COUNT(DISTINCT id_user) as user_count 
+                                      FROM token_usage 
+                                      WHERE id_token = ? AND sesi_id = ?");
+                $stmt->execute([$stored_token_id, $sesi_id]);
+                $token_usage_count = $stmt->fetch();
+                
+                // If token was used by multiple users, it's suspicious
+                if ($token_usage_count && $token_usage_count['user_count'] > 1) {
+                    log_security_event($_SESSION['user_id'], $sesi_id, 'token_sharing_detected', 
+                        'Token used by multiple users', true);
+                    // Still allow but log the event
+                }
+            }
+        }
+    }
 }
-
-$token_verified = isset($_SESSION[$token_verified_key]) && $_SESSION[$token_verified_key];
 
 // Only need auth if token is required and not yet verified
 if ($sesi['token_required'] && !$token_verified) {
@@ -1335,12 +1447,7 @@ if (isset($hide_navbar) && $hide_navbar) {
             </div>
             
             <div class="exam-navigation">
-                <?php if ($current_soal >= $total_soal): ?>
-                <div class="submit-info <?php echo $can_submit_now ? 'hidden' : ''; ?>" id="submitInfo">
-                    <i class="fas fa-info-circle"></i> 
-                    Tombol "Selesai" akan aktif dalam <strong id="minTimeRemaining">-</strong>
-                </div>
-                <?php endif; ?>
+                <!-- Submit info removed - finish button always available -->
                 
                 <div class="d-flex justify-content-between align-items-center w-100">
                     <button type="button" class="btn btn-outline-secondary" 
@@ -1421,14 +1528,9 @@ if (isset($hide_navbar) && $hide_navbar) {
             <a href="<?php echo base_url('siswa/ujian/review.php?id=' . $sesi_id); ?>" class="btn btn-info btn-sm w-100 mb-2">
                 <i class="fas fa-list-check"></i> Review Jawaban
             </a>
-            <button type="button" class="btn btn-danger btn-sm w-100" id="submitBtnSidebar" <?php echo $can_submit_now ? '' : 'disabled'; ?> onclick="submitExam()">
+            <button type="button" class="btn btn-danger btn-sm w-100" id="submitBtnSidebar" onclick="submitExam()">
                 <i class="fas fa-stop"></i> Selesai Ujian
             </button>
-            <?php if (!$can_submit_now): ?>
-                <small class="text-muted d-block mt-2">
-                    Tunggu <?php echo ceil($seconds_until_submit_enabled / 60); ?> menit lagi
-                </small>
-            <?php endif; ?>
         </div>
     </div>
 </div>
@@ -1446,10 +1548,10 @@ let sesiId = <?php echo $sesi_id; ?>;
 let ujianId = <?php echo $sesi['id_ujian']; ?>;
 let soalId = <?php echo $current_soal_data['id']; ?>;
 let isRagu = <?php echo ($saved && $saved['is_ragu']) ? 'true' : 'false'; ?>;
-const MIN_SUBMIT_SECONDS = <?php echo $min_submit_seconds; ?>; // Waktu minimum dalam detik sebelum bisa submit
+const MIN_SUBMIT_SECONDS = 0; // Minimum submit time restriction removed - finish button always available
 let elapsedSeconds = <?php echo $elapsed_seconds; ?>; // Waktu yang sudah berlalu sejak mulai ujian
-let canSubmit = <?php echo $can_submit_now ? 'true' : 'false'; ?>;
-let secondsUntilSubmit = <?php echo $seconds_until_submit_enabled; ?>; // Detik tersisa sampai bisa submit
+let canSubmit = true; // Finish button always available (no time restriction)
+let secondsUntilSubmit = 0; // No countdown needed
 
 // Initialize timer display function
 function initializeTimer() {
@@ -1524,47 +1626,23 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSubmitCountdown();
 });
 
-// Function to update submit countdown
+// Function to update submit countdown - removed minimum time restriction
 function updateSubmitCountdown() {
+    // Finish button is always available - no countdown needed
     const submitBtn = document.getElementById('submitBtn');
     const submitBtnSidebar = document.getElementById('submitBtnSidebar');
     const submitInfo = document.getElementById('submitInfo');
     
-    if (elapsedSeconds >= MIN_SUBMIT_SECONDS) {
-        // Can submit now
-        if (!canSubmit) {
-            canSubmit = true;
-            if (submitBtn) {
-                submitBtn.disabled = false;
-            }
-            if (submitBtnSidebar) {
-                submitBtnSidebar.disabled = false;
-            }
-            if (submitInfo) {
-                submitInfo.classList.add('hidden');
-            }
-        }
-    } else {
-        // Cannot submit yet - show countdown
-        if (submitBtn) {
-            submitBtn.disabled = true;
-        }
-        if (submitBtnSidebar) {
-            submitBtnSidebar.disabled = true;
-        }
-        if (submitInfo) {
-            submitInfo.classList.remove('hidden');
-            
-            const remaining = MIN_SUBMIT_SECONDS - elapsedSeconds;
-            const minutes = Math.floor(remaining / 60);
-            const seconds = remaining % 60;
-            
-            if (minutes > 0) {
-                document.getElementById('minTimeRemaining').textContent = `${minutes} menit ${seconds} detik`;
-            } else {
-                document.getElementById('minTimeRemaining').textContent = `${seconds} detik`;
-            }
-        }
+    // Always enable submit buttons
+    if (submitBtn) {
+        submitBtn.disabled = false;
+    }
+    if (submitBtnSidebar) {
+        submitBtnSidebar.disabled = false;
+    }
+    // Hide submit info if it exists (no countdown needed)
+    if (submitInfo) {
+        submitInfo.classList.add('hidden');
     }
 }
 
@@ -1677,6 +1755,11 @@ function saveAnswer() {
     const formData = new FormData(form);
     formData.append('action', 'save');
     
+    // Track time since page load for server-side analysis
+    const pageLoadTime = performance.timing.navigationStart || performance.timeOrigin;
+    const timeSincePageLoad = (Date.now() - pageLoadTime) / 1000; // Convert to seconds
+    formData.append('time_since_page_load', timeSincePageLoad);
+    
     // Handle pilihan ganda with shuffled options - convert shuffled key to original key
     const jawabanInput = form.querySelector('input[name="jawaban"]:checked');
     if (jawabanInput && jawabanInput.hasAttribute('data-original-key')) {
@@ -1712,8 +1795,18 @@ function saveAnswer() {
     fetch('<?php echo base_url('api/save_answer.php'); ?>', {
         method: 'POST',
         body: formData
-    }).then(() => {
-        updateNavigation();
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateNavigation();
+        } else if (data.rate_limit) {
+            alert('Terlalu banyak request. Silakan tunggu sebentar.');
+        } else {
+            console.error('Error saving answer:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving answer:', error);
     });
 }
 
@@ -1732,6 +1825,11 @@ function saveMatchingAnswer() {
     formData.append('ujian_id', ujianId);
     formData.append('soal_id', soalId);
     
+    // Track time since page load for server-side analysis
+    const pageLoadTime = performance.timing.navigationStart || performance.timeOrigin;
+    const timeSincePageLoad = (Date.now() - pageLoadTime) / 1000; // Convert to seconds
+    formData.append('time_since_page_load', timeSincePageLoad);
+    
     // Send as array format for API to handle as JSON
     matchingAnswers.forEach((value, index) => {
         formData.append(`jawaban[${index}]`, value);
@@ -1740,8 +1838,18 @@ function saveMatchingAnswer() {
     fetch('<?php echo base_url('api/save_answer.php'); ?>', {
         method: 'POST',
         body: formData
-    }).then(() => {
-        updateNavigation();
+    }).then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            updateNavigation();
+        } else if (data.rate_limit) {
+            alert('Terlalu banyak request. Silakan tunggu sebentar.');
+        } else {
+            console.error('Error saving answer:', data.message);
+        }
+    })
+    .catch(error => {
+        console.error('Error saving answer:', error);
     });
 }
 

@@ -8,11 +8,28 @@ require_once __DIR__ . '/../config/config.php';
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 require_once __DIR__ . '/../includes/security.php';
+require_once __DIR__ . '/../includes/rate_limiter.php';
 
 header('Content-Type: application/json');
 
 if (!is_logged_in()) {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+}
+
+// Rate limiting for security checks
+$user_id = $_SESSION['user_id'] ?? 0;
+$ip_address = get_client_ip();
+$rate_limit = check_rate_limit('security_check', $user_id, 120, 60); // 120 requests per minute
+$ip_rate_limit = check_ip_rate_limit('security_check', $ip_address, 200, 60); // 200 requests per minute per IP
+
+if (!$rate_limit['allowed'] || !$ip_rate_limit['allowed']) {
+    http_response_code(429);
+    echo json_encode([
+        'success' => false, 
+        'message' => 'Rate limit exceeded',
+        'rate_limit' => true
+    ]);
     exit;
 }
 
@@ -118,15 +135,34 @@ try {
             $nilai = $stmt->fetch();
             
             if ($nilai && $nilai['warning_count'] >= $settings['max_warnings']) {
-                // Auto-submit
-                $stmt = $pdo->prepare("UPDATE nilai SET status = 'selesai', is_suspicious = 1 
+                // Mark as fraud and require relogin
+                // Reset all answers (not lock) for fraud
+                $pdo->beginTransaction();
+                
+                // Delete all answers (reset) - not lock, but reset
+                $stmt = $pdo->prepare("DELETE FROM jawaban_siswa 
                                       WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
                 $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
                 
+                // Mark as fraud (but don't lock answers - they're reset)
+                $reason = "Terlalu banyak pelanggaran keamanan (warning count: {$nilai['warning_count']})";
+                $stmt = $pdo->prepare("UPDATE nilai 
+                                      SET is_suspicious = 1, 
+                                          is_fraud = 1,
+                                          fraud_reason = ?,
+                                          fraud_detected_at = NOW(),
+                                          requires_relogin = 1,
+                                          answers_locked = 0
+                                      WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+                $stmt->execute([$reason, $sesi_id, $ujian_id, $_SESSION['user_id']]);
+                
+                $pdo->commit();
+                
                 echo json_encode([
                     'success' => false,
-                    'auto_submit' => true,
-                    'message' => 'Terlalu banyak pelanggaran keamanan'
+                    'fraud' => true,
+                    'requires_logout' => true,
+                    'message' => 'Fraud terdeteksi. Anda harus login ulang. Waktu ujian terus berjalan.'
                 ]);
                 exit;
             }

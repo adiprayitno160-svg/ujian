@@ -33,7 +33,7 @@ if ($ujian['id_guru'] != $_SESSION['user_id'] && $_SESSION['role'] !== 'admin' &
 $error = '';
 $success = '';
 
-// Handle status change
+// Handle status change and delete participant
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     $action = $_POST['action'];
     
@@ -52,6 +52,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $stmt->execute([$id]);
         $success = 'Sesi dibatalkan';
         $sesi = get_sesi($id);
+    } elseif ($action === 'delete_peserta') {
+        $peserta_id = intval($_POST['peserta_id'] ?? 0);
+        $tipe_assign = sanitize($_POST['tipe_assign'] ?? '');
+        if ($peserta_id > 0 && $tipe_assign) {
+            try {
+                if ($tipe_assign === 'individual') {
+                    $stmt = $pdo->prepare("DELETE FROM sesi_peserta WHERE id_sesi = ? AND id_user = ? AND tipe_assign = 'individual'");
+                    $stmt->execute([$id, $peserta_id]);
+                } elseif ($tipe_assign === 'kelas') {
+                    $stmt = $pdo->prepare("DELETE FROM sesi_peserta WHERE id_sesi = ? AND id_kelas = ? AND tipe_assign = 'kelas'");
+                    $stmt->execute([$id, $peserta_id]);
+                }
+                $success = 'Peserta berhasil dihapus';
+            } catch (PDOException $e) {
+                $error = 'Terjadi kesalahan: ' . $e->getMessage();
+            }
+        }
     }
 }
 
@@ -196,6 +213,7 @@ $tokens = $stmt->fetchAll();
                                 <tr>
                                     <th>Nama</th>
                                     <th>Tipe</th>
+                                    <th>Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -213,6 +231,16 @@ $tokens = $stmt->fetchAll();
                                         <span class="badge bg-<?php echo $p['tipe_assign'] === 'individual' ? 'primary' : 'info'; ?>">
                                             <?php echo ucfirst($p['tipe_assign']); ?>
                                         </span>
+                                    </td>
+                                    <td>
+                                        <form method="POST" style="display:inline;" onsubmit="return confirm('Yakin hapus peserta ini?');">
+                                            <input type="hidden" name="action" value="delete_peserta">
+                                            <input type="hidden" name="peserta_id" value="<?php echo $p['tipe_assign'] === 'individual' ? $p['id_user'] : $p['id_kelas']; ?>">
+                                            <input type="hidden" name="tipe_assign" value="<?php echo escape($p['tipe_assign']); ?>">
+                                            <button type="submit" class="btn btn-sm btn-danger">
+                                                <i class="fas fa-trash"></i> Hapus
+                                            </button>
+                                        </form>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>

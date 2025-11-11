@@ -33,6 +33,34 @@ if (is_logged_in() && isset($_SESSION['role']) && isset($_SESSION['user_id'])) {
 
 $error = '';
 $success = '';
+$violation_message = '';
+$fraud_detected = false;
+$normal_disruption = false;
+$sesi_id_resume = intval($_GET['sesi_id'] ?? 0);
+
+// Check for fraud detection redirect
+if (isset($_GET['fraud']) && $_GET['fraud'] == '1') {
+    $fraud_reason = isset($_GET['reason']) ? sanitize($_GET['reason']) : 'Fraud terdeteksi';
+    $error = 'Fraud terdeteksi: ' . $fraud_reason;
+    $violation_message = 'Fraud terdeteksi. Jawaban sudah dikunci di server. Anda harus login ulang. Waktu ujian terus berjalan.';
+    $fraud_detected = true;
+}
+
+// Check for normal disruption redirect
+if (isset($_GET['disruption']) && $_GET['disruption'] == '1') {
+    $disruption_reason = isset($_GET['reason']) ? sanitize($_GET['reason']) : 'Gangguan koneksi';
+    $success = 'Gangguan terdeteksi: ' . $disruption_reason;
+    $violation_message = 'Jawaban sudah dikunci di server. Silakan login ulang dan minta token baru untuk melanjutkan ujian.';
+    $normal_disruption = true;
+}
+
+// Check for security violation redirect (legacy)
+if (isset($_GET['violation']) && $_GET['violation'] == '1') {
+    $violation_reason = isset($_GET['reason']) ? sanitize($_GET['reason']) : 'Pelanggaran keamanan terdeteksi';
+    $error = 'Anda telah di-logout karena pelanggaran keamanan: ' . $violation_reason;
+    $violation_message = 'Sesi ujian Anda telah dihentikan karena terdeteksi pelanggaran keamanan. Silakan login kembali untuk melanjutkan.';
+    $fraud_detected = true;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nis = sanitize($_POST['nis'] ?? '');
@@ -80,7 +108,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // Regenerate session ID for security
                     session_regenerate_id(true);
                     
-                    redirect('index.php');
+                    // Check if resuming exam after fraud or disruption
+                    if ($sesi_id_resume > 0) {
+                        // Redirect to exam page
+                        redirect('siswa-ujian-take?id=' . $sesi_id_resume);
+                    } else {
+                        redirect('index.php');
+                    }
                 } else {
                     $error = 'NIS atau password salah';
                 }
@@ -270,13 +304,23 @@ include __DIR__ . '/../includes/header.php';
         </div>
         
         <div class="login-body">
-            <?php if ($error): ?>
+            <?php if ($fraud_detected || $normal_disruption): ?>
+                <div class="alert alert-<?php echo $fraud_detected ? 'danger' : 'warning'; ?> mb-3">
+                    <i class="fas fa-<?php echo $fraud_detected ? 'exclamation-triangle' : 'info-circle'; ?>"></i>
+                    <strong><?php echo $fraud_detected ? 'Fraud Terdeteksi' : 'Gangguan Terdeteksi'; ?></strong>
+                    <p class="mb-0 mt-2"><?php echo $violation_message; ?></p>
+                    <?php if ($normal_disruption): ?>
+                        <p class="mb-0 mt-2"><small>Setelah login, Anda akan diminta untuk memasukkan token baru untuk melanjutkan ujian.</small></p>
+                    <?php endif; ?>
+                </div>
+            <?php elseif ($error): ?>
                 <div class="alert alert-danger" role="alert">
-                    <i class="fas fa-exclamation-circle me-2"></i><?php echo escape($error); ?>
+                    <i class="fas fa-exclamation-circle me-2"></i>
+                    <strong>Peringatan:</strong> <?php echo escape($error); ?>
                 </div>
             <?php endif; ?>
             
-            <?php if ($success): ?>
+            <?php if ($success && !$normal_disruption): ?>
                 <div class="alert alert-success" role="alert">
                     <i class="fas fa-check-circle me-2"></i><?php echo escape($success); ?>
                 </div>

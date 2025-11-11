@@ -83,10 +83,11 @@ $stmt->execute([$siswa_id, $siswa_id, $tahun_ajaran]);
 $active_ujian = $stmt->fetchAll();
 
 // Get PR
-$stmt = $pdo->prepare("SELECT p.*, m.nama_mapel, 
+$stmt = $pdo->prepare("SELECT p.*, m.nama_mapel, u.nama as nama_guru,
                       (SELECT status FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) as submission_status
                       FROM pr p
                       INNER JOIN mapel m ON p.id_mapel = m.id
+                      INNER JOIN users u ON p.id_guru = u.id
                       INNER JOIN pr_kelas pk ON p.id = pk.id_pr
                       INNER JOIN user_kelas uk ON pk.id_kelas = uk.id_kelas
                       WHERE uk.id_user = ?
@@ -282,6 +283,7 @@ $pr_list = $stmt->fetchAll();
                             <tr>
                                 <th>Judul</th>
                                 <th>Mata Pelajaran</th>
+                                <th>Guru</th>
                                 <th>Deadline</th>
                                 <th>Status</th>
                                 <th>Aksi</th>
@@ -292,6 +294,7 @@ $pr_list = $stmt->fetchAll();
                             <tr>
                                 <td><?php echo escape($pr['judul']); ?></td>
                                 <td><?php echo escape($pr['nama_mapel']); ?></td>
+                                <td><?php echo escape($pr['nama_guru'] ?? 'N/A'); ?></td>
                                 <td><?php echo format_date($pr['deadline']); ?></td>
                                 <td>
                                     <?php if ($pr['submission_status'] === 'sudah_dikumpulkan'): ?>

@@ -1,6 +1,6 @@
 <?php
 /**
- * List Ujian - Guru
+ * List Ulangan Harian - Guru
  * Sistem Ujian dan Pekerjaan Rumah (UJAN)
  */
 
@@ -16,7 +16,7 @@ if ($_SESSION['role'] !== 'guru' && !has_operator_access()) {
     redirect('index.php');
 }
 
-$page_title = 'Daftar Ujian';
+$page_title = 'Daftar Ulangan Harian';
 $role_css = $_SESSION['role'] === 'guru' ? 'guru' : 'admin';
 include __DIR__ . '/../../includes/header.php';
 
@@ -87,7 +87,7 @@ unset($ujian);
 
 <?php if (isset($_GET['success']) && $_GET['success'] === 'ujian_deleted'): ?>
     <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="fas fa-check-circle"></i> Ujian berhasil dihapus!
+        <i class="fas fa-check-circle"></i> Ulangan Harian berhasil dihapus!
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
 <?php endif; ?>
@@ -102,19 +102,19 @@ unset($ujian);
 <div class="row mb-4">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-center">
-            <h2 class="fw-bold">Daftar Ujian</h2>
+            <h2 class="fw-bold">Daftar Ulangan Harian</h2>
             <?php if ($_SESSION['role'] === 'guru'): ?>
                 <div class="d-flex">
                     <div class="btn-group">
                         <a href="<?php echo base_url('guru/ujian/create.php'); ?>" class="btn btn-primary">
-                            <i class="fas fa-plus"></i> Buat Ujian Baru
+                            <i class="fas fa-plus"></i> Buat Ulangan Harian Baru
                         </a>
                         <a href="<?php echo base_url('guru/ujian/create_from_pool.php'); ?>" class="btn btn-outline-primary">
                             <i class="fas fa-database"></i> Buat dari Pool
                         </a>
                     </div>
                     <a href="<?php echo base_url('guru/absensi/list.php'); ?>" class="btn btn-info text-white ms-2">
-                        <i class="fas fa-user-check"></i> Absensi Ujian Harian
+                        <i class="fas fa-user-check"></i> Absensi Ulangan Harian
                     </a>
                 </div>
             <?php endif; ?>
@@ -126,7 +126,7 @@ unset($ujian);
     <div class="card-body">
         <form method="GET" class="row g-3">
             <div class="col-md-5">
-                <input type="text" class="form-control" name="search" placeholder="Cari ujian..." value="<?php echo escape($search); ?>">
+                <input type="text" class="form-control" name="search" placeholder="Cari ulangan harian..." value="<?php echo escape($search); ?>">
             </div>
             <div class="col-md-3">
                 <select class="form-select" name="status">

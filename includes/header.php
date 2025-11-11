@@ -245,6 +245,62 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
         .menu-label {
             font-size: 0.9rem;
             font-weight: 500;
+            flex: 1;
+        }
+        
+        /* Submenu styles */
+        .menu-item.has-submenu {
+            position: relative;
+            cursor: pointer;
+        }
+        
+        .menu-item.has-submenu > .submenu {
+            display: none;
+            padding-left: 0;
+            margin-top: 0.25rem;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+            opacity: 0;
+        }
+        
+        .menu-item.has-submenu.expanded > .submenu {
+            display: block;
+            max-height: 500px;
+            opacity: 1;
+        }
+        
+        .menu-item.has-submenu > .menu-label::after {
+            content: '\f107';
+            font-family: 'Font Awesome 6 Free';
+            font-weight: 900;
+            float: right;
+            margin-left: auto;
+            transition: transform 0.3s ease;
+        }
+        
+        .menu-item.has-submenu.expanded > .menu-label::after {
+            transform: rotate(180deg);
+        }
+        
+        .submenu .menu-item {
+            padding: 0.5rem 1rem 0.5rem 3rem;
+            margin: 0.1rem 0.75rem;
+            font-size: 0.85rem;
+            border-left: 2px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .submenu .menu-item i {
+            font-size: 0.85rem;
+            width: 18px;
+        }
+        
+        .sidebar.collapsed .menu-item.has-submenu > .submenu {
+            display: none !important;
+        }
+        
+        .sidebar.collapsed .menu-item.has-submenu > .menu-label::after {
+            display: none;
         }
         
         .menu-badge {
@@ -662,18 +718,32 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <i class="fas fa-user-graduate"></i>
                         <span class="menu-label">Kelola Siswa</span>
                     </a>
-                    <a href="<?php echo base_url('guru/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false && strpos($_SERVER['REQUEST_URI'], '/templates.php') === false) ? 'active' : ''; ?>">
+                    <?php 
+                    // Check if we're on any ujian-related page (ujian, template, or sesi)
+                    $is_ujian_page = strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false || 
+                                     strpos($_SERVER['REQUEST_URI'], '/sesi/') !== false ||
+                                     strpos($_SERVER['REQUEST_URI'], '/templates.php') !== false;
+                    $is_template_page = strpos($_SERVER['REQUEST_URI'], '/templates.php') !== false;
+                    $is_sesi_page = strpos($_SERVER['REQUEST_URI'], '/sesi/') !== false && strpos($_SERVER['REQUEST_URI'], '/templates.php') === false;
+                    ?>
+                    <div class="menu-item has-submenu <?php echo $is_ujian_page ? 'expanded' : ''; ?>" onclick="this.classList.toggle('expanded'); event.preventDefault();">
                         <i class="fas fa-file-alt"></i>
-                        <span class="menu-label">Ujian</span>
-                    </a>
-                    <a href="<?php echo base_url('guru-ujian-templates'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/templates.php') !== false) ? 'active' : ''; ?>">
-                        <i class="fas fa-file-code"></i>
-                        <span class="menu-label">Template</span>
-                    </a>
-                    <a href="<?php echo base_url('guru/sesi/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/sesi/') !== false) ? 'active' : ''; ?>">
-                        <i class="fas fa-calendar"></i>
-                        <span class="menu-label">Sesi</span>
-                    </a>
+                        <span class="menu-label">Ulangan Harian</span>
+                        <div class="submenu">
+                            <a href="<?php echo base_url('guru/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false && !$is_template_page && !$is_sesi_page) ? 'active' : ''; ?>" onclick="event.stopPropagation();">
+                                <i class="fas fa-list"></i>
+                                <span class="menu-label">Daftar Ulangan Harian</span>
+                            </a>
+                            <a href="<?php echo base_url('guru-ujian-templates'); ?>" class="menu-item <?php echo $is_template_page ? 'active' : ''; ?>" onclick="event.stopPropagation();">
+                                <i class="fas fa-file-code"></i>
+                                <span class="menu-label">Template</span>
+                            </a>
+                            <a href="<?php echo base_url('guru/sesi/list.php'); ?>" class="menu-item <?php echo $is_sesi_page ? 'active' : ''; ?>" onclick="event.stopPropagation();">
+                                <i class="fas fa-calendar"></i>
+                                <span class="menu-label">Sesi</span>
+                            </a>
+                        </div>
+                    </div>
                     <a href="<?php echo base_url('guru/pr/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/pr/') !== false) ? 'active' : ''; ?>">
                         <i class="fas fa-tasks"></i>
                         <span class="menu-label">PR</span>
@@ -768,6 +838,15 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <i class="fas fa-calendar"></i>
                         <span class="menu-label">
                             Sesi
+                            <span class="menu-badge">OP</span>
+                        </span>
+                    </a>
+                    
+                    <!-- Tugas -->
+                    <a href="<?php echo base_url('operator-tugas-list'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/operator/tugas/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span class="menu-label">
+                            Tugas
                             <span class="menu-badge">OP</span>
                         </span>
                     </a>

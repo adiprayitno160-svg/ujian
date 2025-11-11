@@ -128,9 +128,10 @@ const ExamSecurity = {
                 // Show immediate warning
                 this.showWarning(`Peringatan ${this.tabSwitchCount}/${this.maxTabSwitches}: Jangan beralih tab atau window!`);
                 
-                // Auto-submit if too many switches
+                // Redirect to login if too many switches
                 if (this.tabSwitchCount >= this.maxTabSwitches) {
-                    this.autoSubmit(`Terlalu banyak tab switch (${this.tabSwitchCount}x)`);
+                    // Tab switch is fraud
+                    this.redirectToLogin(`Terlalu banyak tab switch (${this.tabSwitchCount}x)`, 'tab_switch', true);
                     return;
                 }
                 
@@ -155,7 +156,8 @@ const ExamSecurity = {
             this.warningCount++;
             
             if (this.warningCount >= this.maxWarnings) {
-                this.autoSubmit('Terlalu banyak kehilangan fokus window');
+                // Window blur is fraud
+                this.redirectToLogin('Terlalu banyak kehilangan fokus window', 'window_blur', true);
             }
         });
         
@@ -282,7 +284,8 @@ const ExamSecurity = {
                     setTimeout(() => {
                         requestFullscreen().catch(() => {
                             if (this.warningCount >= this.maxWarnings) {
-                                this.autoSubmit('Terlalu banyak keluar dari fullscreen mode');
+                                // Fullscreen exit is fraud
+                                this.redirectToLogin('Terlalu banyak keluar dari fullscreen mode', 'fullscreen_exit', true);
                             }
                         });
                     }, 500);
@@ -315,7 +318,8 @@ const ExamSecurity = {
                 }
                 
                 if (this.warningCount >= this.maxWarnings) {
-                    this.autoSubmit('Terlalu banyak keluar dari fullscreen mode');
+                    // Fullscreen exit is fraud
+                    this.redirectToLogin('Terlalu banyak keluar dari fullscreen mode', 'fullscreen_exit', true);
                 }
             }
         }, 2000); // Check every 2 seconds
@@ -335,10 +339,11 @@ const ExamSecurity = {
                 window.history.pushState(null, null, window.location.href);
                 this.showWarning('Navigasi mundur tidak diizinkan!');
                 this.logSecurityEvent('back_button_attempt', 'Attempted to use back button');
-                // Auto-submit if too many attempts
+                // Redirect to login if too many attempts
                 this.warningCount++;
                 if (this.warningCount >= this.maxWarnings) {
-                    this.autoSubmit('Terlalu banyak mencoba navigasi mundur');
+                    // Navigation back is fraud
+                    this.redirectToLogin('Terlalu banyak mencoba navigasi mundur', 'navigation_back', true);
                 }
             }
         });
@@ -472,7 +477,8 @@ const ExamSecurity = {
                     this.logSecurityEvent('devtools_opened', 'Developer tools opened');
                     
                     if (this.warningCount >= this.maxWarnings) {
-                        this.autoSubmit('Developer tools terdeteksi');
+                        // Developer tools is fraud
+                        this.redirectToLogin('Developer tools terdeteksi', 'developer_tools', true);
                     }
                 }
             } else {
@@ -517,7 +523,8 @@ const ExamSecurity = {
             }
             
             if (idleTime >= 180) { // 3 minutes
-                this.autoSubmit('Terlalu lama tidak aktif');
+                // Idle timeout - treat as normal disruption (not fraud)
+                this.redirectToLogin('Terlalu lama tidak aktif', 'idle_timeout', false);
                 clearInterval(idleInterval);
             }
         }, 30000); // Check every 30 seconds
@@ -548,8 +555,14 @@ const ExamSecurity = {
             UJAN.ajax('/UJAN/api/security_check.php', {
                 sesi_id: sesiId
             }, 'POST', (response) => {
-                if (!response.success && response.auto_submit) {
-                    this.autoSubmit(response.message || 'Pelanggaran keamanan terdeteksi');
+                if (!response.success) {
+                    if (response.fraud && response.requires_logout) {
+                        // Fraud detected - force logout
+                        this.redirectToLogin(response.message || 'Fraud terdeteksi', 'fraud_detection', true);
+                    } else if (response.auto_submit) {
+                        // Legacy auto-submit (treat as fraud)
+                        this.redirectToLogin(response.message || 'Pelanggaran keamanan terdeteksi', 'server_validation', true);
+                    }
                 }
             });
         }
@@ -569,7 +582,8 @@ const ExamSecurity = {
         this.logSecurityEvent('warning', message);
         
         if (this.warningCount >= this.maxWarnings) {
-            this.autoSubmit('Terlalu banyak peringatan');
+            // Max warnings reached is fraud
+            this.redirectToLogin('Terlalu banyak peringatan', 'max_warnings', true);
         }
     },
     
@@ -610,13 +624,167 @@ const ExamSecurity = {
         }).then(response => response.json())
         .then(result => {
             if (result.auto_submit) {
-                this.autoSubmit(result.message || 'Pelanggaran keamanan terdeteksi');
+                this.redirectToLogin(result.message || 'Pelanggaran keamanan terdeteksi', 'server_check');
             }
         }).catch(error => {
             console.error('Security log error:', error);
         });
     },
     
+    /**
+     * Redirect to login page due to security violation (FRAUD)
+     * This is for fraud detection - answers locked, must relogin, time continues
+     */
+    redirectToLogin: function(reason, violationType = 'security_violation', isFraud = true) {
+        // Mark as submitting to allow navigation
+        this.isSubmitting = true;
+        this.allowNavigation = true;
+        
+        // Stop all monitoring
+        if (this.checkInterval) {
+            clearInterval(this.checkInterval);
+        }
+        if (this.fullscreenCheckInterval) {
+            clearInterval(this.fullscreenCheckInterval);
+        }
+        
+        // Get session info
+        const sesiId = document.querySelector('[data-sesi-id]')?.getAttribute('data-sesi-id') || '';
+        const ujianId = document.querySelector('[data-ujian-id]')?.getAttribute('data-ujian-id') || '';
+        const baseUrl = typeof base_url === 'function' ? base_url('') : (window.location.origin + '/UJAN/');
+        
+        if (isFraud) {
+            // FRAUD: Mark as fraud, lock answers, force logout
+            // Show warning message
+            const message = 'Fraud terdeteksi: ' + reason + '. Jawaban sudah dikunci. Anda harus login ulang. Waktu ujian terus berjalan.';
+            if (typeof showToast === 'function') {
+                showToast(message, 'error');
+            } else {
+                alert(message);
+            }
+            
+            // Log final event
+            this.logSecurityEvent('fraud_detected', reason);
+            
+            // Don't save answers for fraud - they will be reset
+            // Mark as fraud and reset answers
+            const formData = new FormData();
+            formData.append('action', 'mark_fraud');
+            formData.append('reason', reason);
+            if (sesiId) formData.append('sesi_id', sesiId);
+            if (ujianId) formData.append('ujian_id', ujianId);
+            
+            fetch(baseUrl + 'api/fraud_detection.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Force logout and redirect
+                window.location.href = baseUrl + 'siswa/login.php?fraud=1&sesi_id=' + sesiId + '&reason=' + encodeURIComponent(reason);
+            })
+            .catch(error => {
+                console.error('Fraud detection API error:', error);
+                // Fallback: redirect to login directly
+                window.location.href = baseUrl + 'siswa/login.php?fraud=1&sesi_id=' + sesiId + '&reason=' + encodeURIComponent(reason);
+            });
+        } else {
+            // NORMAL DISRUPTION: Lock answers, allow resume with token
+            const message = 'Gangguan terdeteksi: ' + reason + '. Jawaban sudah dikunci di server. Silakan login ulang dan minta token baru untuk melanjutkan.';
+            if (typeof showToast === 'function') {
+                showToast(message, 'warning');
+            } else {
+                alert(message);
+            }
+            
+            // Log final event
+            this.logSecurityEvent('normal_disruption', reason);
+            
+            // Save all answers before logout (auto-save)
+            this.saveAllAnswers().then(() => {
+                // Lock answers for normal disruption
+                const formData = new FormData();
+                formData.append('action', 'lock_answers');
+                formData.append('reason', reason);
+                if (sesiId) formData.append('sesi_id', sesiId);
+                if (ujianId) formData.append('ujian_id', ujianId);
+                
+                fetch(baseUrl + 'api/fraud_detection.php', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Redirect to login with disruption flag
+                    window.location.href = baseUrl + 'siswa/login.php?disruption=1&sesi_id=' + sesiId + '&reason=' + encodeURIComponent(reason);
+                })
+                .catch(error => {
+                    console.error('Lock answers API error:', error);
+                    // Fallback: redirect to login directly
+                    window.location.href = baseUrl + 'siswa/login.php?disruption=1&sesi_id=' + sesiId + '&reason=' + encodeURIComponent(reason);
+                });
+            });
+        }
+    },
+    
+    /**
+     * Save all answers before logout
+     */
+    saveAllAnswers: function() {
+        return new Promise((resolve) => {
+            const sesiId = document.querySelector('[data-sesi-id]')?.getAttribute('data-sesi-id') || '';
+            const ujianId = document.querySelector('[data-ujian-id]')?.getAttribute('data-ujian-id') || '';
+            
+            if (!sesiId || !ujianId) {
+                resolve();
+                return;
+            }
+            
+            // Collect all answers from the form
+            const answers = {};
+            const form = document.getElementById('examForm');
+            if (form) {
+                const inputs = form.querySelectorAll('input[type="radio"]:checked, input[type="checkbox"]:checked, textarea, input[type="text"]');
+                inputs.forEach(input => {
+                    const soalId = input.name.match(/jawaban\[(\d+)\]/);
+                    if (soalId) {
+                        const id = soalId[1];
+                        if (input.type === 'checkbox') {
+                            if (!answers[id]) answers[id] = [];
+                            answers[id].push(input.value);
+                        } else {
+                            answers[id] = input.value;
+                        }
+                    }
+                });
+            }
+            
+            // Send to auto-save API
+            const baseUrl = typeof base_url === 'function' ? base_url('') : (window.location.origin + '/UJAN/');
+            const formData = new FormData();
+            formData.append('sesi_id', sesiId);
+            formData.append('ujian_id', ujianId);
+            formData.append('answers', JSON.stringify(answers));
+            
+            fetch(baseUrl + 'api/auto_save.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                resolve();
+            })
+            .catch(error => {
+                console.error('Auto-save error:', error);
+                resolve(); // Continue even if save fails
+            });
+        });
+    },
+    
+    /**
+     * Auto submit exam (for normal completion, not security violations)
+     * This is kept for backward compatibility and normal exam completion
+     */
     autoSubmit: function(reason) {
         // Mark as submitting to allow navigation
         this.isSubmitting = true;
@@ -950,7 +1118,8 @@ const ExamSecurity = {
                 }).then(r => r.json()).then(data => {
                     if (data.ip_changed) {
                         this.logSecurityEvent('ip_change', 'IP address changed during exam');
-                        this.autoSubmit('Perubahan IP address terdeteksi');
+                        // IP change is fraud
+                        this.redirectToLogin('Perubahan IP address terdeteksi', 'ip_change', true);
                     }
                 }).catch(() => {});
             }
@@ -1034,7 +1203,7 @@ const ExamSecurity = {
             }).then(r => r.json()).then(data => {
                 if (!data.valid) {
                     this.logSecurityEvent('session_invalid', 'Session validation failed');
-                    this.autoSubmit('Session tidak valid');
+                    this.redirectToLogin('Session tidak valid', 'session_invalid');
                 }
             }).catch(() => {
                 this.logSecurityEvent('session_validation_error', 'Failed to validate session');
@@ -1068,7 +1237,8 @@ const ExamSecurity = {
         
         if (automationIndicators.length > 0) {
             this.logSecurityEvent('automation_tool_detected', automationIndicators.join(', '));
-            this.autoSubmit('Automation tool terdeteksi. Penggunaan tool otomatisasi tidak diizinkan.');
+            // Automation tool is fraud
+            this.redirectToLogin('Automation tool terdeteksi. Penggunaan tool otomatisasi tidak diizinkan.', 'automation_tool', true);
         }
         
         setInterval(() => {
@@ -1076,7 +1246,8 @@ const ExamSecurity = {
                 this.logSecurityEvent('automation_tool_detected', 'WebDriver still active');
                 this.warningCount++;
                 if (this.warningCount >= this.maxWarnings) {
-                    this.autoSubmit('Automation tool terdeteksi berulang kali');
+                    // Automation tool repeated is fraud
+                    this.redirectToLogin('Automation tool terdeteksi berulang kali', 'automation_tool_repeated', true);
                 }
             }
         }, 10000);

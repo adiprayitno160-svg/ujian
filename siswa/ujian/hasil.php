@@ -216,13 +216,18 @@ $soal_list = $stmt->fetchAll();
                 <div class="mb-2">
                     <strong>Jawaban Anda:</strong> 
                     <?php 
-                    $jawaban_json = json_decode($soal['jawaban_json'], true);
-                    if ($jawaban_json) {
+                    $jawaban_json = null;
+                    if (!empty($soal['jawaban_json'])) {
+                        $jawaban_json = json_decode($soal['jawaban_json'], true);
+                    }
+                    if ($jawaban_json && is_array($jawaban_json)) {
                         echo '<ul>';
                         foreach ($jawaban_json as $j) {
                             echo '<li>' . escape($j) . '</li>';
                         }
                         echo '</ul>';
+                    } else {
+                        echo '<span class="text-muted">-</span>';
                     }
                     ?>
                 </div>

@@ -40,28 +40,59 @@ if (!$validation['valid']) {
 global $pdo;
 
 try {
+    // Check if answers are locked (only after submit/verification, not for fraud)
+    $stmt = $pdo->prepare("SELECT answers_locked, is_fraud, status FROM nilai 
+                          WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+    $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
+    $nilai = $stmt->fetch();
+    
+    // Only block save if answers are locked AND exam is finished (not for fraud - fraud resets answers)
+    if ($nilai && $nilai['answers_locked'] && $nilai['status'] === 'selesai') {
+        // Exam finished and answers locked - cannot save
+        echo json_encode([
+            'success' => false, 
+            'message' => 'Ujian sudah selesai. Jawaban sudah dikunci.',
+            'locked' => true
+        ]);
+        exit;
+    }
+    
+    // For fraud, answers are reset (not locked), so allow saving new answers
     $pdo->beginTransaction();
     
     foreach ($answers as $soal_id => $jawaban) {
         $soal_id = intval($soal_id);
         
-        // Handle array answers (for checkbox)
-        if (is_array($jawaban)) {
-            $jawaban = json_encode($jawaban);
-        }
-        
-        // Check if answer exists
-        $stmt = $pdo->prepare("SELECT id FROM jawaban_siswa 
+        // Check if answer is locked (only after submit, not for fraud)
+        $stmt = $pdo->prepare("SELECT id, is_locked FROM jawaban_siswa 
                               WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ? AND id_soal = ?");
         $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id'], $soal_id]);
         $existing = $stmt->fetch();
         
+        // Only skip if locked AND exam is finished (not for fraud)
+        if ($existing && $existing['is_locked'] && $nilai && $nilai['status'] === 'selesai') {
+            // Answer is locked and exam finished - skip update
+            continue;
+        }
+        
+        // Handle array answers (for checkbox)
+        if (is_array($jawaban)) {
+            $jawaban_json = json_encode($jawaban);
+            $jawaban_value = null;
+        } else {
+            $jawaban_json = null;
+            $jawaban_value = sanitize($jawaban);
+        }
+        
         if ($existing) {
-            // Update
-            $stmt = $pdo->prepare("UPDATE jawaban_siswa 
-                                  SET jawaban = ?, jawaban_json = ?, last_saved_at = NOW() 
-                                  WHERE id = ?");
-            $stmt->execute([$jawaban, is_array($jawaban) ? json_encode($jawaban) : null, $existing['id']]);
+            // Update (only if not locked or exam not finished)
+            // Allow update if not locked, or if locked but exam still in progress (fraud case)
+            if (!$existing['is_locked'] || ($nilai && $nilai['status'] !== 'selesai')) {
+                $stmt = $pdo->prepare("UPDATE jawaban_siswa 
+                                      SET jawaban = ?, jawaban_json = ?, last_saved_at = NOW() 
+                                      WHERE id = ?");
+                $stmt->execute([$jawaban_value, $jawaban_json, $existing['id']]);
+            }
         } else {
             // Insert
             $stmt = $pdo->prepare("INSERT INTO jawaban_siswa 
@@ -72,8 +103,8 @@ try {
                 $ujian_id,
                 $_SESSION['user_id'],
                 $soal_id,
-                $jawaban,
-                is_array($jawaban) ? json_encode($jawaban) : null
+                $jawaban_value,
+                $jawaban_json
             ]);
         }
     }

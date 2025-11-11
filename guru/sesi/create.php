@@ -28,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $waktu_selesai = $_POST['waktu_selesai'] ?? '';
     $durasi = intval($_POST['durasi'] ?? 0);
     $max_peserta = intval($_POST['max_peserta'] ?? 0);
-    $token_required = isset($_POST['token_required']) ? 1 : 0;
+    $token_required = isset($_POST['token_required']) ? 1 : 1; // Default: 1 (required)
     
     if (empty($nama_sesi) || !$id_ujian || empty($waktu_mulai) || empty($waktu_selesai) || $durasi <= 0) {
         $error = 'Semua field wajib harus diisi';
@@ -142,10 +142,10 @@ $ujian_list = $stmt->fetchAll();
                 </div>
                 
                 <div class="mb-3 form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="token_required" name="token_required"
-                           <?php echo (isset($_POST['token_required']) && $_POST['token_required']) ? 'checked' : ''; ?>>
+                    <input class="form-check-input" type="checkbox" id="token_required" name="token_required" checked
+                           <?php echo (!isset($_POST['token_required']) || (isset($_POST['token_required']) && $_POST['token_required'])) ? 'checked' : ''; ?>>
                     <label class="form-check-label" for="token_required">
-                        Wajib Token untuk Akses
+                        Wajib Token untuk Akses (Default: Aktif)
                     </label>
                 </div>
                 

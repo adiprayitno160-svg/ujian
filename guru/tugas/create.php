@@ -25,6 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $kelas_ids = $_POST['kelas_ids'] ?? [];
     $poin_maksimal = floatval($_POST['poin_maksimal'] ?? 100);
     $tipe_tugas = sanitize($_POST['tipe_tugas'] ?? 'individu');
+    $tipe_tugas_mode = sanitize($_POST['tipe_tugas_mode'] ?? 'file'); // 'file' or 'soal'
     $allow_late_submission = isset($_POST['allow_late_submission']) ? 1 : 0;
     $max_files = intval($_POST['max_files'] ?? 5);
     $max_file_size_mb = intval($_POST['max_file_size'] ?? 10);
@@ -55,16 +56,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->beginTransaction();
             
             // Insert Tugas
-            $stmt = $pdo->prepare("INSERT INTO tugas 
-                                  (judul, deskripsi, id_mapel, id_guru, deadline, poin_maksimal, 
-                                   tipe_tugas, allow_late_submission, max_files, max_file_size, 
-                                   allowed_extensions, allow_edit_after_submit, status) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([
-                $judul, $deskripsi, $id_mapel, $_SESSION['user_id'], $deadline, $poin_maksimal,
-                $tipe_tugas, $allow_late_submission, $max_files, $max_file_size,
-                $allowed_extensions, $allow_edit_after_submit, $status
-            ]);
+            // Check if tipe_tugas_mode column exists
+            $check_col = $pdo->query("SHOW COLUMNS FROM tugas LIKE 'tipe_tugas_mode'");
+            if ($check_col->rowCount() > 0) {
+                $stmt = $pdo->prepare("INSERT INTO tugas 
+                                      (judul, deskripsi, id_mapel, id_guru, deadline, poin_maksimal, 
+                                       tipe_tugas, tipe_tugas_mode, allow_late_submission, max_files, max_file_size, 
+                                       allowed_extensions, allow_edit_after_submit, status) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $judul, $deskripsi, $id_mapel, $_SESSION['user_id'], $deadline, $poin_maksimal,
+                    $tipe_tugas, $tipe_tugas_mode, $allow_late_submission, $max_files, $max_file_size,
+                    $allowed_extensions, $allow_edit_after_submit, $status
+                ]);
+            } else {
+                // Fallback if column doesn't exist yet
+                $stmt = $pdo->prepare("INSERT INTO tugas 
+                                      (judul, deskripsi, id_mapel, id_guru, deadline, poin_maksimal, 
+                                       tipe_tugas, allow_late_submission, max_files, max_file_size, 
+                                       allowed_extensions, allow_edit_after_submit, status) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $judul, $deskripsi, $id_mapel, $_SESSION['user_id'], $deadline, $poin_maksimal,
+                    $tipe_tugas, $allow_late_submission, $max_files, $max_file_size,
+                    $allowed_extensions, $allow_edit_after_submit, $status
+                ]);
+            }
             $tugas_id = $pdo->lastInsertId();
             
             // Assign to kelas
@@ -224,6 +241,16 @@ include __DIR__ . '/../../includes/header.php';
                 <div class="row">
                     <div class="col-md-4">
                         <div class="mb-3">
+                            <label for="tipe_tugas_mode" class="form-label">Tipe Tugas <span class="text-danger">*</span></label>
+                            <select class="form-select" id="tipe_tugas_mode" name="tipe_tugas_mode" required onchange="toggleTugasMode()">
+                                <option value="file">File Submission</option>
+                                <option value="soal">Soal (Pilihan Ganda, Esai, dll)</option>
+                            </select>
+                            <small class="text-muted">Pilih apakah tugas menggunakan file submission atau soal seperti ujian</small>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="mb-3">
                             <label for="poin_maksimal" class="form-label">Poin Maksimal</label>
                             <input type="number" class="form-control" id="poin_maksimal" name="poin_maksimal" 
                                    value="100" min="0" max="100" step="0.1">
@@ -231,13 +258,16 @@ include __DIR__ . '/../../includes/header.php';
                     </div>
                     <div class="col-md-4">
                         <div class="mb-3">
-                            <label for="tipe_tugas" class="form-label">Tipe Tugas</label>
+                            <label for="tipe_tugas" class="form-label">Tipe Tugas (Individu/Kelompok)</label>
                             <select class="form-select" id="tipe_tugas" name="tipe_tugas">
                                 <option value="individu">Individu</option>
                                 <option value="kelompok">Kelompok</option>
                             </select>
                         </div>
                     </div>
+                </div>
+                
+                <div class="row">
                     <div class="col-md-4">
                         <div class="mb-3">
                             <label for="status" class="form-label">Status</label>
@@ -249,56 +279,73 @@ include __DIR__ . '/../../includes/header.php';
                     </div>
                 </div>
                 
-                <div class="row">
-                    <div class="col-md-4">
-                        <div class="mb-3">
-                            <label for="max_files" class="form-label">Maksimal File</label>
-                            <input type="number" class="form-control" id="max_files" name="max_files" 
-                                   value="5" min="1" max="20">
+                <!-- File Submission Settings (shown when tipe_tugas_mode = 'file') -->
+                <div id="file_settings">
+                    <hr>
+                    <h5 class="mb-3">Pengaturan File Submission</h5>
+                    
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="max_files" class="form-label">Maksimal File</label>
+                                <input type="number" class="form-control" id="max_files" name="max_files" 
+                                       value="5" min="1" max="20">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="max_file_size" class="form-label">Maksimal Ukuran File (MB)</label>
+                                <input type="number" class="form-control" id="max_file_size" name="max_file_size" 
+                                       value="10" min="1" max="100">
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="mb-3">
+                                <label for="allowed_extensions" class="form-label">Ekstensi File Diizinkan</label>
+                                <input type="text" class="form-control" id="allowed_extensions" name="allowed_extensions" 
+                                       value="pdf,doc,docx,zip,rar,ppt,pptx" 
+                                       placeholder="pdf,doc,docx">
+                            </div>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="mb-3">
-                            <label for="max_file_size" class="form-label">Maksimal Ukuran File (MB)</label>
-                            <input type="number" class="form-control" id="max_file_size" name="max_file_size" 
-                                   value="10" min="1" max="100">
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="allow_late_submission" 
+                                   name="allow_late_submission" value="1">
+                            <label class="form-check-label" for="allow_late_submission">
+                                Izinkan submit setelah deadline
+                            </label>
                         </div>
                     </div>
-                    <div class="col-md-4">
-                        <div class="mb-3">
-                            <label for="allowed_extensions" class="form-label">Ekstensi File Diizinkan</label>
-                            <input type="text" class="form-control" id="allowed_extensions" name="allowed_extensions" 
-                                   value="pdf,doc,docx,zip,rar,ppt,pptx" 
-                                   placeholder="pdf,doc,docx">
+                    
+                    <div class="mb-3">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="allow_edit_after_submit" 
+                                   name="allow_edit_after_submit" value="1" checked>
+                            <label class="form-check-label" for="allow_edit_after_submit">
+                                Izinkan edit setelah submit (sebelum deadline)
+                            </label>
                         </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="attachments" class="form-label">File Lampiran (opsional)</label>
+                        <input type="file" class="form-control" id="attachments" name="attachments[]" multiple
+                               accept=".pdf,.doc,.docx,.zip,.rar,.ppt,.pptx">
+                        <small class="text-muted">Bisa upload multiple files</small>
                     </div>
                 </div>
                 
-                <div class="mb-3">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="allow_late_submission" 
-                               name="allow_late_submission" value="1">
-                        <label class="form-check-label" for="allow_late_submission">
-                            Izinkan submit setelah deadline
-                        </label>
+                <!-- Soal Settings (shown when tipe_tugas_mode = 'soal') -->
+                <div id="soal_settings" style="display:none;">
+                    <hr>
+                    <h5 class="mb-3">Pengaturan Soal</h5>
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> 
+                        Setelah membuat tugas, Anda dapat menambahkan soal melalui halaman detail tugas.
+                        Tugas dengan tipe soal akan memiliki fitur seperti ujian (pilihan ganda, esai, isian singkat, dll).
                     </div>
-                </div>
-                
-                <div class="mb-3">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" id="allow_edit_after_submit" 
-                               name="allow_edit_after_submit" value="1" checked>
-                        <label class="form-check-label" for="allow_edit_after_submit">
-                            Izinkan edit setelah submit (sebelum deadline)
-                        </label>
-                    </div>
-                </div>
-                
-                <div class="mb-3">
-                    <label for="attachments" class="form-label">File Lampiran (opsional)</label>
-                    <input type="file" class="form-control" id="attachments" name="attachments[]" multiple
-                           accept=".pdf,.doc,.docx,.zip,.rar,.ppt,.pptx">
-                    <small class="text-muted">Bisa upload multiple files</small>
                 </div>
                 
                 <div class="mb-3">
@@ -330,8 +377,27 @@ include __DIR__ . '/../../includes/header.php';
 <?php endif; ?>
 
 <script>
+function toggleTugasMode() {
+    const mode = document.getElementById('tipe_tugas_mode').value;
+    const fileSettings = document.getElementById('file_settings');
+    const soalSettings = document.getElementById('soal_settings');
+    
+    if (mode === 'soal') {
+        if (fileSettings) fileSettings.style.display = 'none';
+        if (soalSettings) soalSettings.style.display = 'block';
+    } else {
+        if (fileSettings) fileSettings.style.display = 'block';
+        if (soalSettings) soalSettings.style.display = 'none';
+    }
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleTugasMode();
+});
+
 // Convert max_file_size from MB to bytes for display
-document.getElementById('max_file_size').addEventListener('change', function() {
+document.getElementById('max_file_size')?.addEventListener('change', function() {
     // Value is in MB, no conversion needed for display
 });
 </script>

@@ -42,26 +42,13 @@ if (!$nilai || $nilai['status'] === 'selesai') {
 // Get ujian info
 $ujian = get_ujian($ujian_id);
 
-// Validate minimum submit time (server-side validation)
-$min_submit_minutes = $ujian['min_submit_minutes'] ?? DEFAULT_MIN_SUBMIT_MINUTES;
-if ($min_submit_minutes > 0 && $nilai['waktu_mulai']) {
-    $waktu_mulai = new DateTime($nilai['waktu_mulai']);
-    $now = new DateTime();
-    $elapsed_seconds = $now->getTimestamp() - $waktu_mulai->getTimestamp();
-    $min_submit_seconds = $min_submit_minutes * 60;
-    
-    if ($elapsed_seconds < $min_submit_seconds) {
-        $remaining_seconds = $min_submit_seconds - $elapsed_seconds;
-        $remaining_minutes = ceil($remaining_seconds / 60);
-        $_SESSION['error_message'] = "Anda harus menunggu minimal {$min_submit_minutes} menit setelah mulai ujian sebelum bisa menyelesaikan. Silakan tunggu {$remaining_minutes} menit lagi.";
-        redirect('siswa/ujian/take.php?id=' . $sesi_id);
-    }
-}
+// Minimum submit time restriction has been removed - students can finish anytime
+// Only restriction is time limit (waktu habis) or manual finish button click
 
 try {
     $pdo->beginTransaction();
     
-    // Save all answers
+    // Save all answers and lock them (after verification/submit)
     foreach ($jawaban as $soal_id => $jawaban_value) {
         $soal_id = intval($soal_id);
         
@@ -73,15 +60,22 @@ try {
             $jawaban_value = sanitize($jawaban_value);
         }
         
+        // Save answer and lock it (only if not already locked)
         $stmt = $pdo->prepare("INSERT INTO jawaban_siswa 
-                              (id_sesi, id_ujian, id_soal, id_siswa, jawaban, jawaban_json, waktu_submit) 
-                              VALUES (?, ?, ?, ?, ?, ?, NOW())
+                              (id_sesi, id_ujian, id_soal, id_siswa, jawaban, jawaban_json, waktu_submit, is_locked, locked_at) 
+                              VALUES (?, ?, ?, ?, ?, ?, NOW(), 1, NOW())
                               ON DUPLICATE KEY UPDATE 
                               jawaban = VALUES(jawaban), 
                               jawaban_json = VALUES(jawaban_json),
-                              waktu_submit = NOW()");
+                              waktu_submit = NOW(),
+                              is_locked = 1,
+                              locked_at = NOW()");
         $stmt->execute([$sesi_id, $ujian_id, $soal_id, $_SESSION['user_id'], $jawaban_value, $jawaban_json]);
     }
+    
+    // Mark answers as locked in nilai table
+    $stmt = $pdo->prepare("UPDATE nilai SET answers_locked = 1 WHERE id_sesi = ? AND id_ujian = ? AND id_siswa = ?");
+    $stmt->execute([$sesi_id, $ujian_id, $_SESSION['user_id']]);
     
     // Calculate score
     $stmt = $pdo->prepare("SELECT s.*, js.jawaban, js.jawaban_json 

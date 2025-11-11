@@ -43,9 +43,10 @@ try {
     
     foreach ($penilaian_data as $siswa_id => $data) {
         $siswa_id = intval($siswa_id);
-        $nilai_tugas = !empty($data['nilai_tugas']) ? floatval($data['nilai_tugas']) : null;
+        // Manual grading is only for UTS - set tugas and UAS to null
+        $nilai_tugas = null; // Not manually graded - should come from tugas submissions
         $nilai_uts = !empty($data['nilai_uts']) ? floatval($data['nilai_uts']) : null;
-        $nilai_uas = !empty($data['nilai_uas']) ? floatval($data['nilai_uas']) : null;
+        $nilai_uas = null; // Not manually graded - should come from UAS exam results
         $nilai_akhir = !empty($data['nilai_akhir']) ? floatval($data['nilai_akhir']) : null;
         $predikat = !empty($data['predikat']) ? sanitize($data['predikat']) : null;
         $keterangan = !empty($data['keterangan']) ? sanitize($data['keterangan']) : null;

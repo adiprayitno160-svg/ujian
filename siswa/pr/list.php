@@ -17,18 +17,9 @@ include __DIR__ . '/../../includes/header.php';
 
 global $pdo;
 
-// Get PR for this student's classes
-$stmt = $pdo->prepare("SELECT DISTINCT p.*, m.nama_mapel,
-                      (SELECT status FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) as status_submission,
-                      (SELECT nilai FROM pr_submission WHERE id_pr = p.id AND id_siswa = ?) as nilai_submission
-                      FROM pr p
-                      INNER JOIN mapel m ON p.id_mapel = m.id
-                      INNER JOIN pr_kelas pk ON p.id = pk.id_pr
-                      INNER JOIN user_kelas uk ON pk.id_kelas = uk.id_kelas
-                      WHERE uk.id_user = ?
-                      ORDER BY p.deadline ASC");
-$stmt->execute([$_SESSION['user_id'], $_SESSION['user_id'], $_SESSION['user_id']]);
-$pr_list = $stmt->fetchAll();
+// Get PR for this student's classes using the function (includes auto-hide logic)
+require_once __DIR__ . '/../../includes/pr_functions.php';
+$pr_list = get_pr_by_student($_SESSION['user_id'], []);
 ?>
 
 <div class="row mb-4">
@@ -57,6 +48,9 @@ $pr_list = $stmt->fetchAll();
                     <h5 class="card-title"><?php echo escape($pr['judul']); ?></h5>
                     <p class="text-muted mb-2">
                         <i class="fas fa-book"></i> <?php echo escape($pr['nama_mapel']); ?>
+                    </p>
+                    <p class="text-muted mb-2">
+                        <i class="fas fa-user-tie"></i> Guru: <?php echo escape($pr['nama_guru'] ?? 'N/A'); ?>
                     </p>
                     <p class="mb-2">
                         <i class="fas fa-calendar"></i> 
