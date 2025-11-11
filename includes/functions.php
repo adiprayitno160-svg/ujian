@@ -39,15 +39,27 @@ function format_date($date, $format = 'd/m/Y H:i') {
  * Format time ago
  */
 function time_ago($datetime) {
-    $timestamp = strtotime($datetime);
-    $diff = time() - $timestamp;
+    if (empty($datetime)) {
+        return '';
+    }
     
-    if ($diff < 60) return 'Baru saja';
-    if ($diff < 3600) return floor($diff / 60) . ' menit yang lalu';
-    if ($diff < 86400) return floor($diff / 3600) . ' jam yang lalu';
-    if ($diff < 2592000) return floor($diff / 86400) . ' hari yang lalu';
-    if ($diff < 31536000) return floor($diff / 2592000) . ' bulan yang lalu';
-    return floor($diff / 31536000) . ' tahun yang lalu';
+    try {
+        $timestamp = strtotime($datetime);
+        if ($timestamp === false) {
+            return $datetime;
+        }
+        
+        $diff = time() - $timestamp;
+        
+        if ($diff < 60) return 'Baru saja';
+        if ($diff < 3600) return floor($diff / 60) . ' menit yang lalu';
+        if ($diff < 86400) return floor($diff / 3600) . ' jam yang lalu';
+        if ($diff < 2592000) return floor($diff / 86400) . ' hari yang lalu';
+        if ($diff < 31536000) return floor($diff / 2592000) . ' bulan yang lalu';
+        return floor($diff / 31536000) . ' tahun yang lalu';
+    } catch (Exception $e) {
+        return $datetime;
+    }
 }
 
 /**

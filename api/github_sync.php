@@ -726,6 +726,88 @@ try {
             echo json_encode($releases);
             break;
             
+        case 'create_release':
+            // Create GitHub release
+            // Only admin can create releases
+            if ($_SESSION['role'] !== ROLE_ADMIN) {
+                echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+                break;
+            }
+            
+            $version = trim($_POST['version'] ?? '');
+            $release_name = trim($_POST['release_name'] ?? '');
+            $release_body = trim($_POST['release_body'] ?? '');
+            
+            if (empty($version)) {
+                echo json_encode(['success' => false, 'message' => 'Version is required']);
+                break;
+            }
+            
+            // Validate version format
+            if (!preg_match('/^\d+\.\d+\.\d+$/', $version)) {
+                echo json_encode(['success' => false, 'message' => 'Invalid version format. Use X.Y.Z format']);
+                break;
+            }
+            
+            // Set defaults
+            if (empty($release_name)) {
+                $release_name = "Release v{$version}";
+            }
+            if (empty($release_body)) {
+                $release_body = "Release v{$version}\n\nPerbaikan bug dan peningkatan fitur.";
+            }
+            
+            try {
+                require_once __DIR__ . '/../includes/version_check.php';
+                
+                // Get GitHub token
+                $github_token = getenv('GITHUB_TOKEN');
+                if (empty($github_token)) {
+                    $token_file = __DIR__ . '/../config/github_token.php';
+                    if (file_exists($token_file)) {
+                        $token_config = @include $token_file;
+                        if (isset($token_config['token'])) {
+                            $github_token = $token_config['token'];
+                        }
+                    }
+                }
+                
+                if (empty($github_token)) {
+                    echo json_encode([
+                        'success' => false,
+                        'message' => 'GitHub token tidak ditemukan. Silakan set GITHUB_TOKEN environment variable atau buat file config/github_token.php'
+                    ]);
+                    break;
+                }
+                
+                // Create release
+                $result = create_github_release($version, $release_name, $release_body, false, false, $github_token);
+                
+                if ($result['success']) {
+                    // Update APP_VERSION in config.php
+                    try {
+                        $config_file = __DIR__ . '/../config/config.php';
+                        $config_content = file_get_contents($config_file);
+                        $pattern = "/(define\s*\(\s*['\"]APP_VERSION['\"]\s*,\s*['\"])([^'\"]+)(['\"]\s*\))/";
+                        if (preg_match($pattern, $config_content)) {
+                            $new_content = preg_replace($pattern, '${1}' . $version . '${3}', $config_content);
+                            file_put_contents($config_file, $new_content);
+                        }
+                    } catch (Exception $e) {
+                        error_log("Failed to update APP_VERSION: " . $e->getMessage());
+                    }
+                }
+                
+                echo json_encode($result);
+            } catch (Exception $e) {
+                error_log("Create release error: " . $e->getMessage());
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'Error: ' . $e->getMessage()
+                ]);
+            }
+            break;
+            
         case 'update_config_version':
             // Update APP_VERSION in config.php
             $version = trim($_POST['version'] ?? '');

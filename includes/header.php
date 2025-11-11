@@ -564,6 +564,26 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
         .sidebar-overlay.show {
             display: block;
         }
+        
+        /* Pulse animation for update notification */
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+        .animate-pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        /* Update notification button hover effect */
+        .update-notification .btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.4);
+            transition: all 0.2s ease;
+        }
     </style>
 </head>
 <body <?php echo (isset($hide_navbar) && $hide_navbar) ? 'class="hide-navbar"' : ''; ?>>
@@ -874,9 +894,10 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
             <div class="sidebar-footer">
                 <?php if ($update_available && isset($update_info) && $_SESSION['role'] === 'admin'): ?>
                 <div class="update-notification mb-2 px-3">
-                    <a href="<?php echo base_url('admin/about.php'); ?>" class="btn btn-sm btn-warning text-dark w-100" title="Update Available: v<?php echo escape($update_info['latest_version']); ?>">
+                    <a href="<?php echo base_url('admin/update_system.php'); ?>" class="btn btn-sm btn-warning text-dark w-100 animate-pulse" title="Update Available: v<?php echo escape($update_info['latest_version']); ?> - Klik untuk update">
                         <i class="fas fa-download"></i>
-                        <span class="ms-2">Update v<?php echo escape($update_info['latest_version']); ?></span>
+                        <span class="ms-2">Update v<?php echo escape($update_info['latest_version']); ?> Tersedia!</span>
+                        <span class="badge bg-danger ms-2">NEW</span>
                     </a>
                 </div>
                 <?php endif; ?>

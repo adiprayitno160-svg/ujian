@@ -5,16 +5,16 @@
  * Progress tracking per mata pelajaran
  */
 
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../includes/auth.php';
-require_once __DIR__ . '/../../includes/functions.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
 
 require_role('siswa');
 check_session_timeout();
 
 $page_title = 'Progress Tracking';
 $role_css = 'siswa';
-include __DIR__ . '/../../includes/header.php';
+include __DIR__ . '/../includes/header.php';
 
 global $pdo;
 
@@ -324,5 +324,5 @@ const progressChart = new Chart(ctx, {
 </script>
 <?php endif; ?>
 
-<?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>
 

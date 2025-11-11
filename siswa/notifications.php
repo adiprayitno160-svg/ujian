@@ -4,17 +4,17 @@
  * Sistem Ujian dan Pekerjaan Rumah (UJAN)
  */
 
-require_once __DIR__ . '/../../config/config.php';
-require_once __DIR__ . '/../../includes/auth.php';
-require_once __DIR__ . '/../../includes/functions.php';
-require_once __DIR__ . '/../../includes/notification_functions.php';
+require_once __DIR__ . '/../config/config.php';
+require_once __DIR__ . '/../includes/auth.php';
+require_once __DIR__ . '/../includes/functions.php';
+require_once __DIR__ . '/../includes/notification_functions.php';
 
 require_role('siswa');
 check_session_timeout();
 
 $page_title = 'Notifikasi';
 $role_css = 'siswa';
-include __DIR__ . '/../../includes/header.php';
+include __DIR__ . '/../includes/header.php';
 
 global $pdo;
 
@@ -234,32 +234,5 @@ $total_count = count(get_notifications($student_id, 1000, false));
     </div>
 </div>
 
-<?php
-// Helper function for time ago
-function time_ago($datetime) {
-    if (empty($datetime)) {
-        return '';
-    }
-    
-    try {
-        $time = new DateTime($datetime);
-        $now = new DateTime();
-        $diff = $now->diff($time);
-        
-        if ($diff->days > 0) {
-            return $diff->days . ' hari yang lalu';
-        } elseif ($diff->h > 0) {
-            return $diff->h . ' jam yang lalu';
-        } elseif ($diff->i > 0) {
-            return $diff->i . ' menit yang lalu';
-        } else {
-            return 'Baru saja';
-        }
-    } catch (Exception $e) {
-        return $datetime;
-    }
-}
-?>
-
-<?php include __DIR__ . '/../../includes/footer.php'; ?>
+<?php include __DIR__ . '/../includes/footer.php'; ?>
 

@@ -21,6 +21,40 @@ global $pdo;
 $sekolah = get_sekolah_info();
 $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
 ?>
+<style>
+/* Pulse animation for update notification */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+.animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Update alert styles */
+#updateAvailableAlert {
+    border-left: 4px solid #f59e0b;
+}
+
+#updateProgress {
+    animation: fadeIn 0.3s ease-in;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
 
 <div class="row mb-4">
     <div class="col-12">
@@ -116,18 +150,19 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                 
                 <!-- Update Available Alert -->
                 <div id="updateAvailableAlert" class="alert alert-warning d-none mb-3">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
+                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                        <div class="flex-grow-1">
                             <i class="fas fa-exclamation-triangle me-2"></i>
                             <strong>Update Tersedia!</strong>
                             <div class="small mt-1">
+                                Versi saat ini: <strong id="currentVersionInAlert">v<?php echo escape(APP_VERSION ?? '1.0.0'); ?></strong> → 
                                 Versi terbaru: <strong id="latestVersionDisplay"></strong>
                                 <br>
                                 <span id="updateReleaseNotes" class="text-muted"></span>
                             </div>
                         </div>
                         <div>
-                            <button class="btn btn-sm btn-primary" onclick="startUpdate()" id="manualUpdateBtn">
+                            <button class="btn btn-primary" onclick="startUpdate()" id="updateNowBtn">
                                 <i class="fas fa-download"></i> Update Sekarang
                             </button>
                         </div>
@@ -163,15 +198,25 @@ $github_repo = 'https://github.com/adiprayitno160-svg/ujian';
                         <button type="button" class="btn btn-success" onclick="manualUpdate()" id="manualUpdateBtnFull">
                             <i class="fas fa-download"></i> Update dari GitHub (Manual)
                         </button>
+                        <small class="text-muted text-center mt-2">
+                            <i class="fas fa-info-circle"></i> Update manual akan mengambil perubahan terbaru dari branch main
+                        </small>
                     </div>
                     <div id="updateProgress" class="mt-3" style="display:none;">
-                        <div class="progress mb-2">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                        <div class="alert alert-info">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm text-primary me-3" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <strong id="updateProgressText">Sedang memproses update...</strong>
+                                    <div class="progress mt-2" style="height: 6px;">
+                                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                                    </div>
+                                    <small class="text-muted d-block mt-1">Mohon tunggu, jangan tutup halaman ini...</small>
+                                </div>
+                            </div>
                         </div>
-                        <p class="text-center mb-0">
-                            <i class="fas fa-spinner fa-spin me-2"></i>
-                            <span id="updateProgressText">Sedang mengupdate sistem...</span>
-                        </p>
                     </div>
                 </div>
                 
@@ -245,15 +290,30 @@ function checkVersionUpdate(forceRefresh = false) {
                 if (response.has_update) {
                     // Update available
                     $('#latestVersionDisplay').text('v' + response.latest_version);
+                    $('#currentVersionInAlert').text('v' + response.current_version);
+                    
                     if (response.release_notes) {
-                        const notes = response.release_notes.substring(0, 200);
-                        $('#updateReleaseNotes').text(notes + (response.release_notes.length > 200 ? '...' : ''));
+                        const notes = response.release_notes.substring(0, 150);
+                        $('#updateReleaseNotes').html('<div class="mt-2"><em>' + escapeHtml(notes + (response.release_notes.length > 150 ? '...' : '')) + '</em></div>');
+                    } else {
+                        $('#updateReleaseNotes').html('');
                     }
+                    
+                    // Show release URL if available
+                    if (response.release_url) {
+                        $('#updateReleaseNotes').append('<div class="mt-1"><a href="' + response.release_url + '" target="_blank" class="text-decoration-none"><small><i class="fas fa-external-link-alt"></i> Lihat detail release</small></a></div>');
+                    }
+                    
                     $('#updateAvailableAlert').removeClass('d-none');
                     $('#noUpdateAlert').addClass('d-none');
                     
                     // Store update info for later use
                     window.updateInfo = response;
+                    
+                    // Scroll to alert
+                    $('html, body').animate({
+                        scrollTop: $('#updateAvailableAlert').offset().top - 100
+                    }, 500);
                 } else {
                     // No update
                     let message = response.message || 'Tidak ada update tersedia';
@@ -328,9 +388,22 @@ function clearCache() {
 
 // Start update process
 function startUpdate() {
-    if (!window.updateInfo || !window.updateInfo.has_update) {
-        alert('Tidak ada update yang tersedia');
-        return;
+    // Get update info from window or re-check if not available
+    let updateInfo = window.updateInfo;
+    if (!updateInfo || !updateInfo.has_update) {
+        // Try to get from the alert element
+        const latestVersion = $('#latestVersionDisplay').text();
+        if (!latestVersion || latestVersion.trim() === '') {
+            alert('Tidak ada update yang tersedia. Silakan refresh halaman untuk memeriksa ulang.');
+            checkVersionUpdate(true);
+            return;
+        }
+        // Create update info from displayed version
+        updateInfo = {
+            has_update: true,
+            latest_version: latestVersion.replace('v', ''),
+            current_version: '<?php echo APP_VERSION ?? "1.0.0"; ?>'
+        };
     }
     
     // Detect if this is live server
@@ -340,20 +413,32 @@ function startUpdate() {
                          !window.location.hostname.startsWith('10.') &&
                          window.location.protocol === 'https';
     
-    // Confirm for live server
+    // Create confirmation message
+    let confirmMessage = '⚠️ KONFIRMASI UPDATE ⚠️\n\n';
+    confirmMessage += 'Versi saat ini: v' + updateInfo.current_version + '\n';
+    confirmMessage += 'Versi terbaru: v' + updateInfo.latest_version + '\n\n';
+    confirmMessage += 'Update akan:\n';
+    confirmMessage += '1. Membuat backup database otomatis\n';
+    confirmMessage += '2. Mengaktifkan maintenance mode (jika live server)\n';
+    confirmMessage += '3. Update file dari GitHub\n';
+    confirmMessage += '4. Menjalankan database migration\n';
     if (isLiveServer) {
-        if (!confirm('⚠️ LIVE SERVER DETECTED ⚠️\n\n' +
-                     'Update akan:\n' +
-                     '1. Membuat backup database otomatis\n' +
-                     '2. Mengaktifkan maintenance mode\n' +
-                     '3. Update file dan database\n' +
-                     '4. Rollback otomatis jika gagal\n\n' +
-                     'Lanjutkan update?')) {
-            return;
-        }
+        confirmMessage += '5. Rollback otomatis jika gagal\n';
+    }
+    confirmMessage += '\n';
+    if (isLiveServer) {
+        confirmMessage += '⚠️ LIVE SERVER DETECTED ⚠️\n';
+    }
+    confirmMessage += '\nLanjutkan update?';
+    
+    if (!confirm(confirmMessage)) {
+        return;
     }
     
-    performUpdate(isLiveServer);
+    // Store update info for later use
+    window.updateInfo = updateInfo;
+    
+    performUpdate(isLiveServer, updateInfo);
 }
 
 // Manual update (without version check)
@@ -375,17 +460,46 @@ function manualUpdate() {
                          !window.location.hostname.startsWith('10.') &&
                          window.location.protocol === 'https';
     
-    performUpdate(isLiveServer);
+    // Create dummy update info for manual update
+    const updateInfo = {
+        has_update: true,
+        current_version: '<?php echo APP_VERSION ?? "1.0.0"; ?>',
+        latest_version: 'manual'
+    };
+    
+    performUpdate(isLiveServer, updateInfo);
 }
 
 // Perform update
-function performUpdate(isLiveServer) {
-    // Show progress
-    $('#manualUpdateBtn').prop('disabled', true);
+function performUpdate(isLiveServer, updateInfo) {
+    // Disable all update buttons
+    $('#updateNowBtn').prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Memproses...');
     $('#manualUpdateBtnFull').prop('disabled', true);
+    
+    // Hide alerts and show progress
+    $('#updateAvailableAlert').addClass('d-none');
+    $('#noUpdateAlert').addClass('d-none');
     $('#updateProgress').show();
     $('#updateProgressText').text('Sedang memproses update...');
-    $('#updateResult').hide();
+    $('#updateResult').hide().html('');
+    
+    // Update progress messages
+    const progressSteps = [
+        'Membuat backup database...',
+        'Mengaktifkan maintenance mode...',
+        'Mengunduh update dari GitHub...',
+        'Mengupdate file sistem...',
+        'Menjalankan database migration...',
+        'Menyelesaikan update...'
+    ];
+    
+    let currentStep = 0;
+    const progressInterval = setInterval(function() {
+        if (currentStep < progressSteps.length - 1) {
+            currentStep++;
+            $('#updateProgressText').text(progressSteps[currentStep]);
+        }
+    }, 5000);
     
     $.ajax({
         url: apiUrl,
@@ -399,77 +513,111 @@ function performUpdate(isLiveServer) {
         dataType: 'json',
         timeout: 300000, // 5 minutes timeout
         success: function(response) {
+            clearInterval(progressInterval);
             $('#updateProgress').hide();
-            $('#manualUpdateBtn').prop('disabled', false);
+            $('#updateNowBtn').prop('disabled', false).html('<i class="fas fa-download"></i> Update Sekarang');
             $('#manualUpdateBtnFull').prop('disabled', false);
             
             if (response.success) {
                 // Show success message
-                let successMsg = '<div class="alert alert-success">' +
+                let successMsg = '<div class="alert alert-success alert-dismissible fade show" role="alert">' +
                     '<i class="fas fa-check-circle me-2"></i>' +
-                    '<strong>Update Berhasil!</strong><br>' +
-                    '<small>' + escapeHtml(response.message || 'Sistem berhasil diupdate dari GitHub') + '</small>';
+                    '<strong>Update Berhasil!</strong><br><br>' +
+                    '<div class="small">' + escapeHtml(response.message || 'Sistem berhasil diupdate dari GitHub') + '</div>';
                 
                 if (response.backup && response.backup.success) {
-                    successMsg += '<br><small class="text-muted">Backup database: ' + escapeHtml(response.backup.filename) + '</small>';
+                    successMsg += '<div class="mt-2"><small class="text-muted"><i class="fas fa-database"></i> Backup database: ' + escapeHtml(response.backup.filename) + '</small></div>';
                 }
                 
                 if (response.old_commit && response.new_commit) {
-                    successMsg += '<br><small class="text-muted">Commit: ' + escapeHtml(response.old_commit) + ' → ' + escapeHtml(response.new_commit) + '</small>';
+                    successMsg += '<div class="mt-1"><small class="text-muted"><i class="fas fa-code-branch"></i> Commit: ' + escapeHtml(response.old_commit) + ' → ' + escapeHtml(response.new_commit) + '</small></div>';
                 }
                 
-                successMsg += '<br><br><strong>Halaman akan di-refresh dalam 3 detik...</strong>' +
+                if (response.migrations) {
+                    const migrationCount = Object.keys(response.migrations).length;
+                    if (migrationCount > 0) {
+                        successMsg += '<div class="mt-1"><small class="text-muted"><i class="fas fa-sync"></i> Database migrations: ' + migrationCount + ' dijalankan</small></div>';
+                    }
+                }
+                
+                successMsg += '<div class="mt-3"><strong><i class="fas fa-info-circle"></i> Halaman akan di-refresh otomatis dalam <span id="countdown">5</span> detik...</strong></div>' +
+                    '<button type="button" class="btn btn-sm btn-light mt-2" onclick="location.reload()">Refresh Sekarang</button>' +
                     '</div>';
                 
                 $('#updateResult').html(successMsg).show();
                 
-                // Reload page after 3 seconds
-                setTimeout(function() {
-                    location.reload();
-                }, 3000);
+                // Countdown before reload
+                let countdown = 5;
+                const countdownInterval = setInterval(function() {
+                    countdown--;
+                    const countdownEl = $('#countdown');
+                    if (countdownEl.length) {
+                        countdownEl.text(countdown);
+                    }
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        location.reload();
+                    }
+                }, 1000);
+                
+                // Clear update info from session
+                window.updateInfo = null;
             } else {
                 // Show error message
-                let errorMsg = '<div class="alert alert-danger">' +
+                let errorMsg = '<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
                     '<i class="fas fa-exclamation-circle me-2"></i>' +
-                    '<strong>Update Gagal!</strong><br>' +
-                    '<small>' + escapeHtml(response.message || 'Gagal melakukan update') + '</small>';
+                    '<strong>Update Gagal!</strong><br><br>' +
+                    '<div class="small">' + escapeHtml(response.message || 'Gagal melakukan update') + '</div>';
                 
                 if (response.rollback) {
-                    errorMsg += '<br><small class="text-warning">Sistem telah di-rollback ke versi sebelumnya.</small>';
+                    errorMsg += '<div class="mt-2"><small class="text-warning"><i class="fas fa-undo"></i> Sistem telah di-rollback ke versi sebelumnya.</small></div>';
                 }
                 
                 if (response.backup_error) {
-                    errorMsg += '<br><small class="text-muted">Error backup: ' + escapeHtml(response.backup_error) + '</small>';
+                    errorMsg += '<div class="mt-2"><small class="text-muted"><i class="fas fa-exclamation-triangle"></i> Error backup: ' + escapeHtml(response.backup_error) + '</small></div>';
                 }
                 
-                errorMsg += '</div>';
+                if (response.migration_error) {
+                    errorMsg += '<div class="mt-2"><small class="text-muted"><i class="fas fa-exclamation-triangle"></i> Error migration: ' + escapeHtml(response.migration_error) + '</small></div>';
+                }
+                
+                errorMsg += '<div class="mt-3"><button type="button" class="btn btn-sm btn-primary" onclick="checkVersionUpdate(true)">Cek Ulang Versi</button></div>' +
+                    '</div>';
                 
                 $('#updateResult').html(errorMsg).show();
                 
-                // Refresh version check
-                checkVersionUpdate(true);
+                // Refresh version check to show current status
+                setTimeout(function() {
+                    checkVersionUpdate(true);
+                }, 1000);
             }
         },
         error: function(xhr, status, error) {
+            clearInterval(progressInterval);
             $('#updateProgress').hide();
-            $('#manualUpdateBtn').prop('disabled', false);
+            $('#updateNowBtn').prop('disabled', false).html('<i class="fas fa-download"></i> Update Sekarang');
             $('#manualUpdateBtnFull').prop('disabled', false);
             
             let errorMsg = 'Error: ' + error;
             if (status === 'timeout') {
-                errorMsg = 'Timeout saat melakukan update. Proses mungkin memakan waktu lebih lama. Silakan cek log atau coba lagi.';
+                errorMsg = 'Timeout saat melakukan update. Proses mungkin memakan waktu lebih lama. Silakan cek log server atau coba lagi nanti.';
+            } else if (xhr.responseJSON && xhr.responseJSON.message) {
+                errorMsg = xhr.responseJSON.message;
             }
             
             $('#updateResult').html(
-                '<div class="alert alert-danger">' +
+                '<div class="alert alert-danger alert-dismissible fade show" role="alert">' +
                 '<i class="fas fa-exclamation-circle me-2"></i>' +
-                '<strong>Update Gagal!</strong><br>' +
-                '<small>' + escapeHtml(errorMsg) + '</small>' +
+                '<strong>Update Gagal!</strong><br><br>' +
+                '<div class="small">' + escapeHtml(errorMsg) + '</div>' +
+                '<div class="mt-3"><button type="button" class="btn btn-sm btn-primary" onclick="checkVersionUpdate(true)">Cek Ulang Versi</button></div>' +
                 '</div>'
             ).show();
             
             // Refresh version check
-            checkVersionUpdate(true);
+            setTimeout(function() {
+                checkVersionUpdate(true);
+            }, 1000);
         }
     });
 }

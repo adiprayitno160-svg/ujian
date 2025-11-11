@@ -126,9 +126,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new Exception('Kunci jawaban harus sesuai dengan opsi yang diisi');
                 }
                 
-                $opsi_json = json_encode($opsi);
+                // Safe JSON encoding with error handling
+                $opsi_json = json_encode($opsi, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($opsi_json === false) {
+                    throw new Exception('Gagal mengencode opsi jawaban. Pastikan tidak ada karakter khusus yang tidak valid.');
+                }
             } elseif ($tipe_soal === 'benar_salah') {
-                $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah']);
+                $opsi_json = json_encode(['Benar' => 'Benar', 'Salah' => 'Salah'], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+                if ($opsi_json === false) {
+                    throw new Exception('Gagal mengencode opsi benar/salah.');
+                }
                 $kunci_jawaban = sanitize($kunci_jawaban_raw);
                 // Validate kunci_jawaban for benar_salah
                 if (empty($kunci_jawaban) || !in_array($kunci_jawaban, ['Benar', 'Salah'])) {
@@ -158,12 +165,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $media_path = null;
             }
             
-            // Insert soal
-            $stmt = $pdo->prepare("INSERT INTO soal 
-                                  (id_ujian, pertanyaan, tipe_soal, opsi_json, kunci_jawaban, bobot, urutan, gambar, media_type) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$ujian_id, $pertanyaan, $tipe_soal, $opsi_json, $kunci_jawaban, $bobot, $urutan, $media_path, $media_type]);
-            $soal_id = $pdo->lastInsertId();
+            // Validate and sanitize data before insert
+            // Trim pertanyaan and validate length
+            $pertanyaan = trim($pertanyaan);
+            if (empty($pertanyaan)) {
+                throw new Exception('Pertanyaan tidak boleh kosong');
+            }
+            if (mb_strlen($pertanyaan) > 5000) {
+                throw new Exception('Pertanyaan terlalu panjang. Maksimal 5000 karakter.');
+            }
+            
+            // Validate kunci_jawaban length
+            if (!empty($kunci_jawaban) && mb_strlen($kunci_jawaban) > 500) {
+                throw new Exception('Kunci jawaban terlalu panjang. Maksimal 500 karakter.');
+            }
+            
+            // Validate bobot
+            if ($bobot <= 0) {
+                $bobot = 1.0;
+            }
+            if ($bobot > 100) {
+                throw new Exception('Bobot tidak boleh lebih dari 100');
+            }
+            
+            // Validate media_path length if provided
+            if (!empty($media_path) && mb_strlen($media_path) > 255) {
+                throw new Exception('Path media terlalu panjang');
+            }
+            
+            // Prepare values for database (handle NULL properly)
+            $db_opsi_json = !empty($opsi_json) ? $opsi_json : null;
+            $db_kunci_jawaban = !empty($kunci_jawaban) ? $kunci_jawaban : '';
+            $db_media_path = !empty($media_path) ? $media_path : null;
+            $db_media_type = !empty($media_type) ? $media_type : null;
+            
+            // Log data before insert for debugging (sanitized)
+            error_log("Create assessment soal - Data: ujian_id=$ujian_id, tipe=$tipe_soal, pertanyaan_len=" . mb_strlen($pertanyaan) . ", opsi_json_len=" . ($opsi_json ? mb_strlen($opsi_json) : 0) . ", kunci_len=" . mb_strlen($db_kunci_jawaban));
+            
+            // Insert soal with error handling
+            try {
+                $stmt = $pdo->prepare("INSERT INTO soal 
+                                      (id_ujian, pertanyaan, tipe_soal, opsi_json, kunci_jawaban, bobot, urutan, gambar, media_type) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([
+                    $ujian_id, 
+                    $pertanyaan, 
+                    $tipe_soal, 
+                    $db_opsi_json, 
+                    $db_kunci_jawaban, 
+                    $bobot, 
+                    $urutan, 
+                    $db_media_path, 
+                    $db_media_type
+                ]);
+                $soal_id = $pdo->lastInsertId();
+                
+                if (!$soal_id) {
+                    throw new Exception('Gagal mendapatkan ID soal yang baru dibuat');
+                }
+            } catch (PDOException $pdoe) {
+                // Log detailed error for debugging
+                error_log("PDO Error creating assessment soal: " . $pdoe->getMessage());
+                error_log("PDO Error Code: " . $pdoe->getCode());
+                error_log("SQL State: " . $pdoe->errorInfo()[0] ?? 'unknown');
+                error_log("SQL Error Info: " . print_r($pdoe->errorInfo(), true));
+                
+                // Provide user-friendly error based on error code
+                $error_code = $pdoe->getCode();
+                if ($error_code == 23000) { // Integrity constraint violation
+                    throw new Exception('Data tidak valid atau sudah ada. Silakan periksa kembali data yang diinput.');
+                } elseif ($error_code == 22001) { // Data too long
+                    throw new Exception('Data terlalu panjang. Silakan kurangi panjang teks.');
+                } elseif ($error_code == 23019) { // Check constraint violation
+                    throw new Exception('Data tidak memenuhi syarat. Silakan periksa kembali.');
+                } else {
+                    // Re-throw with more context
+                    throw new Exception('Gagal menyimpan soal ke database: ' . $pdoe->getMessage());
+                }
+            }
             
             // Handle matching items
             if ($tipe_soal === 'matching') {
@@ -206,12 +285,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($pdo->inTransaction()) {
                 $pdo->rollBack();
             }
-            error_log("Create assessment soal error: " . $e->getMessage());
+            
+            // Enhanced error logging
+            $error_details = [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'post_data' => [
+                    'tipe_asesmen' => $_POST['tipe_asesmen'] ?? null,
+                    'id_mapel' => $_POST['id_mapel'] ?? null,
+                    'tipe_soal' => $_POST['tipe_soal'] ?? null,
+                    'pertanyaan_length' => isset($_POST['pertanyaan']) ? mb_strlen($_POST['pertanyaan']) : 0,
+                ]
+            ];
+            
+            error_log("Create assessment soal error: " . json_encode($error_details, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+            
             // Show user-friendly error message
-            $error = $e->getMessage();
-            // If it's a PDOException, show generic message to user but log details
+            // For PDOException, show generic message but include error code if available
             if ($e instanceof PDOException) {
-                $error = 'Terjadi kesalahan saat membuat soal. Silakan coba lagi atau hubungi administrator.';
+                $error_code = $e->getCode();
+                $error = 'Terjadi kesalahan saat membuat soal. ';
+                
+                // Add specific guidance based on error
+                if ($error_code == 23000) {
+                    $error .= 'Data tidak valid atau duplikat.';
+                } elseif ($error_code == 22001) {
+                    $error .= 'Data terlalu panjang.';
+                } elseif ($error_code == 42000) {
+                    $error .= 'Kesalahan sintaks database.';
+                } elseif ($error_code == '42S02') {
+                    $error .= 'Tabel database tidak ditemukan.';
+                } elseif ($error_code == '42S22') {
+                    $error .= 'Kolom database tidak ditemukan.';
+                } else {
+                    $error .= 'Silakan coba lagi atau hubungi administrator. (Error Code: ' . $error_code . ')';
+                }
+            } else {
+                // For other exceptions, show the actual error message (user-friendly)
+                $error = $e->getMessage();
             }
         }
     }
