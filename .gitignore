@@ -21,6 +21,7 @@ assets/uploads/profile/*
 backups/*
 !backups/.gitkeep
 *.sql
+!database_structure.sql
 *.zip
 *.tar.gz
 
