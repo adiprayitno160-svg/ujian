@@ -55,13 +55,13 @@ if (!empty($siswa['id_kelas'])) {
     }
     
     if ($nip_column_exists) {
-        $stmt = $pdo->prepare("SELECT u.nama, u.nip
-                              FROM wali_kelas wk
-                              INNER JOIN users u ON wk.id_guru = u.id
-                              WHERE wk.id_kelas = ? 
-                              AND wk.tahun_ajaran = ? 
-                              AND wk.semester = ?
-                              LIMIT 1");
+    $stmt = $pdo->prepare("SELECT u.nama, u.nip
+                          FROM wali_kelas wk
+                          INNER JOIN users u ON wk.id_guru = u.id
+                          WHERE wk.id_kelas = ? 
+                          AND wk.tahun_ajaran = ? 
+                          AND wk.semester = ?
+                          LIMIT 1");
     } else {
         // Fallback: use username if nip column doesn't exist
         $stmt = $pdo->prepare("SELECT u.nama, u.username as nip
@@ -115,9 +115,9 @@ if ($aktif_column_exists) {
                           FROM mapel m
                           LEFT JOIN penilaian_manual pm ON pm.id_mapel = m.id
                             AND pm.id_siswa = ?
-                            AND pm.tahun_ajaran = ?
-                            AND pm.semester = ?
-                            AND pm.status = 'approved'
+                      AND pm.tahun_ajaran = ?
+                      AND pm.semester = ?
+                      AND pm.status = 'approved'
                             AND pm.aktif = 1");
 } else {
     // Fallback: ambil semua yang approved jika kolom aktif belum ada

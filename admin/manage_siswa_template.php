@@ -15,15 +15,41 @@ while (ob_get_level() > 0) {
     ob_end_clean();
 }
 
-// Start fresh output buffer
+// Load config first (before any output)
+require_once __DIR__ . '/../config/config.php';
+
+// Start fresh output buffer AFTER config
 ob_start();
 
-require_once __DIR__ . '/../config/config.php';
+// Load auth and functions
 require_once __DIR__ . '/../includes/auth.php';
 require_once __DIR__ . '/../includes/functions.php';
 
-require_role(['admin', 'guru', 'operator']);
-check_session_timeout();
+// Check authentication
+if (!is_logged_in()) {
+    ob_end_clean();
+    if (!headers_sent()) {
+        header('Content-Type: text/html; charset=utf-8');
+        http_response_code(401);
+    }
+    die('Unauthorized: Please login first.');
+}
+
+// Check role
+$allowed_roles = ['admin', 'guru', 'operator'];
+if (!in_array($_SESSION['role'] ?? '', $allowed_roles)) {
+    ob_end_clean();
+    if (!headers_sent()) {
+        header('Content-Type: text/html; charset=utf-8');
+        http_response_code(403);
+    }
+    die('Forbidden: You do not have permission to access this page.');
+}
+
+// Check session timeout
+if (function_exists('check_session_timeout')) {
+    check_session_timeout();
+}
 
 // Check PhpSpreadsheet availability
 $vendor_autoload = __DIR__ . '/../vendor/autoload.php';
@@ -224,15 +250,25 @@ try {
         ob_end_clean();
     }
     
+    // Log error
+    error_log("Error in manage_siswa_template.php: " . $e->getMessage() . " in " . $e->getFile() . " on line " . $e->getLine());
+    
     // Send error header if not sent yet
     if (!headers_sent()) {
         header('Content-Type: text/html; charset=utf-8');
         http_response_code(500);
     }
     
-    die('Error generating Excel file:<br>' . 
-        'Message: ' . htmlspecialchars($e->getMessage()) . '<br>' .
-        'File: ' . htmlspecialchars($e->getFile()) . '<br>' .
-        'Line: ' . $e->getLine());
+    // Show user-friendly error message
+    $error_msg = 'Error generating Excel file.';
+    if (strpos($e->getMessage(), 'PhpSpreadsheet') !== false || strpos($e->getMessage(), 'autoload') !== false) {
+        $error_msg .= '<br><br>PhpSpreadsheet library tidak ditemukan atau tidak terinstall dengan benar.<br>';
+        $error_msg .= 'Silakan install melalui composer:<br>';
+        $error_msg .= '<code>composer require phpoffice/phpspreadsheet</code>';
+    } else {
+        $error_msg .= '<br>Message: ' . htmlspecialchars($e->getMessage());
+    }
+    
+    die($error_msg);
 }
 

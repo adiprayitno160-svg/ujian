@@ -312,12 +312,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                         throw new Exception('Format Excel tidak valid. Kolom harus: Nama Siswa, Kelas, PA&PBP, P.PANQ, B.INDO, MAT, IPA, IPS, B.INGG, PRAK, PJOK, INFOR, B.JAWA');
                     }
                     
-                    // Get mapel mapping
-                    $stmt = $pdo->query("SELECT id, kode_mapel FROM mapel");
+                    // Get mapel mapping - lebih fleksibel dengan kode dan nama
+                    $stmt = $pdo->query("SELECT id, kode_mapel, nama_mapel FROM mapel");
                     $mapel_map = [];
+                    $mapel_map_by_name = [];
                     while ($row = $stmt->fetch()) {
-                        $mapel_map[strtoupper(trim($row['kode_mapel']))] = $row['id'];
+                        $kode_upper = strtoupper(trim($row['kode_mapel'] ?? ''));
+                        $nama_upper = strtoupper(trim($row['nama_mapel'] ?? ''));
+                        
+                        if (!empty($kode_upper)) {
+                            $mapel_map[$kode_upper] = $row['id'];
+                        }
+                        if (!empty($nama_upper)) {
+                            $mapel_map_by_name[$nama_upper] = $row['id'];
+                        }
                     }
+                    
+                    // Mapping kode Excel ke kode/nama alternatif yang mungkin
+                    $kode_alternatif = [
+                        'PA&PBP' => ['PA&PBP', 'PA PBP', 'PENDIDIKAN AGAMA', 'PAI', 'PENDIDIKAN AGAMA ISLAM'],
+                        'P.PANQ' => ['P.PANQ', 'PPKN', 'PANCASILA', 'PENDIDIKAN PANCASILA', 'PKN'],
+                        'B.INDO' => ['B.INDO', 'BAHASA INDONESIA', 'BHS INDONESIA', 'BINDO'],
+                        'MAT' => ['MAT', 'MATEMATIKA', 'MATE'],
+                        'IPA' => ['IPA', 'ILMU PENGETAHUAN ALAM'],
+                        'IPS' => ['IPS', 'ILMU PENGETAHUAN SOSIAL'],
+                        'B.INGG' => ['B.INGG', 'BAHASA INGGRIS', 'BHS INGGRIS', 'BING'],
+                        'PRAK' => ['PRAK', 'PRAKARYA', 'PRAKARYA DAN KEWIRAUSAHAAN'],
+                        'PJOK' => ['PJOK', 'PENDIDIKAN JASMANI', 'PENJAS', 'PENJASORKES'],
+                        'INFOR' => ['INFOR', 'INFORMATIKA', 'TIK', 'TEKNOLOGI INFORMASI'],
+                        'B.JAWA' => ['B.JAWA', 'BAHASA JAWA', 'BHS JAWA', 'BJ']
+                    ];
                     
                     // Get kelas mapping
                     $stmt = $pdo->query("SELECT id, nama_kelas FROM kelas WHERE status = 'active'");
@@ -389,13 +413,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                             // Skip if nilai is 0 or empty
                             if ($nilai_uts <= 0) continue;
                             
-                            // Find mapel
-                            $kode_mapel_upper = strtoupper($kode_mapel);
-                            if (!isset($mapel_map[$kode_mapel_upper])) {
-                                $errors[] = "Baris " . ($i + 1) . ": Mata pelajaran dengan kode '$kode_mapel' tidak ditemukan";
+                            // Find mapel - cari dengan berbagai cara
+                            $kode_mapel_upper = strtoupper(trim($kode_mapel));
+                            $id_mapel = null;
+                            
+                            // 1. Cari exact match kode
+                            if (isset($mapel_map[$kode_mapel_upper])) {
+                                $id_mapel = $mapel_map[$kode_mapel_upper];
+                            } else {
+                                // 2. Cari dari alternatif kode
+                                if (isset($kode_alternatif[$kode_mapel])) {
+                                    foreach ($kode_alternatif[$kode_mapel] as $alt_kode) {
+                                        $alt_upper = strtoupper(trim($alt_kode));
+                                        if (isset($mapel_map[$alt_upper])) {
+                                            $id_mapel = $mapel_map[$alt_upper];
+                                            break;
+                                        }
+                                        // Cari di nama mapel juga
+                                        foreach ($mapel_map_by_name as $nama => $mapel_id) {
+                                            if (stripos($nama, $alt_upper) !== false || stripos($alt_upper, $nama) !== false) {
+                                                $id_mapel = $mapel_id;
+                                                break 2;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // 3. Cari partial match di kode
+                                if (!$id_mapel) {
+                                    foreach ($mapel_map as $kode_db => $mapel_id) {
+                                        if (stripos($kode_db, $kode_mapel_upper) !== false || stripos($kode_mapel_upper, $kode_db) !== false) {
+                                            $id_mapel = $mapel_id;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                // 4. Cari partial match di nama
+                                if (!$id_mapel) {
+                                    foreach ($mapel_map_by_name as $nama => $mapel_id) {
+                                        if (stripos($nama, $kode_mapel_upper) !== false || stripos($kode_mapel_upper, $nama) !== false) {
+                                            $id_mapel = $mapel_id;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if (!$id_mapel) {
+                                $errors[] = "Baris " . ($i + 1) . ": Mata pelajaran dengan kode '$kode_mapel' tidak ditemukan. Pastikan kode mapel sudah benar di database.";
                                 continue;
                             }
-                            $id_mapel = $mapel_map[$kode_mapel_upper];
                             
                             // Check if penilaian exists
                             $stmt = $pdo->prepare("SELECT id FROM penilaian_manual 

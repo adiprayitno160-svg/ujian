@@ -501,12 +501,17 @@ function performUpdate(isLiveServer, updateInfo) {
         }
     }, 5000);
     
+    // Get latest tag from update info if available
+    const latestTag = window.updateInfo && window.updateInfo.tag_name ? window.updateInfo.tag_name : null;
+    
     $.ajax({
         url: apiUrl,
         method: 'POST',
         data: {
             action: 'pull',
             branch: 'main',
+            tag: latestTag, // Use latest tag if available
+            use_latest_tag: latestTag ? '1' : '0', // Use latest release tag
             skip_backup: isLiveServer ? '0' : '1',
             is_live_server: isLiveServer ? '1' : '0'
         },

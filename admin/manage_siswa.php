@@ -684,18 +684,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $imported++;
                         }
                         
-                        if (!$error) {
-                            $pdo->commit();
-                            $import_results = [
-                                'imported' => $imported,
-                                'skipped' => $skipped,
-                                'errors' => $errors
-                            ];
-                            $success = "Berhasil mengimport $imported peserta didik" . ($skipped > 0 ? ", $skipped data dilewati" : "");
-                            log_activity('import_siswa', 'users', null);
-                        } else {
-                            $pdo->rollBack();
-                        }
+                        // Commit transaction
+                        $pdo->commit();
+                        $import_results = [
+                            'imported' => $imported,
+                            'skipped' => $skipped,
+                            'errors' => $errors
+                        ];
+                        $success = "Berhasil mengimport $imported peserta didik" . ($skipped > 0 ? ", $skipped data dilewati" : "");
+                        log_activity('import_siswa', 'users', null);
                     }
                 } catch (Exception $e) {
                     if ($pdo->inTransaction()) {

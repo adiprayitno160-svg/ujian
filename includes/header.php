@@ -1056,10 +1056,10 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                 
                 <?php if (is_logged_in() && isset($_SESSION['role']) && $_SESSION['role'] === 'siswa'): ?>
                     <?php if (isset($menu_visibility['siswa_about']) && $menu_visibility['siswa_about'] == 1): ?>
-                    <a href="<?php echo base_url('siswa-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>" title="Informasi tentang sistem dan versi aplikasi">
-                        <i class="fas fa-info-circle"></i>
-                        <span class="menu-label">Informasi</span>
-                    </a>
+                <a href="<?php echo base_url('siswa-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>" title="Informasi tentang sistem dan versi aplikasi">
+                    <i class="fas fa-info-circle"></i>
+                    <span class="menu-label">Informasi</span>
+                </a>
                     <?php endif; ?>
                 <?php endif; ?>
             </nav>

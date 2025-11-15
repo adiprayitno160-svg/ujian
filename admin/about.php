@@ -570,6 +570,9 @@ function quickUpdate() {
     $('#updateProgress').show();
     $('#updateAvailableAlert').html('<div class="text-center"><i class="fas fa-spinner fa-spin me-2"></i> Memproses update...</div>');
     
+    // Get latest tag from update info if available
+    const latestTag = window.updateInfo && window.updateInfo.tag_name ? window.updateInfo.tag_name : null;
+    
     // Start pull process
     $.ajax({
         url: apiUrl,
@@ -577,6 +580,8 @@ function quickUpdate() {
         data: {
             action: 'pull',
             branch: 'main',
+            tag: latestTag, // Use latest tag if available
+            use_latest_tag: latestTag ? '1' : '0', // Use latest release tag
             skip_backup: isLiveServer ? '0' : '1', // Always backup for live server
             is_live_server: isLiveServer ? '1' : '0' // Mark as live server
         },

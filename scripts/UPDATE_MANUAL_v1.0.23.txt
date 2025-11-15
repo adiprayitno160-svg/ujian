@@ -1,0 +1,82 @@
+==========================================
+  MANUAL UPDATE v1.0.23 (Tanpa Git)
+==========================================
+
+Karena server tidak menggunakan git, update manual:
+
+--------------------------------------------------
+OPSI 1: Update File config.php Saja (Cepat)
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2
+cp config/config.php config/config.php.backup
+sed -i "s/'APP_VERSION', '1.0.22'/'APP_VERSION', '1.0.23'/g" config/config.php
+sed -i 's/"APP_VERSION", "1.0.22"/"APP_VERSION", "1.0.23"/g' config/config.php
+grep "APP_VERSION" config/config.php
+
+--------------------------------------------------
+OPSI 2: Edit Manual dengan nano/vi
+--------------------------------------------------
+cd /www/wwwroot/8.215.192.2
+nano config/config.php
+
+Cari baris:
+define('APP_VERSION', '1.0.22');
+
+Ubah menjadi:
+define('APP_VERSION', '1.0.23');
+
+Simpan: Ctrl+X, Y, Enter
+
+--------------------------------------------------
+OPSI 3: Update File yang Diubah (Lengkap)
+--------------------------------------------------
+File yang perlu di-update:
+1. config/config.php (ubah versi ke 1.0.23)
+2. admin/naik_kelas.php (fix undefined variable)
+3. admin/ledger_nilai.php (fix dropdown tahun ajaran)
+
+Cara:
+1. Download file dari GitHub:
+   https://github.com/adiprayitno160-svg/ujian/releases/tag/v1.0.23
+
+2. Upload file yang diubah ke server via FTP/SFTP
+
+3. Atau copy-paste isi file dari GitHub
+
+--------------------------------------------------
+OPSI 4: Inisialisasi Git (Untuk Update Otomatis)
+--------------------------------------------------
+⚠️ HATI-HATI: Akan backup dan clone ulang dari GitHub
+
+1. Backup folder:
+   cp -r /www/wwwroot/8.215.192.2 /www/wwwroot/8.215.192.2_backup
+
+2. Masuk ke parent folder:
+   cd /www/wwwroot
+
+3. Clone dari GitHub:
+   git clone https://github.com/adiprayitno160-svg/ujian.git 8.215.192.2_new
+
+4. Checkout ke tag v1.0.23:
+   cd 8.215.192.2_new
+   git checkout v1.0.23
+
+5. Copy file config penting dari backup:
+   cp ../8.215.192.2_backup/config/database.php config/
+   cp ../8.215.192.2_backup/config/ai_config.php config/
+   cp -r ../8.215.192.2_backup/assets/uploads/* assets/uploads/
+
+6. Set permissions:
+   chmod -R 755 .
+   chmod -R 777 assets/uploads cache backups
+   chown -R www-data:www-data . || chown -R apache:apache .
+
+7. Rename folder:
+   cd ..
+   mv 8.215.192.2 8.215.192.2_old
+   mv 8.215.192.2_new 8.215.192.2
+
+==========================================
+REKOMENDASI: Gunakan OPSI 1 (Paling Cepat)
+==========================================
+

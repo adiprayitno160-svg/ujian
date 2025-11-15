@@ -4,3 +4,4 @@ cd /www/wwwroot/8.215.192.2 && git fetch origin --tags && git fetch origin main 
 
 
 
+

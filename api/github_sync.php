@@ -392,6 +392,77 @@ function pullFromGitHub($repo_path, $branch = null) {
     }
 }
 
+// Checkout to specific Git tag
+function checkoutGitTag($repo_path, $tag) {
+    try {
+        if (!is_dir($repo_path . '/.git')) {
+            return [
+                'success' => false,
+                'message' => 'Bukan Git repository'
+            ];
+        }
+        
+        $old_dir = getcwd();
+        @chdir($repo_path);
+        
+        // Get current commit before checkout
+        $old_commit_output = [];
+        $old_commit_return = 0;
+        @exec('git rev-parse --short HEAD 2>&1', $old_commit_output, $old_commit_return);
+        $old_commit = ($old_commit_return === 0 && !empty($old_commit_output)) ? trim($old_commit_output[0]) : null;
+        
+        // Fetch tags first
+        $fetch_output = [];
+        $fetch_return = 0;
+        @exec('git fetch origin --tags 2>&1', $fetch_output, $fetch_return);
+        // Don't fail if fetch fails, might already have tags
+        
+        // Fetch main branch to ensure we have latest
+        @exec('git fetch origin main 2>&1', $fetch_output, $fetch_return);
+        
+        // Checkout to tag
+        $checkout_output = [];
+        $checkout_return = 0;
+        @exec('git checkout ' . escapeshellarg($tag) . ' 2>&1', $checkout_output, $checkout_return);
+        
+        if ($checkout_return !== 0) {
+            @chdir($old_dir);
+            return [
+                'success' => false,
+                'message' => 'Failed to checkout tag ' . $tag . ': ' . implode("\n", $checkout_output)
+            ];
+        }
+        
+        // Get new commit after checkout
+        $new_commit_output = [];
+        $new_commit_return = 0;
+        @exec('git rev-parse --short HEAD 2>&1', $new_commit_output, $new_commit_return);
+        $new_commit = ($new_commit_return === 0 && !empty($new_commit_output)) ? trim($new_commit_output[0]) : null;
+        
+        @chdir($old_dir);
+        
+        $message = 'Successfully checked out to tag ' . $tag;
+        if ($old_commit && $new_commit && $old_commit !== $new_commit) {
+            $message .= ' (from ' . $old_commit . ' to ' . $new_commit . ')';
+        }
+        
+        return [
+            'success' => true,
+            'message' => $message,
+            'tag' => $tag,
+            'old_commit' => $old_commit,
+            'new_commit' => $new_commit,
+            'output' => $checkout_output
+        ];
+    } catch (Exception $e) {
+        @chdir($old_dir ?? getcwd());
+        return [
+            'success' => false,
+            'message' => 'Error: ' . $e->getMessage()
+        ];
+    }
+}
+
 // Push to GitHub
 function pushToGitHub($repo_path, $commit_message = 'Update from system') {
     $output = [];
@@ -502,10 +573,21 @@ try {
             break;
             
         case 'pull':
-            // Get branch from POST, default to current branch or main
+            // Get branch/tag from POST, default to current branch or main
             $branch = $_POST['branch'] ?? $_GET['branch'] ?? null;
+            $tag = $_POST['tag'] ?? $_GET['tag'] ?? null; // Optional: specific tag to checkout
+            $use_latest_tag = isset($_POST['use_latest_tag']) && $_POST['use_latest_tag'] === '1'; // Use latest release tag
             $skip_backup = isset($_POST['skip_backup']) && $_POST['skip_backup'] === '1';
             $is_live_server = isset($_POST['is_live_server']) && $_POST['is_live_server'] === '1';
+            
+            // If use_latest_tag is true, get latest tag from GitHub releases
+            if ($use_latest_tag && empty($tag)) {
+                require_once __DIR__ . '/../includes/version_check.php';
+                $latest_release = check_github_releases(false); // Force refresh
+                if ($latest_release['success'] && !empty($latest_release['tag_name'])) {
+                    $tag = $latest_release['tag_name'];
+                }
+            }
             
             // For live server: Always backup and enable maintenance mode
             if ($is_live_server) {
@@ -553,9 +635,17 @@ try {
             $old_commit_full = ($old_commit_return === 0 && !empty($old_commit_output)) ? trim($old_commit_output[0]) : null;
             @chdir($old_dir);
             
-            $result = pullFromGitHub($repo_path, $branch);
+            // If tag is specified, checkout to that tag instead of pulling branch
+            if (!empty($tag)) {
+                $result = checkoutGitTag($repo_path, $tag);
+            } else {
+                $result = pullFromGitHub($repo_path, $branch);
+            }
             $result['backup'] = $backup;
             $result['old_commit_full'] = $old_commit_full; // Store for rollback
+            if (!empty($tag)) {
+                $result['tag'] = $tag;
+            }
             
             // Run database migrations after successful pull
             if ($result['success']) {

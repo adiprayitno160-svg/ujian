@@ -75,3 +75,4 @@ function run_mapel_tingkat_nisn_raport_migration() {
     }
 }
 
+
