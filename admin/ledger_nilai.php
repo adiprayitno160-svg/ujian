@@ -329,18 +329,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
                     }
                     
                     // Mapping kode Excel ke kode/nama alternatif yang mungkin
+                    // Kode di Excel mungkin berbeda dengan kode di database
                     $kode_alternatif = [
-                        'PA&PBP' => ['PA&PBP', 'PA PBP', 'PENDIDIKAN AGAMA', 'PAI', 'PENDIDIKAN AGAMA ISLAM'],
-                        'P.PANQ' => ['P.PANQ', 'PPKN', 'PANCASILA', 'PENDIDIKAN PANCASILA', 'PKN'],
-                        'B.INDO' => ['B.INDO', 'BAHASA INDONESIA', 'BHS INDONESIA', 'BINDO'],
+                        'PA&PBP' => ['PA&PBP', 'PA PBP', 'PAI', 'PENDIDIKAN AGAMA', 'PENDIDIKAN AGAMA ISLAM', 'PENDIDIKAN AGAMA ISLAM DAN BUDI PEKERTI'],
+                        'P.PANQ' => ['P.PANQ', 'PPKN', 'PKN', 'PANCASILA', 'PENDIDIKAN PANCASILA'],
+                        'B.INDO' => ['B.INDO', 'BIN', 'BINDO', 'BAHASA INDONESIA', 'BHS INDONESIA'],
                         'MAT' => ['MAT', 'MATEMATIKA', 'MATE'],
                         'IPA' => ['IPA', 'ILMU PENGETAHUAN ALAM'],
                         'IPS' => ['IPS', 'ILMU PENGETAHUAN SOSIAL'],
-                        'B.INGG' => ['B.INGG', 'BAHASA INGGRIS', 'BHS INGGRIS', 'BING'],
-                        'PRAK' => ['PRAK', 'PRAKARYA', 'PRAKARYA DAN KEWIRAUSAHAAN'],
-                        'PJOK' => ['PJOK', 'PENDIDIKAN JASMANI', 'PENJAS', 'PENJASORKES'],
-                        'INFOR' => ['INFOR', 'INFORMATIKA', 'TIK', 'TEKNOLOGI INFORMASI'],
-                        'B.JAWA' => ['B.JAWA', 'BAHASA JAWA', 'BHS JAWA', 'BJ']
+                        'B.INGG' => ['B.INGG', 'ING', 'BING', 'BAHASA INGGRIS', 'BHS INGGRIS'],
+                        'PRAK' => ['PRAK', 'SENI', 'PRAKARYA', 'SENI RUPA', 'PRAKARYA DAN KEWIRAUSAHAAN', 'SENI RUPA/PRAKARYA'],
+                        'PJOK' => ['PJOK', 'PENJAS', 'PENJASORKES', 'PENDIDIKAN JASMANI', 'PENDIDIKAN JASMANI OLAHRAGA DAN KESEHATAN'],
+                        'INFOR' => ['INFOR', 'INF', 'TIK', 'INFORMATIKA', 'TEKNOLOGI INFORMASI'],
+                        'B.JAWA' => ['B.JAWA', 'BJW', 'BJ', 'BAHASA JAWA', 'BHS JAWA']
                     ];
                     
                     // Get kelas mapping
