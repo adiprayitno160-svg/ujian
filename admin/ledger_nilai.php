@@ -538,9 +538,45 @@ try {
 
 // Get tahun ajaran list
 try {
+    // Try to get from tahun_ajaran table first
     $stmt = $pdo->query("SELECT DISTINCT tahun_ajaran FROM tahun_ajaran ORDER BY tahun_ajaran DESC");
     $tahun_ajaran_list = $stmt->fetchAll();
+    
+    // If empty, try alternative query
+    if (empty($tahun_ajaran_list)) {
+        $stmt = $pdo->query("SELECT DISTINCT tahun_ajaran FROM user_kelas ORDER BY tahun_ajaran DESC");
+        $tahun_ajaran_list = $stmt->fetchAll();
+    }
+    
+    // If still empty, use get_all_tahun_ajaran function
+    if (empty($tahun_ajaran_list)) {
+        $tahun_ajaran_all = get_all_tahun_ajaran('tahun_mulai DESC');
+        $tahun_ajaran_list = [];
+        foreach ($tahun_ajaran_all as $ta) {
+            $tahun_ajaran_list[] = ['tahun_ajaran' => $ta['tahun_ajaran']];
+        }
+    }
+    
+    // Ensure all items have 'tahun_ajaran' key
+    foreach ($tahun_ajaran_list as &$ta) {
+        if (!isset($ta['tahun_ajaran'])) {
+            // If it's a string, wrap it
+            if (is_string($ta)) {
+                $ta = ['tahun_ajaran' => $ta];
+            } elseif (isset($ta[0])) {
+                $ta = ['tahun_ajaran' => $ta[0]];
+            }
+        }
+    }
+    unset($ta);
+    
+    // Fallback: use get_tahun_ajaran_aktif() result if still empty
+    if (empty($tahun_ajaran_list)) {
+        $tahun_ajaran_aktif = get_tahun_ajaran_aktif();
+        $tahun_ajaran_list = [['tahun_ajaran' => $tahun_ajaran_aktif]];
+    }
 } catch (PDOException $e) {
+    error_log("Get tahun ajaran list error: " . $e->getMessage());
     // Fallback: use get_tahun_ajaran_aktif() result
     $tahun_ajaran_aktif = get_tahun_ajaran_aktif();
     $tahun_ajaran_list = [['tahun_ajaran' => $tahun_ajaran_aktif]];

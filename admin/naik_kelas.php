@@ -173,16 +173,30 @@ $tahun_ajaran_sekarang = get_tahun_ajaran_aktif();
 $current_year = (int)date('Y');
 $tahun_ajaran_baru = ($current_year + 1) . '/' . ($current_year + 2);
 
+// Get search parameter
+$search = sanitize($_GET['search'] ?? '');
+
 // Get siswa per kelas untuk preview
-$stmt = $pdo->prepare("SELECT DISTINCT u.id, u.nama, u.username, uk.id_kelas, k.tingkat, k.nama_kelas
-                       FROM users u
-                       INNER JOIN user_kelas uk ON u.id = uk.id_user
-                       INNER JOIN kelas k ON uk.id_kelas = k.id
-                       WHERE u.role = 'siswa' 
-                       AND u.status = 'active'
-                       AND uk.tahun_ajaran = ?
-                       ORDER BY k.tingkat, k.nama_kelas, u.nama");
-$stmt->execute([$tahun_ajaran_sekarang]);
+$query = "SELECT DISTINCT u.id, u.nama, u.username, uk.id_kelas, k.tingkat, k.nama_kelas
+          FROM users u
+          INNER JOIN user_kelas uk ON u.id = uk.id_user
+          INNER JOIN kelas k ON uk.id_kelas = k.id
+          WHERE u.role = 'siswa' 
+          AND u.status = 'active'
+          AND uk.tahun_ajaran = ?";
+$params = [$tahun_ajaran_sekarang];
+
+// Add search filter if provided
+if (!empty($search)) {
+    $query .= " AND (u.nama LIKE ? OR u.username LIKE ? OR u.nisn LIKE ? OR u.nis LIKE ? OR k.nama_kelas LIKE ?)";
+    $search_param = '%' . $search . '%';
+    $params = array_merge($params, [$search_param, $search_param, $search_param, $search_param, $search_param]);
+}
+
+$query .= " ORDER BY k.tingkat, k.nama_kelas, u.nama";
+
+$stmt = $pdo->prepare($query);
+$stmt->execute($params);
 $siswa_list = $stmt->fetchAll();
 
 // Group siswa by kelas
