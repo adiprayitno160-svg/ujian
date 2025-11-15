@@ -11,7 +11,7 @@ require_once __DIR__ . '/../config/ai_config.php';
 /**
  * Send request to Gemini API
  */
-function send_to_gemini($prompt, $api_key = null) {
+function send_to_gemini($prompt, $api_key = null, $model = null) {
     if (empty($api_key)) {
         $api_key = get_ai_api_key();
     }
@@ -20,7 +20,23 @@ function send_to_gemini($prompt, $api_key = null) {
         return ['success' => false, 'message' => 'API key tidak ditemukan'];
     }
     
-    $url = GEMINI_API_URL . AI_MODEL . ':generateContent?key=' . $api_key;
+    // Use provided model or get from database or use default
+    if (empty($model)) {
+        global $pdo;
+        try {
+            $stmt = $pdo->prepare("SELECT model FROM ai_settings WHERE provider = 'gemini' AND enabled = 1 LIMIT 1");
+            $stmt->execute();
+            $settings = $stmt->fetch();
+            $model = $settings && !empty($settings['model']) ? $settings['model'] : AI_MODEL;
+        } catch (PDOException $e) {
+            $model = AI_MODEL;
+        }
+    }
+    
+    // Use v1beta API for all models (v1 may not support all models)
+    // v1beta is more up-to-date and supports newer models
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/';
+    $url = $api_url . $model . ':generateContent?key=' . $api_key;
     
     $data = [
         'contents' => [
@@ -47,10 +63,119 @@ function send_to_gemini($prompt, $api_key = null) {
     
     $response = curl_exec($ch);
     $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curl_error = curl_error($ch);
     curl_close($ch);
     
     if ($http_code !== 200) {
-        return ['success' => false, 'message' => 'API request failed: ' . $http_code];
+        $error_message = 'API request failed: HTTP ' . $http_code;
+        
+        // Parse error response if available
+        if ($response) {
+            $error_result = json_decode($response, true);
+            if (isset($error_result['error']['message'])) {
+                $error_message .= ' - ' . $error_result['error']['message'];
+            } elseif (isset($error_result['error'])) {
+                $error_message .= ' - ' . json_encode($error_result['error']);
+            }
+        }
+        
+        if ($curl_error) {
+            $error_message .= ' - cURL Error: ' . $curl_error;
+        }
+        
+        // If 404 error, try alternative API versions and models
+        if ($http_code === 404) {
+            // First, try v1 API if we're using v1beta
+            if (strpos($api_url, 'v1beta') !== false) {
+                error_log("v1beta failed with 404, trying v1 API for model: " . $model);
+                $v1_api_url = 'https://generativelanguage.googleapis.com/v1/models/';
+                $v1_url = $v1_api_url . $model . ':generateContent?key=' . $api_key;
+                
+                $ch = curl_init($v1_url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_TIMEOUT, AI_CORRECTION_TIMEOUT);
+                
+                $v1_response = curl_exec($ch);
+                $v1_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                if ($v1_http_code === 200) {
+                    $v1_result = json_decode($v1_response, true);
+                    if (isset($v1_result['candidates'][0]['content']['parts'][0]['text'])) {
+                        error_log("v1 API works for model: " . $model);
+                        return [
+                            'success' => true,
+                            'text' => $v1_result['candidates'][0]['content']['parts'][0]['text']
+                        ];
+                    }
+                }
+            }
+            
+            // Try alternative model names (prioritize models that are proven to work)
+            $alternative_models = [];
+            
+            // Map common model names to alternatives (prioritize working models)
+            if ($model === 'gemini-pro' || $model === 'gemini-1.5-pro' || $model === 'gemini-1.5-flash') {
+                // Try newer models that are proven to work
+                $alternative_models = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            } elseif ($model === 'gemini-2.0-flash') {
+                $alternative_models = ['gemini-flash-latest', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            } elseif ($model === 'gemini-flash-latest') {
+                $alternative_models = ['gemini-2.0-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            } else {
+                // Default fallback for any other model
+                $alternative_models = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            }
+            
+            // Try alternative models with both v1beta and v1
+            $api_versions = ['v1beta', 'v1'];
+            foreach ($alternative_models as $alt_model) {
+                foreach ($api_versions as $api_version) {
+                    error_log("Trying alternative model: " . $alt_model . " with API " . $api_version);
+                    $alt_api_url = 'https://generativelanguage.googleapis.com/' . $api_version . '/models/';
+                    $alt_url = $alt_api_url . $alt_model . ':generateContent?key=' . $api_key;
+                    
+                    $ch = curl_init($alt_url);
+                    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($ch, CURLOPT_POST, true);
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                        'Content-Type: application/json'
+                    ]);
+                    curl_setopt($ch, CURLOPT_TIMEOUT, AI_CORRECTION_TIMEOUT);
+                    
+                    $alt_response = curl_exec($ch);
+                    $alt_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                    curl_close($ch);
+                    
+                    if ($alt_http_code === 200) {
+                        $alt_result = json_decode($alt_response, true);
+                        if (isset($alt_result['candidates'][0]['content']['parts'][0]['text'])) {
+                            error_log("Alternative model " . $alt_model . " works with API " . $api_version . "! Using it instead of " . $model . ".");
+                            // Successfully use alternative model - return success with result
+                            return [
+                                'success' => true,
+                                'text' => $alt_result['candidates'][0]['content']['parts'][0]['text'],
+                                'model_used' => $alt_model,
+                                'original_model' => $model,
+                                'message' => 'Model ' . $model . ' tidak tersedia, menggunakan ' . $alt_model . ' sebagai alternatif.'
+                            ];
+                        }
+                    }
+                }
+            }
+            
+            // If all models fail, provide helpful error message
+            $error_message .= ' (Model ' . $model . ' tidak tersedia. Coba model lain: gemini-2.0-flash, gemini-flash-latest, gemini-1.5-flash, atau gemini-1.5-pro)';
+        }
+        
+        error_log("Gemini API Error: " . $error_message);
+        return ['success' => false, 'message' => $error_message, 'http_code' => $http_code];
     }
     
     $result = json_decode($response, true);
@@ -62,7 +187,19 @@ function send_to_gemini($prompt, $api_key = null) {
         ];
     }
     
-    return ['success' => false, 'message' => 'Invalid API response'];
+    // Check for error in response
+    if (isset($result['error'])) {
+        $error_msg = 'API Error: ';
+        if (isset($result['error']['message'])) {
+            $error_msg .= $result['error']['message'];
+        } else {
+            $error_msg .= json_encode($result['error']);
+        }
+        error_log("Gemini API Error Response: " . $error_msg);
+        return ['success' => false, 'message' => $error_msg];
+    }
+    
+    return ['success' => false, 'message' => 'Invalid API response: No text in response', 'response' => $response];
 }
 
 /**
@@ -464,4 +601,10 @@ function correct_pr_ai($pr_id, $submission_id, $api_key = null) {
         return ['success' => false, 'message' => 'Terjadi kesalahan'];
     }
 }
+
+/**
+ * Note: get_ai_api_key() and is_ai_correction_enabled() functions 
+ * are defined in config/ai_config.php which is already included above.
+ * These functions are removed from here to avoid redeclaration error.
+ */
 

@@ -29,6 +29,41 @@ if (is_logged_in() && function_exists('get_unread_notification_count')) {
     $unread_notification_count = get_unread_notification_count($_SESSION['user_id']);
 }
 
+// Get menu visibility settings
+$menu_visibility = [];
+if (is_logged_in()) {
+    global $pdo;
+    $menu_keys = [
+        'siswa_dashboard', 'siswa_ujian', 'siswa_pr', 'siswa_tugas', 'siswa_progress', 
+        'siswa_raport', 'siswa_notifications', 'siswa_verifikasi_dokumen', 'siswa_profile', 'siswa_about',
+        'guru_ujian', 'guru_pr', 'guru_tugas', 'guru_penilaian', 'guru_assessment', 
+        'guru_progress', 'guru_notifications', 'guru_profile', 'guru_about'
+    ];
+    
+    foreach ($menu_keys as $key) {
+        try {
+            $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = ?");
+            $stmt->execute([$key]);
+            $setting = $stmt->fetch(PDO::FETCH_ASSOC);
+            // Check if setting exists and has a value
+            if ($setting !== false && $setting !== null && isset($setting['setting_value'])) {
+                // Use value from database (0 or 1) - explicitly convert to int
+                $menu_visibility[$key] = (int)$setting['setting_value'];
+            } else {
+                // If not found in database, default to visible (1)
+                $menu_visibility[$key] = 1;
+            }
+        } catch (PDOException $e) {
+            error_log("Error loading menu visibility for $key: " . $e->getMessage());
+            // On error, default to visible
+            $menu_visibility[$key] = 1;
+        }
+    }
+}
+
+// Backward compatibility
+$siswa_raport_menu_visible = $menu_visibility['siswa_raport'] ?? 1;
+
 // Check for updates (only for admin, cached)
 $update_available = false;
 $update_info = null;
@@ -668,10 +703,6 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <i class="fas fa-user-graduate"></i>
                         <span class="menu-label">Kelola Siswa</span>
                     </a>
-                    <a href="<?php echo base_url('admin/manage_users.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_users.php' && (!isset($_GET['role']) || $_GET['role'] != 'siswa')) ? 'active' : ''; ?>">
-                        <i class="fas fa-users"></i>
-                        <span class="menu-label">Users</span>
-                    </a>
                     <a href="<?php echo base_url('admin/manage_kelas.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_kelas.php') ? 'active' : ''; ?>">
                         <i class="fas fa-chalkboard"></i>
                         <span class="menu-label">Kelola Kelas</span>
@@ -696,41 +727,73 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <i class="fas fa-database"></i>
                         <span class="menu-label">Arsip Soal</span>
                     </a>
-                    <hr style="margin: 0.5rem 1.5rem; border-color: rgba(255, 255, 255, 0.2);">
-                    <a href="<?php echo base_url('admin/about.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) ? 'active' : ''; ?>">
-                        <i class="fas fa-info-circle"></i>
-                        <span class="menu-label">About & System</span>
-                    </a>
                     <a href="<?php echo base_url('admin-bulk-operations'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'bulk_operations.php') ? 'active' : ''; ?>">
                         <i class="fas fa-tasks"></i>
                         <span class="menu-label">Bulk Operations</span>
+                    </a>
+                    <a href="<?php echo base_url('admin/manage_users.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_users.php' && (!isset($_GET['role']) || $_GET['role'] != 'siswa')) ? 'active' : ''; ?>">
+                        <i class="fas fa-users"></i>
+                        <span class="menu-label">Users</span>
                     </a>
                     <a href="<?php echo base_url('admin/sekolah_settings.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'sekolah_settings.php') ? 'active' : ''; ?>">
                         <i class="fas fa-cog"></i>
                         <span class="menu-label">Pengaturan Sekolah</span>
                     </a>
+                    <a href="<?php echo base_url('admin-menu-settings'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'menu_settings.php' && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-list"></i>
+                        <span class="menu-label">Pengaturan Menu</span>
+                    </a>
+                    <a href="<?php echo base_url('admin-raport'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/admin/raport/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-file-alt"></i>
+                        <span class="menu-label">Raport</span>
+                    </a>
+                    <a href="<?php echo base_url('admin-template-raport'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'template_raport.php' && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-file-alt"></i>
+                        <span class="menu-label">Template Raport</span>
+                    </a>
+                    <a href="<?php echo base_url('admin-manage-wali-kelas'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_wali_kelas.php' && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-user-friends"></i>
+                        <span class="menu-label">Wali Kelas</span>
+                    </a>
                     <a href="<?php echo base_url('admin/ai_settings.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'ai_settings.php') ? 'active' : ''; ?>">
                         <i class="fas fa-robot"></i>
                         <span class="menu-label">Pengaturan AI</span>
                     </a>
+                    <a href="<?php echo base_url('admin-ledger-nilai'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'ledger_nilai.php') ? 'active' : ''; ?>">
+                        <i class="fas fa-book-open"></i>
+                        <span class="menu-label">Ledger Nilai</span>
+                    </a>
+                    <hr style="margin: 0.5rem 1.5rem; border-color: rgba(255, 255, 255, 0.2);">
+                    <a href="<?php echo base_url('admin/about.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/admin/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-info-circle"></i>
+                        <span class="menu-label">About & System</span>
+                    </a>
                 <?php elseif ($_SESSION['role'] === 'guru'): ?>
+                    <?php if (isset($menu_visibility['guru_ujian']) && $menu_visibility['guru_ujian'] == 1): ?>
                     <a href="<?php echo base_url('guru/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false || strpos($_SERVER['REQUEST_URI'], '/sesi/') !== false || strpos($_SERVER['REQUEST_URI'], '/templates.php') !== false) ? 'active' : ''; ?>" title="Kelola ulangan harian, buat ujian, template dan sesi ujian">
                         <i class="fas fa-file-alt"></i>
                         <span class="menu-label">Ulangan Harian</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['guru_pr']) && $menu_visibility['guru_pr'] == 1): ?>
                     <a href="<?php echo base_url('guru/pr/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/pr/') !== false) ? 'active' : ''; ?>" title="Buat dan kelola pekerjaan rumah, lihat pengumpulan dan nilai PR siswa">
                         <i class="fas fa-tasks"></i>
                         <span class="menu-label">PR</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['guru_tugas']) && $menu_visibility['guru_tugas'] == 1): ?>
                     <a href="<?php echo base_url('guru/tugas/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/tugas/') !== false) ? 'active' : ''; ?>" title="Buat dan kelola tugas, lihat pengumpulan dan nilai tugas siswa">
                         <i class="fas fa-clipboard-list"></i>
                         <span class="menu-label">Tugas</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['guru_penilaian']) && $menu_visibility['guru_penilaian'] == 1): ?>
                     <a href="<?php echo base_url('guru/penilaian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/penilaian/') !== false) ? 'active' : ''; ?>" title="Input dan kelola nilai manual untuk siswa">
                         <i class="fas fa-star"></i>
                         <span class="menu-label">Penilaian Manual</span>
                     </a>
-                    <?php if (can_create_assessment_soal()): ?>
+                    <?php endif; ?>
+                    <?php if (can_create_assessment_soal() && isset($menu_visibility['guru_assessment']) && $menu_visibility['guru_assessment'] == 1): ?>
                         <a href="<?php echo base_url('guru-assessment-soal-create'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/assessment/soal/') !== false) ? 'active' : ''; ?>" title="Buat soal untuk assessment SUMATIP">
                             <i class="fas fa-file-question"></i>
                             <span class="menu-label">Pembuatan Soal Assessment</span>
@@ -753,10 +816,12 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         </a>
                     <?php endif; ?>
                     <hr style="margin: 0.5rem 1.5rem; border-color: rgba(255, 255, 255, 0.2);">
+                    <?php if (isset($menu_visibility['guru_about']) && $menu_visibility['guru_about'] == 1): ?>
                     <a href="<?php echo base_url('guru-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/guru/') !== false) || strpos($_SERVER['REQUEST_URI'], 'guru-about') !== false ? 'active' : ''; ?>" title="Informasi tentang sistem dan versi aplikasi">
                         <i class="fas fa-info-circle"></i>
                         <span class="menu-label">Informasi</span>
                     </a>
+                    <?php endif; ?>
                 <?php elseif ($_SESSION['role'] === 'operator'): ?>
                     <!-- Kelola Siswa -->
                     <a href="<?php echo base_url('operator-manage-siswa'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_siswa.php' && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
@@ -788,6 +853,15 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <i class="fas fa-file-alt"></i>
                         <span class="menu-label">
                             Template Raport
+                            <span class="menu-badge">OP</span>
+                        </span>
+                    </a>
+                    
+                    <!-- Wali Kelas -->
+                    <a href="<?php echo base_url('operator-manage-wali-kelas'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'manage_wali_kelas.php' && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-user-friends"></i>
+                        <span class="menu-label">
+                            Wali Kelas
                             <span class="menu-badge">OP</span>
                         </span>
                     </a>
@@ -857,6 +931,15 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         </span>
                     </a>
                     
+                    <!-- Pengaturan Menu -->
+                    <a href="<?php echo base_url('operator-menu-settings'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'menu_settings.php' && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
+                        <i class="fas fa-list"></i>
+                        <span class="menu-label">
+                            Pengaturan Menu
+                            <span class="menu-badge">OP</span>
+                        </span>
+                    </a>
+                    
                     <!-- Raport -->
                     <a href="<?php echo base_url('operator/raport/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/raport/') !== false && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
                         <i class="fas fa-file-alt"></i>
@@ -879,6 +962,13 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                             <span class="menu-badge">OP</span>
                         </span>
                     </a>
+                    <a href="<?php echo base_url('admin-ledger-nilai'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'ledger_nilai.php') ? 'active' : ''; ?>">
+                        <i class="fas fa-book-open"></i>
+                        <span class="menu-label">
+                            Ledger Nilai
+                            <span class="menu-badge">OP</span>
+                        </span>
+                    </a>
                     <a href="<?php echo base_url('operator-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/operator/') !== false) ? 'active' : ''; ?>">
                         <i class="fas fa-info-circle"></i>
                         <span class="menu-label">
@@ -892,30 +982,43 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <span class="menu-label">Pengaturan</span>
                     </a>
                 <?php elseif ($_SESSION['role'] === 'siswa'): ?>
-                    <a href="<?php echo base_url('siswa-dashboard'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/dashboard.php') !== false || (basename($_SERVER['PHP_SELF']) == 'index.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false)) ? 'active' : ''; ?>" title="Dashboard utama, lihat statistik dan ringkasan aktivitas">
+                    <?php if (isset($menu_visibility['siswa_dashboard']) && $menu_visibility['siswa_dashboard'] == 1): ?>
+                    <a href="<?php echo base_url('siswa-dashboard'); ?>" class="menu-item <?php echo ((strpos($_SERVER['REQUEST_URI'], '/dashboard.php') !== false) || (basename($_SERVER['PHP_SELF']) == 'index.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false)) ? 'active' : ''; ?>" title="Dashboard utama, lihat statistik dan ringkasan aktivitas">
                         <i class="fas fa-tachometer-alt"></i>
                         <span class="menu-label">Dashboard</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['siswa_ujian']) && $menu_visibility['siswa_ujian'] == 1): ?>
                     <a href="<?php echo base_url('siswa/ujian/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/ujian/') !== false) ? 'active' : ''; ?>" title="Lihat daftar ujian yang tersedia dan riwayat ujian yang telah dikerjakan">
                         <i class="fas fa-file-alt"></i>
                         <span class="menu-label">Ujian</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['siswa_pr']) && $menu_visibility['siswa_pr'] == 1): ?>
                     <a href="<?php echo base_url('siswa/pr/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/pr/') !== false) ? 'active' : ''; ?>" title="Lihat daftar pekerjaan rumah yang diberikan dan kumpulkan tugas">
                         <i class="fas fa-tasks"></i>
                         <span class="menu-label">PR</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['siswa_tugas']) && $menu_visibility['siswa_tugas'] == 1): ?>
                     <a href="<?php echo base_url('siswa/tugas/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/tugas/') !== false) ? 'active' : ''; ?>" title="Lihat daftar tugas yang diberikan dan kumpulkan tugas">
                         <i class="fas fa-clipboard-list"></i>
                         <span class="menu-label">Tugas</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['siswa_progress']) && $menu_visibility['siswa_progress'] == 1): ?>
                     <a href="<?php echo base_url('siswa-progress'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/progress.php') !== false) ? 'active' : ''; ?>" title="Lihat progress belajar dan perkembangan nilai">
                         <i class="fas fa-chart-line"></i>
                         <span class="menu-label">Progress</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['siswa_raport']) && $menu_visibility['siswa_raport'] == 1): ?>
                     <a href="<?php echo base_url('siswa/raport/list.php'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/raport/') !== false && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>" title="Lihat raport nilai dan hasil belajar">
                         <i class="fas fa-file-alt"></i>
                         <span class="menu-label">Raport</span>
                     </a>
+                    <?php endif; ?>
+                    <?php if (isset($menu_visibility['siswa_notifications']) && $menu_visibility['siswa_notifications'] == 1): ?>
                     <a href="<?php echo base_url('siswa-notifications'); ?>" class="menu-item <?php echo (strpos($_SERVER['REQUEST_URI'], '/notifications.php') !== false) ? 'active' : ''; ?>" title="Lihat notifikasi tentang ujian, tugas, dan pengumuman">
                         <i class="fas fa-bell"></i>
                         <span class="menu-label">Notifikasi</span>
@@ -923,9 +1026,10 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         <span class="badge bg-danger ms-auto" style="font-size: 0.75rem; padding: 2px 6px;"><?php echo $unread_notification_count; ?></span>
                         <?php endif; ?>
                     </a>
+                    <?php endif; ?>
                     <?php
                     // Show verifikasi dokumen menu only for class IX students
-                    if (is_logged_in() && $_SESSION['role'] === 'siswa') {
+                    if (is_logged_in() && $_SESSION['role'] === 'siswa' && isset($menu_visibility['siswa_verifikasi_dokumen']) && $menu_visibility['siswa_verifikasi_dokumen'] == 1) {
                         if (file_exists(__DIR__ . '/verifikasi_functions.php')) {
                             require_once __DIR__ . '/verifikasi_functions.php';
                             $id_siswa = $_SESSION['user_id'];
@@ -942,17 +1046,21 @@ if (is_logged_in() && $_SESSION['role'] === 'admin') {
                         }
                     }
                     ?>
+                    <?php if (isset($menu_visibility['siswa_profile']) && $menu_visibility['siswa_profile'] == 1): ?>
                     <a href="<?php echo base_url('siswa/profile.php'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'profile.php') ? 'active' : ''; ?>" title="Ubah profil dan pengaturan akun">
                         <i class="fas fa-user"></i>
                         <span class="menu-label">Profile</span>
                     </a>
+                    <?php endif; ?>
                 <?php endif; ?>
                 
                 <?php if (is_logged_in() && isset($_SESSION['role']) && $_SESSION['role'] === 'siswa'): ?>
-                <a href="<?php echo base_url('siswa-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>" title="Informasi tentang sistem dan versi aplikasi">
-                    <i class="fas fa-info-circle"></i>
-                    <span class="menu-label">Informasi</span>
-                </a>
+                    <?php if (isset($menu_visibility['siswa_about']) && $menu_visibility['siswa_about'] == 1): ?>
+                    <a href="<?php echo base_url('siswa-about'); ?>" class="menu-item <?php echo (basename($_SERVER['PHP_SELF']) == 'about.php' && strpos($_SERVER['REQUEST_URI'], '/siswa/') !== false) ? 'active' : ''; ?>" title="Informasi tentang sistem dan versi aplikasi">
+                        <i class="fas fa-info-circle"></i>
+                        <span class="menu-label">Informasi</span>
+                    </a>
+                    <?php endif; ?>
                 <?php endif; ?>
             </nav>
             

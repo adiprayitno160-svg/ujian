@@ -90,8 +90,9 @@ if (!empty($siswa_list) && !empty($mapel_list)) {
     }
 }
 
-// Get tahun ajaran list
-$tahun_ajaran_list = $pdo->query("SELECT DISTINCT tahun_ajaran FROM kelas WHERE tahun_ajaran IS NOT NULL ORDER BY tahun_ajaran DESC")->fetchAll(PDO::FETCH_COLUMN);
+// Get tahun ajaran list - ambil dari tabel tahun_ajaran (Kelola Tahun Ajaran)
+$tahun_ajaran_all = get_all_tahun_ajaran('tahun_mulai DESC');
+$tahun_ajaran_list = array_column($tahun_ajaran_all, 'tahun_ajaran');
 ?>
 
 <div class="row mb-4">
@@ -223,6 +224,9 @@ function exportPDF() {
 </script>
 
 <?php include __DIR__ . '/../../../includes/footer.php'; ?>
+
+
+
 
 
 

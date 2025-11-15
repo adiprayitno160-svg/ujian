@@ -78,6 +78,89 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (PDOException $e) {
             $error = 'Terjadi kesalahan: ' . $e->getMessage();
         }
+    } elseif ($action === 'import_default_mapel') {
+        // Import semua mata pelajaran default sesuai capture
+        $default_mapel = [
+            // Kelompok A (Muatan Nasional)
+            ['kode' => 'PAI', 'nama' => 'Pendidikan Agama Islam dan Budi Pekerti'],
+            ['kode' => 'PPKN', 'nama' => 'Pendidikan Pancasila'],
+            ['kode' => 'BIN', 'nama' => 'Bahasa Indonesia'],
+            ['kode' => 'MAT', 'nama' => 'Matematika'],
+            ['kode' => 'IPA', 'nama' => 'Ilmu Pengetahuan Alam'],
+            ['kode' => 'IPS', 'nama' => 'Ilmu Pengetahuan Sosial'],
+            ['kode' => 'ING', 'nama' => 'Bahasa Inggris'],
+            // Kelompok B (Muatan Nasional)
+            ['kode' => 'SENI', 'nama' => 'Seni Rupa/Prakarya'],
+            ['kode' => 'PJOK', 'nama' => 'Pendidikan Jasmani, Olahraga, dan Kesehatan'],
+            ['kode' => 'INF', 'nama' => 'Informatika'],
+            // Muatan Lokal
+            ['kode' => 'BJW', 'nama' => 'Bahasa Jawa'],
+        ];
+        
+        $imported = 0;
+        $skipped = 0;
+        
+        try {
+            $pdo->beginTransaction();
+            
+            foreach ($default_mapel as $mapel) {
+                // Check if mapel already exists
+                $stmt = $pdo->prepare("SELECT id FROM mapel WHERE kode_mapel = ? OR nama_mapel = ?");
+                $stmt->execute([$mapel['kode'], $mapel['nama']]);
+                if ($stmt->fetch()) {
+                    $skipped++;
+                    continue;
+                }
+                
+                // Insert mapel
+                $stmt = $pdo->prepare("INSERT INTO mapel (nama_mapel, kode_mapel, deskripsi) VALUES (?, ?, ?)");
+                $stmt->execute([$mapel['nama'], $mapel['kode'], '']);
+                $imported++;
+            }
+            
+            $pdo->commit();
+            $success = "Import berhasil! Ditambahkan: $imported mata pelajaran, Dilewati: $skipped mata pelajaran";
+            log_activity('import_default_mapel', 'mapel', null);
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            $error = 'Terjadi kesalahan saat import: ' . $e->getMessage();
+        }
+    } elseif ($action === 'assign_tingkat') {
+        $id_mapel = intval($_POST['id_mapel'] ?? 0);
+        $tingkat_list = $_POST['tingkat'] ?? [];
+        
+        if (!$id_mapel) {
+            $error = 'Mata pelajaran tidak valid';
+        } elseif (empty($tingkat_list)) {
+            $error = 'Pilih minimal satu tingkat kelas';
+        } else {
+            try {
+                $pdo->beginTransaction();
+                
+                // Delete existing tingkat assignments for this mapel
+                $stmt = $pdo->prepare("DELETE FROM mapel_tingkat WHERE id_mapel = ?");
+                $stmt->execute([$id_mapel]);
+                
+                // Insert new tingkat assignments
+                $stmt = $pdo->prepare("INSERT INTO mapel_tingkat (id_mapel, tingkat) VALUES (?, ?)");
+                foreach ($tingkat_list as $tingkat) {
+                    $tingkat = sanitize($tingkat);
+                    if (!empty($tingkat)) {
+                        $stmt->execute([$id_mapel, $tingkat]);
+                    }
+                }
+                
+                $pdo->commit();
+                $success = 'Tingkat kelas berhasil di-assign ke mata pelajaran';
+                log_activity('assign_mapel_tingkat', 'mapel_tingkat', $id_mapel);
+            } catch (PDOException $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                $error = 'Terjadi kesalahan: ' . $e->getMessage();
+                error_log("Error in assign_tingkat: " . $e->getMessage());
+            }
+        }
     } elseif ($action === 'assign_guru') {
         $id_mapel = intval($_POST['id_mapel'] ?? 0);
         $assignments = json_decode($_POST['assignments'] ?? '[]', true);
@@ -271,9 +354,29 @@ try {
     $kelas_list = [];
 }
 
+// Get unique tingkat from kelas
+$tingkat_list = [];
+try {
+    $stmt = $pdo->query("SELECT DISTINCT tingkat FROM kelas WHERE tingkat IS NOT NULL AND tingkat != '' ORDER BY tingkat ASC");
+    $tingkat_list = $stmt->fetchAll(PDO::FETCH_COLUMN);
+} catch (PDOException $e) {
+    error_log("Error fetching tingkat: " . $e->getMessage());
+    $tingkat_list = [];
+}
+
 // Get guru-mapel-kelas assignments for each mapel
 $guru_mapel_kelas_data = [];
 foreach ($mapel_list as &$mapel) {
+    // Get tingkat assignments for this mapel
+    try {
+        $stmt = $pdo->prepare("SELECT tingkat FROM mapel_tingkat WHERE id_mapel = ? ORDER BY tingkat ASC");
+        $stmt->execute([$mapel['id']]);
+        $mapel['tingkat'] = $stmt->fetchAll(PDO::FETCH_COLUMN);
+    } catch (PDOException $e) {
+        error_log("Error fetching tingkat for mapel {$mapel['id']}: " . $e->getMessage());
+        $mapel['tingkat'] = [];
+    }
+    
     // Get gurus with their kelas assignments
     try {
         // Check if guru_mapel_kelas table exists
@@ -338,10 +441,22 @@ foreach ($mapel_list as &$mapel) {
 unset($mapel);
 ?>
 
-<div class="d-flex justify-content-end mb-4">
-    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMapelModal">
-        <i class="fas fa-plus"></i> Tambah Mata Pelajaran
-    </button>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h2 class="fw-bold mb-1">Kelola Mata Pelajaran</h2>
+        <p class="text-muted mb-0">Daftar semua mata pelajaran yang tersedia di sistem</p>
+    </div>
+    <div class="d-flex gap-2">
+        <form method="POST" style="display:inline;" onsubmit="return confirm('Yakin ingin mengimport semua mata pelajaran default? Mata pelajaran yang sudah ada akan dilewati.');">
+            <input type="hidden" name="action" value="import_default_mapel">
+            <button type="submit" class="btn btn-success btn-lg">
+                <i class="fas fa-download"></i> Import Mata Pelajaran Default
+            </button>
+        </form>
+        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createMapelModal">
+            <i class="fas fa-plus"></i> Tambah Mata Pelajaran
+        </button>
+    </div>
 </div>
 
 <?php if ($error): ?>
@@ -366,6 +481,7 @@ unset($mapel);
                         <th>Kode</th>
                         <th>Nama Mata Pelajaran</th>
                         <th>Deskripsi</th>
+                        <th>Tingkat</th>
                         <th>Guru</th>
                         <th>Aksi</th>
                     </tr>
@@ -373,18 +489,34 @@ unset($mapel);
                 <tbody>
                     <?php if (empty($mapel_list)): ?>
                         <tr>
-                            <td colspan="6" class="text-center text-muted">Tidak ada data</td>
+                            <td colspan="7" class="text-center py-5">
+                                <div class="text-muted mb-3">
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p class="mb-2"><strong>Belum ada mata pelajaran</strong></p>
+                                    <p class="small">Klik tombol "Import Mata Pelajaran Default" di atas untuk menambahkan mata pelajaran sesuai kurikulum.</p>
+                                </div>
+                            </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($mapel_list as $mapel): ?>
                         <?php
                         $assigned_gurus = $mapel['gurus'] ?? [];
+                        $assigned_tingkat = $mapel['tingkat'] ?? [];
                         ?>
                         <tr>
                             <td><?php echo $mapel['id']; ?></td>
                             <td><span class="badge bg-primary"><?php echo escape($mapel['kode_mapel']); ?></span></td>
                             <td><?php echo escape($mapel['nama_mapel']); ?></td>
                             <td><?php echo escape($mapel['deskripsi'] ?? '-'); ?></td>
+                            <td>
+                                <?php if (!empty($assigned_tingkat)): ?>
+                                    <?php foreach ($assigned_tingkat as $tingkat): ?>
+                                        <span class="badge bg-success"><?php echo escape($tingkat); ?></span>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <span class="text-muted">Belum di-assign</span>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <?php if (!empty($assigned_gurus)): ?>
                                     <div class="d-flex flex-column gap-2">
@@ -416,8 +548,11 @@ unset($mapel);
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
+                                    <button type="button" class="btn btn-sm btn-info" onclick="assignTingkat(<?php echo $mapel['id']; ?>, <?php echo htmlspecialchars(json_encode($assigned_tingkat)); ?>)">
+                                        <i class="fas fa-layer-group"></i> Tingkat
+                                    </button>
                                     <button type="button" class="btn btn-sm btn-success" onclick="assignGuru(<?php echo $mapel['id']; ?>, <?php echo htmlspecialchars(json_encode($assigned_gurus)); ?>)">
-                                        <i class="fas fa-user-plus"></i> Assign
+                                        <i class="fas fa-user-plus"></i> Guru
                                     </button>
                                     <button type="button" class="btn btn-sm btn-primary" onclick="editMapel(<?php echo htmlspecialchars(json_encode($mapel)); ?>)">
                                         <i class="fas fa-edit"></i>
@@ -501,6 +636,55 @@ unset($mapel);
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
                     <button type="submit" class="btn btn-primary">Update</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Assign Tingkat Modal -->
+<div class="modal fade" id="assignTingkatModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="POST" id="assignTingkatForm">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assign Tingkat Kelas ke Mata Pelajaran</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="action" value="assign_tingkat">
+                    <input type="hidden" name="id_mapel" id="assign_tingkat_id_mapel">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Pilih Tingkat Kelas <span class="text-danger">*</span></label>
+                        <div class="border rounded p-3">
+                            <?php if (!empty($tingkat_list)): ?>
+                                <?php foreach ($tingkat_list as $tingkat): ?>
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input tingkat-checkbox" 
+                                               type="checkbox" 
+                                               name="tingkat[]"
+                                               value="<?php echo escape($tingkat); ?>"
+                                               id="tingkat_<?php echo escape($tingkat); ?>">
+                                        <label class="form-check-label" for="tingkat_<?php echo escape($tingkat); ?>">
+                                            <strong><?php echo escape($tingkat); ?></strong>
+                                        </label>
+                                    </div>
+                                <?php endforeach; ?>
+                            <?php else: ?>
+                                <p class="text-muted">Tidak ada tingkat kelas tersedia. Pastikan kelas sudah dibuat dengan tingkat yang sesuai.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        <strong>Catatan:</strong> Pilih tingkat kelas yang akan menggunakan mata pelajaran ini. 
+                        Setelah di-assign, mata pelajaran ini akan tersedia untuk semua kelas di tingkat yang dipilih.
+                        Contoh: Jika memilih "VII", maka semua kelas VII (VII A, VII B, VII C, dll) akan menggunakan mata pelajaran ini.
+                    </small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
                 </div>
             </form>
         </div>
@@ -605,6 +789,29 @@ function editMapel(mapel) {
     document.getElementById('edit_deskripsi').value = mapel.deskripsi || '';
     
     const modal = new bootstrap.Modal(document.getElementById('editMapelModal'));
+    modal.show();
+}
+
+function assignTingkat(mapelId, assignedTingkat) {
+    // Set mapel ID
+    document.getElementById('assign_tingkat_id_mapel').value = mapelId;
+    
+    // Clear all checkboxes
+    document.querySelectorAll('#assignTingkatModal input[type="checkbox"]').forEach(cb => {
+        cb.checked = false;
+    });
+    
+    // Check assigned tingkat
+    if (assignedTingkat && assignedTingkat.length > 0) {
+        assignedTingkat.forEach(function(tingkat) {
+            const checkbox = document.getElementById('tingkat_' + tingkat);
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        });
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('assignTingkatModal'));
     modal.show();
 }
 

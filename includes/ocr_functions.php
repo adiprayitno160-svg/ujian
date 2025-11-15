@@ -124,8 +124,10 @@ function scan_dokumen_with_gemini($file_path, $jenis_dokumen) {
     // Generate prompt based on document type
     $prompt = generate_ocr_prompt($jenis_dokumen);
     
-    // Prepare API request
-    $url = GEMINI_API_URL . $model . ':generateContent?key=' . $api_key;
+    // Use v1beta API for all models (v1 may not support all models)
+    // v1beta is more up-to-date and supports newer models including vision
+    $api_url = 'https://generativelanguage.googleapis.com/v1beta/models/';
+    $url = $api_url . $model . ':generateContent?key=' . $api_key;
     
     $data = [
         'contents' => [
@@ -166,12 +168,83 @@ function scan_dokumen_with_gemini($file_path, $jenis_dokumen) {
     curl_close($ch);
     
     if ($http_code !== 200) {
-        return [
-            'success' => false,
-            'message' => 'API request failed: HTTP ' . $http_code,
-            'error' => $curl_error,
-            'response' => $response
-        ];
+        $error_message = 'API request failed: HTTP ' . $http_code;
+        
+        // Parse error response if available
+        if ($response) {
+            $error_result = json_decode($response, true);
+            if (isset($error_result['error']['message'])) {
+                $error_message .= ' - ' . $error_result['error']['message'];
+            } elseif (isset($error_result['error'])) {
+                $error_message .= ' - ' . json_encode($error_result['error']);
+            }
+        }
+        
+        // If 404 error, try alternative models
+        if ($http_code === 404) {
+            // Try alternative model names
+            $alternative_models = [];
+            
+            // Map common model names to alternatives (prioritize models that are proven to work)
+            if ($model === 'gemini-pro' || $model === 'gemini-1.5-pro' || $model === 'gemini-1.5-flash') {
+                // Try newer models that are proven to work
+                $alternative_models = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            } elseif ($model === 'gemini-2.0-flash') {
+                $alternative_models = ['gemini-flash-latest', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            } elseif ($model === 'gemini-flash-latest') {
+                $alternative_models = ['gemini-2.0-flash', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            } else {
+                // Default fallback for any other model
+                $alternative_models = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.0-flash-001', 'gemini-1.5-flash', 'gemini-1.5-pro'];
+            }
+            
+            // Try alternative models
+            foreach ($alternative_models as $alt_model) {
+                error_log("OCR: Trying alternative model: " . $alt_model);
+                $alt_url = $api_url . $alt_model . ':generateContent?key=' . $api_key;
+                
+                $ch = curl_init($alt_url);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json'
+                ]);
+                curl_setopt($ch, CURLOPT_TIMEOUT, GEMINI_VISION_TIMEOUT);
+                
+                $alt_response = curl_exec($ch);
+                $alt_http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                curl_close($ch);
+                
+                if ($alt_http_code === 200) {
+                    // Success with alternative model, continue processing
+                    error_log("OCR: Alternative model " . $alt_model . " works! Using it instead of " . $model);
+                    $response = $alt_response;
+                    $http_code = $alt_http_code;
+                    // Clear error message since we have successful response
+                    $error_message = '';
+                    break; // Exit loop and continue with successful response
+                }
+            }
+            
+            // If all models fail, return error
+            if ($http_code !== 200) {
+                $error_message .= ' (Semua model gagal. Coba model lain: gemini-2.0-flash, gemini-flash-latest, gemini-1.5-flash, atau gemini-1.5-pro)';
+                return [
+                    'success' => false,
+                    'message' => $error_message,
+                    'error' => $curl_error,
+                    'response' => $response
+                ];
+            }
+        } else {
+            return [
+                'success' => false,
+                'message' => $error_message,
+                'error' => $curl_error,
+                'response' => $response
+            ];
+        }
     }
     
     $result = json_decode($response, true);
@@ -334,4 +407,12 @@ function normalize_ocr_data($data, $jenis_dokumen) {
     
     return $normalized;
 }
+
+/**
+ * Note: The following functions are defined in config/ai_config.php which is already included above.
+ * These functions are removed from here to avoid redeclaration error:
+ * - get_gemini_api_key_for_ocr()
+ * - is_gemini_ocr_enabled()
+ * - get_gemini_model_for_ocr()
+ */
 

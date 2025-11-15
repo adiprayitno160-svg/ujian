@@ -32,20 +32,68 @@ $stmt = $pdo->prepare("SELECT u.*, k.nama_kelas, k.tingkat
 $stmt->execute([$_SESSION['user_id'], $tahun_ajaran, $semester]);
 $siswa = $stmt->fetch();
 
-// Get penilaian
+// Get penilaian - hanya yang sudah aktif (diterbitkan)
 $penilaian_list = [];
 if ($siswa) {
-    $stmt = $pdo->prepare("SELECT pm.*, m.nama_mapel, m.kode_mapel, g.nama as nama_guru
-                          FROM penilaian_manual pm
-                          INNER JOIN mapel m ON pm.id_mapel = m.id
-                          LEFT JOIN users g ON pm.id_guru = g.id
-                          WHERE pm.id_siswa = ?
-                          AND pm.tahun_ajaran = ?
-                          AND pm.semester = ?
-                          AND pm.status = 'approved'
-                          ORDER BY m.nama_mapel ASC");
+    // Check if aktif column exists
+    $aktif_column_exists = false;
+    try {
+        $check_stmt = $pdo->query("SHOW COLUMNS FROM penilaian_manual LIKE 'aktif'");
+        $aktif_column_exists = $check_stmt->rowCount() > 0;
+    } catch (PDOException $e) {
+        $aktif_column_exists = false;
+    }
+    
+    // Urutan mapel sesuai template raport
+    $mapel_order = [
+        'PA&PBP' => 1,
+        'P.PANQ' => 2,
+        'B.INDO' => 3,
+        'MAT' => 4,
+        'IPA' => 5,
+        'IPS' => 6,
+        'B.INGG' => 7,
+        'PRAK' => 8,
+        'PJOK' => 9,
+        'INFOR' => 10,
+        'B.JAWA' => 11
+    ];
+    
+    if ($aktif_column_exists) {
+        // Hanya tampilkan nilai yang sudah aktif (diterbitkan)
+        $stmt = $pdo->prepare("SELECT pm.*, m.nama_mapel, m.kode_mapel, g.nama as nama_guru
+                              FROM penilaian_manual pm
+                              INNER JOIN mapel m ON pm.id_mapel = m.id
+                              LEFT JOIN users g ON pm.id_guru = g.id
+                              WHERE pm.id_siswa = ?
+                              AND pm.tahun_ajaran = ?
+                              AND pm.semester = ?
+                              AND pm.status = 'approved'
+                              AND pm.aktif = 1");
+    } else {
+        // Fallback: tampilkan semua yang approved jika kolom aktif belum ada
+        $stmt = $pdo->prepare("SELECT pm.*, m.nama_mapel, m.kode_mapel, g.nama as nama_guru
+                              FROM penilaian_manual pm
+                              INNER JOIN mapel m ON pm.id_mapel = m.id
+                              LEFT JOIN users g ON pm.id_guru = g.id
+                              WHERE pm.id_siswa = ?
+                              AND pm.tahun_ajaran = ?
+                              AND pm.semester = ?
+                              AND pm.status = 'approved'");
+    }
     $stmt->execute([$_SESSION['user_id'], $tahun_ajaran, $semester]);
-    $penilaian_list = $stmt->fetchAll();
+    $penilaian_list_all = $stmt->fetchAll();
+    
+    // Sort berdasarkan urutan template
+    usort($penilaian_list_all, function($a, $b) use ($mapel_order) {
+        $order_a = $mapel_order[$a['kode_mapel']] ?? 999;
+        $order_b = $mapel_order[$b['kode_mapel']] ?? 999;
+        if ($order_a == $order_b) {
+            return strcmp($a['nama_mapel'], $b['nama_mapel']);
+        }
+        return $order_a - $order_b;
+    });
+    $penilaian_list = $penilaian_list_all;
 }
 
 // Calculate statistics
@@ -176,31 +224,31 @@ $tahun_ajaran_list = $stmt->fetchAll();
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
+                <table class="table table-hover table-bordered">
+                    <thead class="table-light">
                         <tr>
-                            <th>No</th>
-                            <th>Mata Pelajaran</th>
-                            <th>Kode</th>
-                            <th>Nilai Tugas</th>
-                            <th>Nilai UTS</th>
-                            <th>Nilai UAS</th>
-                            <th>Nilai Akhir</th>
-                            <th>Predikat</th>
-                            <th>Guru</th>
+                            <th style="width: 50px; text-align: center;">No</th>
+                            <th style="min-width: 200px;">Mata Pelajaran</th>
+                            <th style="width: 100px; text-align: center;">Kode</th>
+                            <th style="width: 100px; text-align: center;">Nilai Tugas</th>
+                            <th style="width: 100px; text-align: center; background-color: #e3f2fd;">Nilai UTS</th>
+                            <th style="width: 100px; text-align: center;">Nilai UAS</th>
+                            <th style="width: 100px; text-align: center; background-color: #fff3e0;">Nilai Akhir</th>
+                            <th style="width: 100px; text-align: center;">Predikat</th>
+                            <th style="min-width: 150px;">Guru</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php foreach ($penilaian_list as $index => $penilaian): ?>
+                        <?php $no = 1; foreach ($penilaian_list as $penilaian): ?>
                             <tr>
-                                <td><?php echo $index + 1; ?></td>
+                                <td style="text-align: center;"><?php echo $no++; ?></td>
                                 <td><strong><?php echo escape($penilaian['nama_mapel']); ?></strong></td>
-                                <td><?php echo escape($penilaian['kode_mapel']); ?></td>
-                                <td><?php echo $penilaian['nilai_tugas'] !== null ? number_format($penilaian['nilai_tugas'], 2) : '-'; ?></td>
-                                <td><?php echo $penilaian['nilai_uts'] !== null ? number_format($penilaian['nilai_uts'], 2) : '-'; ?></td>
-                                <td><?php echo $penilaian['nilai_uas'] !== null ? number_format($penilaian['nilai_uas'], 2) : '-'; ?></td>
-                                <td><strong><?php echo $penilaian['nilai_akhir'] !== null ? number_format($penilaian['nilai_akhir'], 2) : '-'; ?></strong></td>
-                                <td>
+                                <td style="text-align: center;"><?php echo escape($penilaian['kode_mapel']); ?></td>
+                                <td style="text-align: center;"><?php echo $penilaian['nilai_tugas'] !== null ? number_format($penilaian['nilai_tugas'], 2) : '-'; ?></td>
+                                <td style="text-align: center; background-color: #e3f2fd; font-weight: bold;"><?php echo $penilaian['nilai_uts'] !== null ? number_format($penilaian['nilai_uts'], 2) : '-'; ?></td>
+                                <td style="text-align: center;"><?php echo $penilaian['nilai_uas'] !== null ? number_format($penilaian['nilai_uas'], 2) : '-'; ?></td>
+                                <td style="text-align: center; background-color: #fff3e0; font-weight: bold;"><?php echo $penilaian['nilai_akhir'] !== null ? number_format($penilaian['nilai_akhir'], 2) : '-'; ?></td>
+                                <td style="text-align: center;">
                                     <?php if ($penilaian['predikat']): ?>
                                         <span class="badge bg-info"><?php echo escape($penilaian['predikat']); ?></span>
                                     <?php else: ?>
@@ -238,6 +286,9 @@ $tahun_ajaran_list = $stmt->fetchAll();
 <?php endif; ?>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
+
+
+
 
 
 

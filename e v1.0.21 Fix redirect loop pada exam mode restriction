@@ -1,3 +1,0 @@
-[33ma404f08[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;33mtag: [m[1;33mv1.0.20[m[33m, [m[1;31morigin/main[m[33m)[m Release v1.0.20: Sistem lock ujian, perbaikan token management, dan update berbagai fitur
-[33meffb38d[m Implementasi sistem lock ujian: siswa terkunci dari halaman lain setelah mulai ujian, dengan token request untuk melanjutkan
-[33m3a3811f[m Update tambahan v1.0.19: Perbaikan security check, token management, dan fitur lainnya

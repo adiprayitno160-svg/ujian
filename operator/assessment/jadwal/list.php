@@ -65,7 +65,9 @@ $kelas_list = $stmt->fetchAll();
                 <label class="form-label">Tahun Ajaran</label>
                 <select class="form-select" name="tahun_ajaran">
                     <?php 
-                    $tahun_ajaran_list = $pdo->query("SELECT DISTINCT tahun_ajaran FROM ujian WHERE tahun_ajaran IS NOT NULL ORDER BY tahun_ajaran DESC")->fetchAll(PDO::FETCH_COLUMN);
+                    // Get tahun ajaran - ambil dari tabel tahun_ajaran (Kelola Tahun Ajaran)
+                    $tahun_ajaran_all = get_all_tahun_ajaran('tahun_mulai DESC');
+                    $tahun_ajaran_list = array_column($tahun_ajaran_all, 'tahun_ajaran');
                     foreach ($tahun_ajaran_list as $ta): ?>
                         <option value="<?php echo $ta; ?>" <?php echo $filters['tahun_ajaran'] === $ta ? 'selected' : ''; ?>>
                             <?php echo $ta; ?>
@@ -197,6 +199,9 @@ function deactivateJadwal(id) {
 </script>
 
 <?php include __DIR__ . '/../../../includes/footer.php'; ?>
+
+
+
 
 
 

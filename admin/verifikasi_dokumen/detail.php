@@ -12,16 +12,12 @@ require_once __DIR__ . '/../../includes/verifikasi_functions.php';
 require_role('admin');
 check_session_timeout();
 
-$page_title = 'Detail Verifikasi Dokumen';
-$role_css = 'admin';
-include __DIR__ . '/../../includes/header.php';
-
 global $pdo;
 
 $id_siswa = intval($_GET['id'] ?? 0);
 
 if (!$id_siswa) {
-    redirect('admin/verifikasi_dokumen/index.php');
+    redirect('admin-verifikasi-dokumen-index');
 }
 
 // Get student data
@@ -33,8 +29,12 @@ $stmt->execute([$id_siswa]);
 $siswa = $stmt->fetch();
 
 if (!$siswa) {
-    redirect('admin/verifikasi_dokumen/index.php');
+    redirect('admin-verifikasi-dokumen-index');
 }
+
+$page_title = 'Detail Verifikasi Dokumen';
+$role_css = 'admin';
+include __DIR__ . '/../../includes/header.php';
 
 // Get verifikasi data
 $stmt = $pdo->prepare("SELECT * FROM verifikasi_data_siswa WHERE id_siswa = ?");
@@ -71,7 +71,7 @@ $history = $stmt->fetchAll();
 
 <div class="row mb-4">
     <div class="col-12">
-        <a href="<?php echo base_url('admin/verifikasi_dokumen/index.php'); ?>" class="btn btn-outline-secondary mb-2">
+        <a href="<?php echo base_url('admin-verifikasi-dokumen-index'); ?>" class="btn btn-outline-secondary mb-2">
             <i class="fas fa-arrow-left"></i> Kembali
         </a>
         <h3 class="fw-bold">Detail Verifikasi Dokumen</h3>
@@ -125,13 +125,22 @@ $history = $stmt->fetchAll();
             </div>
             <div class="card-body">
                 <?php if ($dokumen['ijazah']): ?>
+                    <?php 
+                    $file_readable_ijazah = is_file_verifikasi_readable($dokumen['ijazah']['file_path']);
+                    if (!$file_readable_ijazah): 
+                    ?>
+                        <div class="alert alert-danger small mb-3">
+                            <i class="fas fa-exclamation-triangle"></i> <strong>File Bermasalah:</strong> File tidak bisa dibaca atau corrupt
+                        </div>
+                    <?php endif; ?>
                     <div class="mb-3">
                         <strong>Nama Anak:</strong><br>
                         <span><?php echo escape($dokumen['ijazah']['nama_anak'] ?? '-'); ?></span>
                     </div>
                     <div class="mb-3">
                         <a href="<?php echo base_url('assets/uploads/verifikasi/' . $dokumen['ijazah']['file_path']); ?>" 
-                           target="_blank" class="btn btn-sm btn-primary">
+                           target="_blank" class="btn btn-sm btn-primary <?php echo !$file_readable_ijazah ? 'disabled' : ''; ?>" 
+                           <?php echo !$file_readable_ijazah ? 'onclick="return false;" title="File tidak bisa dibaca"' : ''; ?>>
                             <i class="fas fa-eye"></i> Lihat Dokumen
                         </a>
                     </div>
@@ -150,6 +159,14 @@ $history = $stmt->fetchAll();
             </div>
             <div class="card-body">
                 <?php if ($dokumen['kk']): ?>
+                    <?php 
+                    $file_readable_kk = is_file_verifikasi_readable($dokumen['kk']['file_path']);
+                    if (!$file_readable_kk): 
+                    ?>
+                        <div class="alert alert-danger small mb-3">
+                            <i class="fas fa-exclamation-triangle"></i> <strong>File Bermasalah:</strong> File tidak bisa dibaca atau corrupt
+                        </div>
+                    <?php endif; ?>
                     <div class="mb-3">
                         <strong>Nama Anak:</strong><br>
                         <span><?php echo escape($dokumen['kk']['nama_anak'] ?? '-'); ?></span><br>
@@ -160,7 +177,8 @@ $history = $stmt->fetchAll();
                     </div>
                     <div class="mb-3">
                         <a href="<?php echo base_url('assets/uploads/verifikasi/' . $dokumen['kk']['file_path']); ?>" 
-                           target="_blank" class="btn btn-sm btn-info">
+                           target="_blank" class="btn btn-sm btn-info <?php echo !$file_readable_kk ? 'disabled' : ''; ?>" 
+                           <?php echo !$file_readable_kk ? 'onclick="return false;" title="File tidak bisa dibaca"' : ''; ?>>
                             <i class="fas fa-eye"></i> Lihat Dokumen
                         </a>
                     </div>
@@ -179,6 +197,14 @@ $history = $stmt->fetchAll();
             </div>
             <div class="card-body">
                 <?php if ($dokumen['akte']): ?>
+                    <?php 
+                    $file_readable_akte = is_file_verifikasi_readable($dokumen['akte']['file_path']);
+                    if (!$file_readable_akte): 
+                    ?>
+                        <div class="alert alert-danger small mb-3">
+                            <i class="fas fa-exclamation-triangle"></i> <strong>File Bermasalah:</strong> File tidak bisa dibaca atau corrupt
+                        </div>
+                    <?php endif; ?>
                     <div class="mb-3">
                         <strong>Nama Anak:</strong><br>
                         <span><?php echo escape($dokumen['akte']['nama_anak'] ?? '-'); ?></span><br>
@@ -189,7 +215,8 @@ $history = $stmt->fetchAll();
                     </div>
                     <div class="mb-3">
                         <a href="<?php echo base_url('assets/uploads/verifikasi/' . $dokumen['akte']['file_path']); ?>" 
-                           target="_blank" class="btn btn-sm btn-success">
+                           target="_blank" class="btn btn-sm btn-success <?php echo !$file_readable_akte ? 'disabled' : ''; ?>" 
+                           <?php echo !$file_readable_akte ? 'onclick="return false;" title="File tidak bisa dibaca"' : ''; ?>>
                             <i class="fas fa-eye"></i> Lihat Dokumen
                         </a>
                     </div>
@@ -201,6 +228,85 @@ $history = $stmt->fetchAll();
     </div>
 </div>
 
+<!-- Data Tidak Sesuai Card -->
+<?php if ($validation && !$validation['valid'] && !empty($validation['detail_ketidaksesuaian'])): ?>
+<div class="card border-danger shadow-sm mb-4">
+    <div class="card-header bg-danger text-white">
+        <h5 class="mb-0"><i class="fas fa-exclamation-triangle"></i> Data yang Tidak Cocok dan Tidak Sesuai</h5>
+    </div>
+    <div class="card-body">
+        <div class="alert alert-warning">
+            <strong><i class="fas fa-info-circle"></i> Informasi:</strong> Berikut adalah data yang tidak cocok dan tidak sesuai antara dokumen-dokumen yang diupload.
+        </div>
+        
+        <?php
+        // Group by field for better display
+        $grouped_issues = [];
+        foreach ($validation['detail_ketidaksesuaian'] as $detail) {
+            $field = $detail['field'];
+            if (!isset($grouped_issues[$field])) {
+                $grouped_issues[$field] = [];
+            }
+            $grouped_issues[$field][] = $detail;
+        }
+        ?>
+        
+        <div class="row">
+            <?php foreach ($grouped_issues as $field => $issues): 
+                $field_label = ucfirst(str_replace('_', ' ', $field));
+                $field_icon = [
+                    'nama_anak' => 'fa-user',
+                    'nama_ayah' => 'fa-male',
+                    'nama_ibu' => 'fa-female'
+                ];
+                $icon = $field_icon[$field] ?? 'fa-exclamation-circle';
+            ?>
+                <div class="col-md-12 mb-3">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <strong><i class="fas <?php echo $icon; ?>"></i> <?php echo escape($field_label); ?></strong>
+                        </div>
+                        <div class="card-body">
+                            <table class="table table-sm table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th width="30%">Dokumen</th>
+                                        <th width="40%">Masalah</th>
+                                        <th width="30%">Nilai yang Tidak Sesuai</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($issues as $issue): ?>
+                                        <tr>
+                                            <td>
+                                                <span class="badge bg-<?php 
+                                                    echo $issue['dokumen'] === 'ijazah' ? 'primary' : 
+                                                        ($issue['dokumen'] === 'kk' ? 'info' : 'success'); 
+                                                ?>">
+                                                    <?php echo strtoupper(escape($issue['dokumen'])); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="text-danger">
+                                                    <?php echo escape($issue['masalah']); ?>
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <strong class="text-danger">"<?php echo escape($issue['nilai']); ?>"</strong>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Validation Result -->
 <?php if ($validation && count($dokumen_list) >= 3): ?>
 <div class="card border-0 shadow-sm mb-4">
@@ -211,26 +317,40 @@ $history = $stmt->fetchAll();
         <div class="row">
             <div class="col-md-4">
                 <strong>Nama Anak:</strong><br>
-                Ijazah: <?php echo escape($validation['data']['nama_anak_ijazah'] ?? '-'); ?><br>
-                KK: <?php echo escape($validation['data']['nama_anak_kk'] ?? '-'); ?><br>
-                Akte: <?php echo escape($validation['data']['nama_anak_akte'] ?? '-'); ?><br>
-                <span class="badge bg-<?php echo $validation['kesesuaian']['nama_anak'] === 'sesuai' ? 'success' : 'danger'; ?>">
+                Ijazah: <span class="<?php echo ($validation['data']['nama_anak_ijazah'] ?? '') !== ($validation['data']['nama_anak_kk'] ?? '') || ($validation['data']['nama_anak_ijazah'] ?? '') !== ($validation['data']['nama_anak_akte'] ?? '') ? 'text-danger fw-bold' : ''; ?>">
+                    <?php echo escape($validation['data']['nama_anak_ijazah'] ?? '-'); ?>
+                </span><br>
+                KK: <span class="<?php echo ($validation['data']['nama_anak_kk'] ?? '') !== ($validation['data']['nama_anak_ijazah'] ?? '') || ($validation['data']['nama_anak_kk'] ?? '') !== ($validation['data']['nama_anak_akte'] ?? '') ? 'text-danger fw-bold' : ''; ?>">
+                    <?php echo escape($validation['data']['nama_anak_kk'] ?? '-'); ?>
+                </span><br>
+                Akte: <span class="<?php echo ($validation['data']['nama_anak_akte'] ?? '') !== ($validation['data']['nama_anak_ijazah'] ?? '') || ($validation['data']['nama_anak_akte'] ?? '') !== ($validation['data']['nama_anak_kk'] ?? '') ? 'text-danger fw-bold' : ''; ?>">
+                    <?php echo escape($validation['data']['nama_anak_akte'] ?? '-'); ?>
+                </span><br>
+                <span class="badge bg-<?php echo $validation['kesesuaian']['nama_anak'] === 'sesuai' ? 'success' : 'danger'; ?> mt-2">
                     <?php echo $validation['kesesuaian']['nama_anak'] === 'sesuai' ? 'Sesuai ✅' : 'Tidak Sesuai ❌'; ?>
                 </span>
             </div>
             <div class="col-md-4">
                 <strong>Nama Ayah:</strong><br>
-                KK: <?php echo escape($validation['data']['nama_ayah_kk'] ?? '-'); ?><br>
-                Akte: <?php echo escape($validation['data']['nama_ayah_akte'] ?? '-'); ?><br>
-                <span class="badge bg-<?php echo $validation['kesesuaian']['nama_ayah'] === 'sesuai' ? 'success' : 'danger'; ?>">
+                KK: <span class="<?php echo ($validation['data']['nama_ayah_kk'] ?? '') !== ($validation['data']['nama_ayah_akte'] ?? '') ? 'text-danger fw-bold' : ''; ?>">
+                    <?php echo escape($validation['data']['nama_ayah_kk'] ?? '-'); ?>
+                </span><br>
+                Akte: <span class="<?php echo ($validation['data']['nama_ayah_akte'] ?? '') !== ($validation['data']['nama_ayah_kk'] ?? '') ? 'text-danger fw-bold' : ''; ?>">
+                    <?php echo escape($validation['data']['nama_ayah_akte'] ?? '-'); ?>
+                </span><br>
+                <span class="badge bg-<?php echo $validation['kesesuaian']['nama_ayah'] === 'sesuai' ? 'success' : 'danger'; ?> mt-2">
                     <?php echo $validation['kesesuaian']['nama_ayah'] === 'sesuai' ? 'Sesuai ✅' : 'Tidak Sesuai ❌'; ?>
                 </span>
             </div>
             <div class="col-md-4">
                 <strong>Nama Ibu:</strong><br>
-                KK: <?php echo escape($validation['data']['nama_ibu_kk'] ?? '-'); ?><br>
-                Akte: <?php echo escape($validation['data']['nama_ibu_akte'] ?? '-'); ?><br>
-                <span class="badge bg-<?php echo $validation['kesesuaian']['nama_ibu'] === 'sesuai' ? 'success' : 'danger'; ?>">
+                KK: <span class="<?php echo ($validation['data']['nama_ibu_kk'] ?? '') !== ($validation['data']['nama_ibu_akte'] ?? '') ? 'text-danger fw-bold' : ''; ?>">
+                    <?php echo escape($validation['data']['nama_ibu_kk'] ?? '-'); ?>
+                </span><br>
+                Akte: <span class="<?php echo ($validation['data']['nama_ibu_akte'] ?? '') !== ($validation['data']['nama_ibu_kk'] ?? '') ? 'text-danger fw-bold' : ''; ?>">
+                    <?php echo escape($validation['data']['nama_ibu_akte'] ?? '-'); ?>
+                </span><br>
+                <span class="badge bg-<?php echo $validation['kesesuaian']['nama_ibu'] === 'sesuai' ? 'success' : 'danger'; ?> mt-2">
                     <?php echo $validation['kesesuaian']['nama_ibu'] === 'sesuai' ? 'Sesuai ✅' : 'Tidak Sesuai ❌'; ?>
                 </span>
             </div>
@@ -238,15 +358,43 @@ $history = $stmt->fetchAll();
         
         <?php if (!empty($validation['detail_ketidaksesuaian'])): ?>
             <hr>
-            <h6>Detail Ketidaksesuaian:</h6>
-            <ul>
-                <?php foreach ($validation['detail_ketidaksesuaian'] as $detail): ?>
-                    <li>
-                        <strong><?php echo escape($detail['field']); ?> - <?php echo escape($detail['dokumen']); ?>:</strong><br>
-                        <?php echo escape($detail['masalah']); ?>
-                    </li>
-                <?php endforeach; ?>
-            </ul>
+            <div class="alert alert-danger">
+                <h6 class="mb-3"><i class="fas fa-exclamation-triangle"></i> <strong>Detail Ketidaksesuaian Data:</strong></h6>
+                <div class="row">
+                    <?php
+                    // Group by field
+                    $grouped_issues = [];
+                    foreach ($validation['detail_ketidaksesuaian'] as $detail) {
+                        $field = $detail['field'];
+                        if (!isset($grouped_issues[$field])) {
+                            $grouped_issues[$field] = [];
+                        }
+                        $grouped_issues[$field][] = $detail;
+                    }
+                    
+                    foreach ($grouped_issues as $field => $issues):
+                        $field_label = ucfirst(str_replace('_', ' ', $field));
+                    ?>
+                        <div class="col-md-12 mb-3">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <strong><i class="fas fa-times-circle"></i> <?php echo escape($field_label); ?></strong>
+                                </div>
+                                <div class="card-body">
+                                    <?php foreach ($issues as $issue): ?>
+                                        <div class="mb-2">
+                                            <strong>Dokumen <?php echo strtoupper(escape($issue['dokumen'])); ?>:</strong><br>
+                                            <span class="text-danger"><?php echo escape($issue['masalah']); ?></span><br>
+                                            <small class="text-muted">Nilai: "<strong><?php echo escape($issue['nilai']); ?></strong>"</small>
+                                        </div>
+                                        <?php if ($issue !== end($issues)): ?><hr><?php endif; ?>
+                                    <?php endforeach; ?>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
         <?php endif; ?>
     </div>
 </div>
@@ -390,6 +538,9 @@ document.getElementById('verifikasiForm').addEventListener('submit', function(e)
 </script>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
+
+
+
 
 
 

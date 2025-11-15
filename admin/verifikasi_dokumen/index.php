@@ -116,7 +116,7 @@ $siswa_list = $stmt->fetchAll();
                 </button>
             </div>
             <div class="col-md-3 text-end">
-                <a href="<?php echo base_url('admin/verifikasi_dokumen/settings.php'); ?>" class="btn btn-outline-secondary">
+                <a href="<?php echo base_url('admin-verifikasi-dokumen-settings'); ?>" class="btn btn-outline-secondary">
                     <i class="fas fa-cog"></i> Pengaturan
                 </a>
                 <a href="<?php echo base_url('admin/verifikasi_dokumen/residu.php'); ?>" class="btn btn-outline-dark">
@@ -212,6 +212,8 @@ $siswa_list = $stmt->fetchAll();
                         <th>Kelas</th>
                         <th>Status</th>
                         <th>Kesesuaian</th>
+                        <th>Ketidaksesuaian Data</th>
+                        <th>File</th>
                         <th>Upload Ulang</th>
                         <th>Aksi</th>
                     </tr>
@@ -219,10 +221,24 @@ $siswa_list = $stmt->fetchAll();
                 <tbody>
                     <?php if (empty($siswa_list)): ?>
                         <tr>
-                            <td colspan="8" class="text-center text-muted">Tidak ada data</td>
+                            <td colspan="10" class="text-center text-muted">Tidak ada data</td>
                         </tr>
                     <?php else: ?>
                         <?php $no = 1; foreach ($siswa_list as $siswa): ?>
+                            <?php
+                            // Get validation result for detailed mismatch info
+                            $validation_detail = null;
+                            $detail_ketidaksesuaian = [];
+                            $file_bermasalah = [];
+                            if ($siswa['id']) {
+                                $validation_detail = validate_all_dokumen($siswa['id']);
+                                if ($validation_detail && !empty($validation_detail['detail_ketidaksesuaian'])) {
+                                    $detail_ketidaksesuaian = $validation_detail['detail_ketidaksesuaian'];
+                                }
+                                // Get file bermasalah
+                                $file_bermasalah = get_file_bermasalah($siswa['id']);
+                            }
+                            ?>
                             <tr>
                                 <td><?php echo $no++; ?></td>
                                 <td><strong><?php echo escape($siswa['nis']); ?></strong></td>
@@ -270,11 +286,57 @@ $siswa_list = $stmt->fetchAll();
                                     <?php endif; ?>
                                 </td>
                                 <td>
+                                    <?php if (!empty($detail_ketidaksesuaian)): ?>
+                                        <div class="text-danger small">
+                                            <i class="fas fa-exclamation-triangle"></i> <strong>Ketidaksesuaian:</strong><br>
+                                            <?php 
+                                            $issues_by_field = [];
+                                            foreach ($detail_ketidaksesuaian as $detail) {
+                                                $field = ucfirst(str_replace('_', ' ', $detail['field']));
+                                                $dokumen = strtoupper($detail['dokumen']);
+                                                if (!isset($issues_by_field[$field])) {
+                                                    $issues_by_field[$field] = [];
+                                                }
+                                                $issues_by_field[$field][] = $dokumen;
+                                            }
+                                            foreach ($issues_by_field as $field => $docs): 
+                                            ?>
+                                                • <?php echo escape($field); ?>: <?php echo implode(', ', array_unique($docs)); ?><br>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php elseif ($siswa['kesesuaian_nama_anak'] && 
+                                               ($siswa['kesesuaian_nama_anak'] === 'sesuai' && 
+                                                $siswa['kesesuaian_nama_ayah'] === 'sesuai' && 
+                                                $siswa['kesesuaian_nama_ibu'] === 'sesuai')): ?>
+                                        <span class="text-success small">
+                                            <i class="fas fa-check-circle"></i> Semua data sesuai
+                                        </span>
+                                    <?php else: ?>
+                                        <span class="text-muted small">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($file_bermasalah)): ?>
+                                        <div class="small">
+                                            <span class="text-danger"><i class="fas fa-exclamation-triangle"></i> File Bermasalah:</span><br>
+                                            <?php foreach ($file_bermasalah as $doc): ?>
+                                                <span class="badge bg-danger me-1 mb-1" title="File tidak bisa dibaca">
+                                                    <i class="fas fa-file-exclamation"></i> <?php echo ucfirst($doc['jenis_dokumen']); ?>
+                                                </span>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php else: ?>
+                                        <span class="text-success small">
+                                            <i class="fas fa-check-circle"></i> Semua file OK
+                                        </span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
                                     <?php echo $siswa['jumlah_upload_ulang'] ?? 0; ?> / <?php echo VERIFIKASI_MAX_UPLOAD_ULANG; ?>
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="<?php echo base_url('admin/verifikasi_dokumen/detail.php?id=' . $siswa['id']); ?>" 
+                                        <a href="<?php echo base_url('admin-verifikasi-dokumen-detail?id=' . $siswa['id']); ?>" 
                                            class="btn btn-outline-primary" title="Detail">
                                             <i class="fas fa-eye"></i>
                                         </a>

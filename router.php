@@ -253,8 +253,18 @@ $routes = [
     'admin-manage-mapel' => 'admin/manage_mapel.php',
     'admin-manage-tahun-ajaran' => 'admin/manage_tahun_ajaran.php',
     'admin-sekolah-settings' => 'admin/sekolah_settings.php',
+    'admin-template-raport' => 'admin/template_raport.php',
+    'admin-manage-siswa' => 'admin/manage_siswa.php',
+    'admin-manage-siswa-template' => 'admin/manage_siswa_template.php',
+    'admin-manage-wali-kelas' => 'admin/manage_wali_kelas.php',
+    'admin-ledger-nilai' => 'admin/ledger_nilai.php',
+    'admin-raport' => 'admin/raport/list.php',
+    'admin-menu-settings' => 'admin/menu_settings.php',
     'admin-migrasi-kelas' => 'admin/migrasi_kelas.php',
     'admin-arsip-soal' => 'admin/arsip_soal/list.php',
+    'admin-verifikasi-dokumen-index' => 'admin/verifikasi_dokumen/index.php',
+    'admin-verifikasi-dokumen-detail' => 'admin/verifikasi_dokumen/detail.php',
+    'admin-verifikasi-dokumen-settings' => 'admin/verifikasi_dokumen/settings.php',
     
     // Guru routes
     'guru' => 'guru/index.php',
@@ -316,6 +326,8 @@ $routes = [
     'operator-manage-kelas' => 'operator/manage_kelas.php',
     'operator-reset-fraud-lock' => 'operator/reset_fraud_lock.php',
     'operator-template-raport' => 'operator/template_raport.php',
+    'operator-manage-wali-kelas' => 'operator/manage_wali_kelas.php',
+    'operator-menu-settings' => 'admin/menu_settings.php', // Same file for operator
     'operator-raport-export-pdf' => 'operator/raport/export_pdf.php',
     'operator-sesi-list' => 'operator/sesi/list.php',
     'operator-sesi-manage' => 'operator/sesi/manage.php',

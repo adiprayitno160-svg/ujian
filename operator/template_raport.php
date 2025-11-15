@@ -36,16 +36,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         $error = 'Nama template harus diisi';
     } else {
         try {
+            // Handle logo raport upload
+            $logo_raport = null;
+            if ($id > 0) {
+                // Get existing logo
+                $stmt = $pdo->prepare("SELECT logo_raport FROM template_raport WHERE id = ?");
+                $stmt->execute([$id]);
+                $existing = $stmt->fetch();
+                $logo_raport = $existing['logo_raport'] ?? null;
+            }
+            
+            if (isset($_FILES['logo_raport']) && $_FILES['logo_raport']['error'] === UPLOAD_ERR_OK) {
+                $upload_result = upload_file($_FILES['logo_raport'], UPLOAD_PROFILE, ALLOWED_IMAGE_TYPES);
+                if ($upload_result['success']) {
+                    // Delete old logo if exists
+                    if ($logo_raport && file_exists(UPLOAD_PROFILE . '/' . $logo_raport)) {
+                        delete_file(UPLOAD_PROFILE . '/' . $logo_raport);
+                    }
+                    $logo_raport = $upload_result['filename'];
+                }
+            }
+            
             if ($id > 0) {
                 // Update existing template
-                $stmt = $pdo->prepare("UPDATE template_raport SET nama_template = ?, html_content = ?, css_content = ?, updated_at = NOW() WHERE id = ?");
-                $stmt->execute([$nama_template, $html_content, $css_content, $id]);
+                $stmt = $pdo->prepare("UPDATE template_raport SET nama_template = ?, html_content = ?, css_content = ?, logo_raport = ?, updated_at = NOW() WHERE id = ?");
+                $stmt->execute([$nama_template, $html_content, $css_content, $logo_raport, $id]);
                 $success = 'Template berhasil diupdate';
                 log_activity('update_template_raport', 'template_raport', $id);
             } else {
                 // Create new template
-                $stmt = $pdo->prepare("INSERT INTO template_raport (nama_template, html_content, css_content, is_active, created_by) VALUES (?, ?, ?, 1, ?)");
-                $stmt->execute([$nama_template, $html_content, $css_content, $_SESSION['user_id']]);
+                $stmt = $pdo->prepare("INSERT INTO template_raport (nama_template, html_content, css_content, logo_raport, is_active, created_by) VALUES (?, ?, ?, ?, 1, ?)");
+                $stmt->execute([$nama_template, $html_content, $css_content, $logo_raport, $_SESSION['user_id']]);
                 $success = 'Template berhasil dibuat';
                 log_activity('create_template_raport', 'template_raport', $pdo->lastInsertId());
             }
@@ -123,7 +144,7 @@ if (isset($_GET['edit'])) {
             <h5 class="mb-0"><i class="fas fa-edit"></i> Edit Template: <?php echo escape($edit_template['nama_template']); ?></h5>
         </div>
         <div class="card-body">
-            <form method="POST" id="templateForm">
+            <form method="POST" id="templateForm" enctype="multipart/form-data">
                 <input type="hidden" name="action" value="save_template">
                 <input type="hidden" name="id" value="<?php echo $edit_template['id']; ?>">
                 
@@ -133,10 +154,21 @@ if (isset($_GET['edit'])) {
                 </div>
                 
                 <div class="mb-3">
+                    <label class="form-label">Logo Raport</label>
+                    <input type="file" class="form-control" name="logo_raport" accept="image/*">
+                    <small class="text-muted">Logo khusus untuk raport. Format: JPG, PNG, GIF, WebP. Max: 2MB</small>
+                    <?php if (!empty($edit_template['logo_raport'])): ?>
+                        <div class="mt-2">
+                            <img src="<?php echo asset_url('uploads/profile/' . $edit_template['logo_raport']); ?>" alt="Logo Raport" height="100" class="img-thumbnail">
+                        </div>
+                    <?php endif; ?>
+                </div>
+                
+                <div class="mb-3">
                     <label class="form-label">HTML Content <span class="text-danger">*</span></label>
                     <small class="text-muted d-block mb-2">
                         <strong>Variabel yang tersedia:</strong><br>
-                        {{LOGO_SEKOLAH}}, {{NAMA_SEKOLAH}}, {{ALAMAT_SEKOLAH}}, {{NO_TELP_SEKOLAH}}, {{NAMA_SISWA}}, {{NIS}}, {{KELAS}}, {{TABEL_NILAI}}
+                        {{LOGO_RAPORT}}, {{LOGO_KOP_SURAT}}, {{PEMERINTAH_KABUPATEN}}, {{DINAS_PENDIDIKAN}}, {{NAMA_SEKOLAH}}, {{NSS}}, {{NPSN}}, {{ALAMAT_SEKOLAH}}, {{NO_TELP_SEKOLAH}}, {{KODE_POS}}, {{NAMA_SISWA}}, {{NIS}}, {{KELAS}}, {{TAHUN_PELAJARAN}}, {{SEMESTER}}, {{TABEL_NILAI}}
                     </small>
                     <textarea class="form-control font-monospace" name="html_content" rows="15" required><?php echo escape($edit_template['html_content']); ?></textarea>
                 </div>
@@ -228,7 +260,7 @@ if (isset($_GET['edit'])) {
 <div class="modal fade" id="createTemplateModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <form method="POST">
+            <form method="POST" enctype="multipart/form-data">
                 <div class="modal-header">
                     <h5 class="modal-title">Buat Template Baru</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -240,10 +272,15 @@ if (isset($_GET['edit'])) {
                         <input type="text" class="form-control" name="nama_template" required placeholder="Contoh: Template Raport Semester">
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">Logo Raport</label>
+                        <input type="file" class="form-control" name="logo_raport" accept="image/*">
+                        <small class="text-muted">Logo khusus untuk raport. Format: JPG, PNG, GIF, WebP. Max: 2MB</small>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">HTML Content <span class="text-danger">*</span></label>
                         <small class="text-muted d-block mb-2">
                             <strong>Variabel yang tersedia:</strong><br>
-                            {{LOGO_SEKOLAH}}, {{NAMA_SEKOLAH}}, {{ALAMAT_SEKOLAH}}, {{NO_TELP_SEKOLAH}}, {{NAMA_SISWA}}, {{NIS}}, {{KELAS}}, {{TABEL_NILAI}}
+                            {{LOGO_RAPORT}}, {{LOGO_KOP_SURAT}}, {{PEMERINTAH_KABUPATEN}}, {{DINAS_PENDIDIKAN}}, {{NAMA_SEKOLAH}}, {{NSS}}, {{NPSN}}, {{ALAMAT_SEKOLAH}}, {{NO_TELP_SEKOLAH}}, {{KODE_POS}}, {{NAMA_SISWA}}, {{NIS}}, {{KELAS}}, {{TAHUN_PELAJARAN}}, {{SEMESTER}}, {{TABEL_NILAI}}
                         </small>
                         <textarea class="form-control font-monospace" name="html_content" rows="15" required><?php echo $active_template ? escape($active_template['html_content']) : ''; ?></textarea>
                     </div>

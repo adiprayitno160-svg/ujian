@@ -28,7 +28,7 @@ function run_ai_settings_migration() {
                 provider VARCHAR(50) DEFAULT 'gemini',
                 api_key VARCHAR(255) DEFAULT NULL,
                 enabled TINYINT(1) DEFAULT 1,
-                model VARCHAR(100) DEFAULT 'gemini-1.5-flash',
+                model VARCHAR(100) DEFAULT 'gemini-pro',
                 temperature DECIMAL(3,2) DEFAULT 0.70,
                 max_tokens INT(11) DEFAULT 2000,
                 updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -45,7 +45,7 @@ function run_ai_settings_migration() {
         
         if (!$existing) {
             $stmt = $pdo->prepare("INSERT INTO ai_settings (provider, enabled, model, temperature, max_tokens) 
-                                  VALUES ('gemini', 1, 'gemini-1.5-flash', 0.70, 2000)");
+                                  VALUES ('gemini', 1, 'gemini-pro', 0.70, 2000)");
             $stmt->execute();
             error_log("Migration: Created default ai_settings record with enabled = 1");
         } else {

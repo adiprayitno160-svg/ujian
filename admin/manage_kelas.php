@@ -65,6 +65,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (PDOException $e) {
             $error = 'Terjadi kesalahan: ' . $e->getMessage();
         }
+    } elseif ($action === 'bulk_create_all') {
+        // Buat semua kelas dari VII A-K, VIII A-K, IX A-K
+        $tahun_ajaran = sanitize($_POST['tahun_ajaran'] ?? get_tahun_ajaran_aktif());
+        
+        if (empty($tahun_ajaran)) {
+            $error = 'Tahun ajaran harus diisi';
+        } else {
+            try {
+                $pdo->beginTransaction();
+                
+                $tingkat_list = ['VII', 'VIII', 'IX'];
+                $huruf_list = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
+                
+                $created = 0;
+                $skipped = 0;
+                $errors = [];
+                
+                foreach ($tingkat_list as $tingkat) {
+                    foreach ($huruf_list as $huruf) {
+                        $nama_kelas = $tingkat . ' ' . $huruf;
+                        
+                        // Check if kelas already exists
+                        $stmt = $pdo->prepare("SELECT id FROM kelas WHERE nama_kelas = ? AND tahun_ajaran = ?");
+                        $stmt->execute([$nama_kelas, $tahun_ajaran]);
+                        if ($stmt->fetch()) {
+                            $skipped++;
+                            continue;
+                        }
+                        
+                        // Insert kelas
+                        try {
+                            $stmt = $pdo->prepare("INSERT INTO kelas (nama_kelas, tingkat, tahun_ajaran, status) VALUES (?, ?, ?, 'active')");
+                            $stmt->execute([$nama_kelas, $tingkat, $tahun_ajaran]);
+                            $created++;
+                            log_activity('create_kelas', 'kelas', $pdo->lastInsertId());
+                        } catch (PDOException $e) {
+                            $errors[] = "Gagal membuat kelas $nama_kelas: " . $e->getMessage();
+                        }
+                    }
+                }
+                
+                $pdo->commit();
+                $success = "Berhasil membuat $created kelas" . ($skipped > 0 ? ", $skipped kelas sudah ada" : "");
+                if (!empty($errors)) {
+                    $success .= ". Terjadi " . count($errors) . " error";
+                }
+            } catch (PDOException $e) {
+                $pdo->rollBack();
+                $error = 'Terjadi kesalahan saat membuat kelas: ' . $e->getMessage();
+            }
+        }
     }
 }
 
@@ -74,9 +125,10 @@ $filter_tingkat = $_GET['tingkat'] ?? '';
 // Get kelas dengan filter dan jumlah siswa
 $tahun_ajaran = get_tahun_ajaran_aktif();
 $sql = "SELECT k.*, 
-        COUNT(DISTINCT uk.id_user) as jumlah_siswa
+        COUNT(DISTINCT CASE WHEN u.role = 'siswa' THEN uk.id_user END) as jumlah_siswa
         FROM kelas k
         LEFT JOIN user_kelas uk ON k.id = uk.id_kelas AND uk.tahun_ajaran = ?
+        LEFT JOIN users u ON uk.id_user = u.id
         WHERE 1=1";
 $params = [$tahun_ajaran];
 
@@ -95,10 +147,10 @@ $kelas_list = $stmt->fetchAll();
 // Get siswa per kelas untuk detail
 $siswa_per_kelas = [];
 foreach ($kelas_list as $kelas) {
-    $stmt = $pdo->prepare("SELECT u.id, u.username as nis, u.nama, u.status
+    $stmt = $pdo->prepare("SELECT u.id, u.username as nisn, u.nis, u.nama, u.status
                            FROM users u
                            INNER JOIN user_kelas uk ON u.id = uk.id_user
-                           WHERE uk.id_kelas = ? AND uk.tahun_ajaran = ?
+                           WHERE uk.id_kelas = ? AND uk.tahun_ajaran = ? AND u.role = 'siswa'
                            ORDER BY u.nama ASC");
     $stmt->execute([$kelas['id'], $tahun_ajaran]);
     $siswa_per_kelas[$kelas['id']] = $stmt->fetchAll();
@@ -141,7 +193,14 @@ $stmt = $pdo->query("SELECT COUNT(*) as total FROM kelas WHERE status = 'active'
 $total_all = $stmt->fetch()['total'];
 ?>
 
-<div class="d-flex justify-content-end mb-4">
+<div class="d-flex justify-content-end mb-4 gap-2">
+    <form method="POST" style="display:inline;" onsubmit="return confirm('Yakin ingin membuat semua kelas (VII A-K, VIII A-K, IX A-K) untuk tahun ajaran aktif? Kelas yang sudah ada akan dilewati.');">
+        <input type="hidden" name="action" value="bulk_create_all">
+        <input type="hidden" name="tahun_ajaran" value="<?php echo escape(get_tahun_ajaran_aktif()); ?>">
+        <button type="submit" class="btn btn-success">
+            <i class="fas fa-layer-group"></i> Buat Semua Kelas (VII-IX A-K)
+        </button>
+    </form>
     <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createKelasModal">
         <i class="fas fa-plus"></i> Tambah Kelas
     </button>
@@ -427,6 +486,7 @@ function showSiswaList(kelasId, kelasName) {
         html += '<table class="table table-hover table-sm">';
         html += '<thead><tr>';
         html += '<th>No</th>';
+        html += '<th>NISN</th>';
         html += '<th>NIS</th>';
         html += '<th>Nama</th>';
         html += '<th>Status</th>';
@@ -436,7 +496,8 @@ function showSiswaList(kelasId, kelasName) {
         siswaList.forEach(function(siswa, index) {
             html += '<tr>';
             html += '<td>' + (index + 1) + '</td>';
-            html += '<td>' + escapeHtml(siswa.nis || '-') + '</td>';
+            html += '<td><strong>' + escapeHtml(siswa.nisn || '-') + '</strong></td>';
+            html += '<td><strong>' + escapeHtml(siswa.nis || '-') + '</strong></td>';
             html += '<td>' + escapeHtml(siswa.nama || '-') + '</td>';
             html += '<td>';
             html += '<span class="badge bg-' + (siswa.status === 'active' ? 'success' : 'secondary') + '">';

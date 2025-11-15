@@ -36,52 +36,9 @@ $stmt = $pdo->prepare("SELECT m.* FROM mapel m
 $stmt->execute([$guru_id]);
 $mapel_list = $stmt->fetchAll();
 
-// Get semua tahun ajaran yang memiliki kelas untuk guru ini
-$stmt = $pdo->prepare("
-    SELECT DISTINCT k.tahun_ajaran
-    FROM kelas k
-    INNER JOIN guru_mapel_kelas gmk ON k.id = gmk.id_kelas
-    WHERE gmk.id_guru = ?
-    AND k.status = 'active'
-    AND k.tahun_ajaran IS NOT NULL
-    ORDER BY k.tahun_ajaran DESC
-");
-$stmt->execute([$guru_id]);
-$tahun_ajaran_list = $stmt->fetchAll(PDO::FETCH_COLUMN);
-
-// Jika tidak ada tahun ajaran dari kelas yang di-assign ke guru, 
-// ambil dari semua kelas yang ada atau dari tabel tahun_ajaran
-if (empty($tahun_ajaran_list)) {
-    // Coba ambil dari semua kelas aktif yang ada
-    $stmt = $pdo->query("
-        SELECT DISTINCT tahun_ajaran
-        FROM kelas
-        WHERE status = 'active'
-        AND tahun_ajaran IS NOT NULL
-        ORDER BY tahun_ajaran DESC
-    ");
-    $tahun_ajaran_list = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    
-    // Jika masih kosong, ambil dari tabel tahun_ajaran
-    if (empty($tahun_ajaran_list)) {
-        $tahun_ajaran_all = get_all_tahun_ajaran('tahun_mulai DESC');
-        $tahun_ajaran_list = array_column($tahun_ajaran_all, 'tahun_ajaran');
-    }
-} else {
-    // Jika ada tahun ajaran dari kelas yang di-assign, juga tambahkan tahun ajaran lainnya yang memiliki kelas
-    $stmt = $pdo->query("
-        SELECT DISTINCT tahun_ajaran
-        FROM kelas
-        WHERE status = 'active'
-        AND tahun_ajaran IS NOT NULL
-        ORDER BY tahun_ajaran DESC
-    ");
-    $all_tahun_ajaran = $stmt->fetchAll(PDO::FETCH_COLUMN);
-    // Merge dan hapus duplikat
-    $tahun_ajaran_list = array_unique(array_merge($tahun_ajaran_list, $all_tahun_ajaran));
-    // Sort descending
-    rsort($tahun_ajaran_list);
-}
+// Get tahun ajaran list - ambil dari tabel tahun_ajaran (Kelola Tahun Ajaran)
+$tahun_ajaran_all = get_all_tahun_ajaran('tahun_mulai DESC');
+$tahun_ajaran_list = array_column($tahun_ajaran_all, 'tahun_ajaran');
 
 // Validasi tahun ajaran yang dipilih
 if (!in_array($tahun_ajaran, $tahun_ajaran_list) && !empty($tahun_ajaran_list)) {

@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tahun_ajaran_lama = sanitize($_POST['tahun_ajaran_lama'] ?? '');
         $tahun_ajaran_baru = sanitize($_POST['tahun_ajaran_baru'] ?? '');
         $tinggal_kelas_ids = $_POST['tinggal_kelas'] ?? []; // Array of user IDs yang tinggal kelas
+        $naik_tingkat = sanitize($_POST['naik_tingkat'] ?? 'auto'); // 'auto', 'VII', 'VIII', 'IX'
         
         if (empty($tahun_ajaran_lama) || empty($tahun_ajaran_baru)) {
             $error = 'Tahun ajaran lama dan baru harus diisi';
@@ -75,19 +76,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } else {
                         // Naik kelas berdasarkan tingkat
                         $new_tingkat = null;
-                        if ($current_tingkat === 'VII') {
-                            $new_tingkat = 'VIII';
-                        } elseif ($current_tingkat === 'VIII') {
-                            $new_tingkat = 'IX';
-                        } elseif ($current_tingkat === 'IX') {
-                            // Kelas IX tidak naik, tetap di IX
-                            $new_tingkat = 'IX';
+                        
+                        if ($naik_tingkat === 'auto') {
+                            // Auto naik berdasarkan tingkat saat ini
+                            if ($current_tingkat === 'VII') {
+                                $new_tingkat = 'VIII';
+                            } elseif ($current_tingkat === 'VIII') {
+                                $new_tingkat = 'IX';
+                            } elseif ($current_tingkat === 'IX') {
+                                // Kelas IX tidak naik, tetap di IX
+                                $new_tingkat = 'IX';
+                            }
+                        } else {
+                            // Naik ke tingkat yang ditentukan
+                            $new_tingkat = $naik_tingkat;
                         }
                         
                         if ($new_tingkat) {
                             $new_kelas_id = $current_kelas_id; // Default: tetap di kelas yang sama
                             
-                            if ($current_tingkat === 'IX') {
+                            if ($current_tingkat === 'IX' && $new_tingkat === 'IX') {
                                 // Kelas IX tetap di kelas yang sama
                                 $new_kelas_id = $current_kelas_id;
                             } else {
@@ -248,22 +256,60 @@ $history = $stmt->fetchAll();
                 </div>
             </div>
             
+            <div class="row mb-3">
+                <div class="col-md-12">
+                    <label class="form-label">Naik ke Tingkat <span class="text-danger">*</span></label>
+                    <select class="form-select" name="naik_tingkat" id="naik_tingkat" required>
+                        <option value="auto" selected>Otomatis (VII→VIII, VIII→IX, IX tetap)</option>
+                        <option value="VII">Semua Naik ke VII</option>
+                        <option value="VIII">Semua Naik ke VIII</option>
+                        <option value="IX">Semua Naik ke IX</option>
+                    </select>
+                    <small class="text-muted">Pilih tingkat tujuan untuk semua siswa yang tidak tinggal kelas. Pilih "Otomatis" untuk naik sesuai tingkat saat ini.</small>
+                </div>
+            </div>
+            
             <div class="alert alert-info">
                 <i class="fas fa-info-circle"></i> 
                 <strong>Informasi:</strong>
                 <ul class="mb-0 mt-2">
                     <li><strong>Tandai checkbox</strong> untuk siswa yang <strong>tinggal kelas</strong> (tidak naik kelas)</li>
-                    <li>Siswa yang <strong>tidak ditandai</strong> akan naik kelas secara otomatis (VII → VIII, VIII → IX)</li>
-                    <li>Siswa kelas IX akan tetap di kelas IX</li>
+                    <li>Siswa yang <strong>tidak ditandai</strong> akan naik kelas sesuai pilihan "Naik ke Tingkat" di atas</li>
+                    <li>Pilih "Otomatis" untuk naik sesuai tingkat (VII → VIII, VIII → IX, IX tetap)</li>
+                    <li>Pilih tingkat tertentu untuk memaksa semua siswa naik ke tingkat tersebut</li>
                     <li>Siswa yang ditandai tinggal kelas akan tetap di kelas yang sama di tahun ajaran baru</li>
                 </ul>
             </div>
             
             <hr>
             
-            <h5 class="mb-3">Daftar Siswa (Tahun Ajaran: <?php echo escape($tahun_ajaran_sekarang); ?>)</h5>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <h5 class="mb-0">Daftar Siswa (Tahun Ajaran: <?php echo escape($tahun_ajaran_sekarang); ?>)</h5>
+                </div>
+                <div class="col-md-6">
+                    <form method="GET" class="d-flex gap-2">
+                        <input type="text" class="form-control" name="search" 
+                               value="<?php echo escape($search); ?>" 
+                               placeholder="Cari nama, NISN, NIS, atau kelas...">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-search"></i> Cari
+                        </button>
+                        <?php if ($search): ?>
+                            <a href="?" class="btn btn-secondary">
+                                <i class="fas fa-times"></i> Reset
+                            </a>
+                        <?php endif; ?>
+                    </form>
+                </div>
+            </div>
             
-            <?php if (empty($siswa_per_kelas)): ?>
+            <?php if ($search && empty($siswa_per_kelas)): ?>
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle"></i> Tidak ada siswa yang ditemukan dengan kata kunci "<?php echo escape($search); ?>".
+                    <a href="?" class="alert-link">Tampilkan semua siswa</a>
+                </div>
+            <?php elseif (empty($siswa_per_kelas)): ?>
                 <div class="alert alert-warning">
                     <i class="fas fa-exclamation-triangle"></i> Tidak ada siswa di tahun ajaran ini.
                 </div>
@@ -276,6 +322,7 @@ $history = $stmt->fetchAll();
                                     <input type="checkbox" id="selectAll" title="Pilih Semua">
                                 </th>
                                 <th>No</th>
+                                <th>NISN</th>
                                 <th>NIS</th>
                                 <th>Nama</th>
                                 <th>Kelas Saat Ini</th>
@@ -311,7 +358,8 @@ $history = $stmt->fetchAll();
                                            title="Centang jika siswa ini tinggal kelas">
                                 </td>
                                 <td><?php echo $no++; ?></td>
-                                <td><?php echo escape($siswa['username']); ?></td>
+                                <td><strong><?php echo escape($siswa['nisn'] ?? ($siswa['username'] ?? '-')); ?></strong></td>
+                                <td><strong><?php echo escape($siswa['nis'] ?? '-'); ?></strong></td>
                                 <td><?php echo escape($siswa['nama']); ?></td>
                                 <td><?php echo escape($kelas_data['nama_kelas']); ?></td>
                                 <td>

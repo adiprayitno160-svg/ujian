@@ -28,8 +28,8 @@ $ai_settings = $stmt->fetch();
 // Handle POST request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $enabled = isset($_POST['enabled']) ? 1 : 0;
-    $api_key_input = sanitize($_POST['api_key'] ?? '');
-    $model = sanitize($_POST['model'] ?? 'gemini-1.5-flash');
+    $api_key_input = trim(sanitize($_POST['api_key'] ?? ''));
+    $model = sanitize($_POST['model'] ?? 'gemini-2.0-flash');
     $temperature = floatval($_POST['temperature'] ?? 0.70);
     $max_tokens = intval($_POST['max_tokens'] ?? 2000);
     
@@ -87,7 +87,7 @@ if (!isset($ai_settings) || ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($er
 // Default values (AI correction enabled by default)
 $enabled = $ai_settings['enabled'] ?? 1; // Default enabled
 $api_key = $ai_settings['api_key'] ?? '';
-$model = $ai_settings['model'] ?? 'gemini-1.5-flash';
+$model = $ai_settings['model'] ?? 'gemini-2.0-flash'; // Default to gemini-2.0-flash (proven to work)
 $temperature = $ai_settings['temperature'] ?? 0.70;
 $max_tokens = $ai_settings['max_tokens'] ?? 2000;
 ?>
@@ -131,38 +131,64 @@ $max_tokens = $ai_settings['max_tokens'] ?? 2000;
                     </div>
                     
                     <div class="mb-3">
-                        <label for="api_key" class="form-label">Gemini API Key</label>
+                        <label for="api_key" class="form-label">Gemini API Key <span class="text-danger">*</span></label>
+                        <?php if (!empty($api_key)): ?>
+                            <div class="alert alert-info mb-2">
+                                <i class="fas fa-info-circle"></i> <strong>API key sudah diatur.</strong>
+                                <br><small>Preview: <code><?php echo substr($api_key, 0, 10) . '...' . substr($api_key, -4); ?></code></small>
+                                <br><small>Untuk mengganti API key, masukkan API key baru di bawah ini.</small>
+                            </div>
+                        <?php endif; ?>
                         <input type="text" class="form-control" id="api_key" name="api_key" 
                                value="" 
-                               placeholder="<?php echo !empty($api_key) ? 'API key sudah diatur (kosongkan untuk tidak mengubah)' : 'Masukkan Gemini API Key'; ?>">
+                               placeholder="<?php echo !empty($api_key) ? 'Masukkan API key baru untuk mengganti (kosongkan untuk tidak mengubah)' : 'Masukkan Gemini API Key (contoh: AIzaSyB6szMSV7Iq3r7oDXzxgu1NOST_sIE-2LI)'; ?>"
+                               autocomplete="off" <?php echo empty($api_key) ? 'required' : ''; ?>>
                         <?php if (!empty($api_key)): ?>
                             <input type="hidden" name="api_key_set" value="1">
                         <?php endif; ?>
                         <small class="text-muted">
-                            Dapatkan API key dari 
-                            <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>.
-                            API key ini akan digunakan untuk koreksi otomatis semua ujian yang mengaktifkan AI correction.
-                            <?php if (!empty($api_key)): ?>
-                                <br><span class="text-success"><i class="fas fa-check-circle"></i> API key sudah diatur</span>
-                            <?php endif; ?>
+                            <strong>Langkah-langkah:</strong>
+                            <ol class="mb-2">
+                                <li>Dapatkan API key dari <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
+                                <li>Salin API key yang diberikan (contoh: <code>AIzaSyB6szMSV7Iq3r7oDXzxgu1NOST_sIE-2LI</code>)</li>
+                                <li>Paste API key di form ini</li>
+                                <li>Pilih model yang tersedia (direkomendasikan: <strong>Gemini Pro</strong>)</li>
+                                <li>Centang "Aktifkan AI Correction"</li>
+                                <li>Klik "Simpan Pengaturan"</li>
+                                <li>Test API key menggunakan tombol "Test API Key"</li>
+                            </ol>
+                            <strong>✓ Bisa menggunakan akun Google reguler (gmail.com) atau akun belajar.id</strong>
+                            <br><strong>✓ Free tier tersedia untuk semua akun Google (gratis, tidak perlu kartu kredit)</strong>
+                            <br><strong>Format:</strong> API key biasanya dimulai dengan "AIzaSy" (39 karakter).
+                            <br><strong>Free Tier:</strong> 60 requests/menit, 1,500 requests/hari (cukup untuk penggunaan pendidikan)
                         </small>
                     </div>
                     
                     <div class="mb-3">
                         <label for="model" class="form-label">Model Gemini</label>
                         <select class="form-select" id="model" name="model">
+                            <option value="gemini-2.0-flash" <?php echo $model === 'gemini-2.0-flash' ? 'selected' : ''; ?>>
+                                Gemini 2.0 Flash (Recommended - Proven to Work)
+                            </option>
+                            <option value="gemini-flash-latest" <?php echo $model === 'gemini-flash-latest' ? 'selected' : ''; ?>>
+                                Gemini Flash Latest (Latest Version)
+                            </option>
+                            <option value="gemini-2.0-flash-001" <?php echo $model === 'gemini-2.0-flash-001' ? 'selected' : ''; ?>>
+                                Gemini 2.0 Flash 001 (Alternative)
+                            </option>
                             <option value="gemini-1.5-flash" <?php echo $model === 'gemini-1.5-flash' ? 'selected' : ''; ?>>
-                                Gemini 1.5 Flash (Cepat, Recommended)
+                                Gemini 1.5 Flash (Legacy)
                             </option>
                             <option value="gemini-1.5-pro" <?php echo $model === 'gemini-1.5-pro' ? 'selected' : ''; ?>>
-                                Gemini 1.5 Pro (Lebih Akurat)
+                                Gemini 1.5 Pro (Legacy)
                             </option>
                             <option value="gemini-pro" <?php echo $model === 'gemini-pro' ? 'selected' : ''; ?>>
-                                Gemini Pro (Legacy)
+                                Gemini Pro (Legacy - May Not Work)
                             </option>
                         </select>
                         <small class="text-muted">
-                            Gemini 1.5 Flash direkomendasikan karena lebih cepat dan efisien untuk koreksi ujian.
+                            <strong>Gemini 2.0 Flash</strong> direkomendasikan karena sudah terbukti berfungsi dengan API key saat ini.
+                            Jika terjadi error 404, sistem akan otomatis mencoba model alternatif.
                         </small>
                     </div>
                     
@@ -199,15 +225,32 @@ $max_tokens = $ai_settings['max_tokens'] ?? 2000;
                         </ul>
                     </div>
                     
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save"></i> Simpan Pengaturan
-                    </button>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Simpan Pengaturan
+                        </button>
+                        <a href="<?php echo base_url('admin/test_ai_api.php'); ?>" class="btn btn-success">
+                            <i class="fas fa-vial"></i> Test API Key
+                        </a>
+                    </div>
                 </form>
             </div>
         </div>
     </div>
     
     <div class="col-md-4">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-vial"></i> Test API Key</h5>
+            </div>
+            <div class="card-body">
+                <p>Test apakah API key yang sudah diinputkan berfungsi dengan normal.</p>
+                <a href="<?php echo base_url('admin/test_ai_api.php'); ?>" class="btn btn-success w-100">
+                    <i class="fas fa-vial"></i> Test API Key Sekarang
+                </a>
+            </div>
+        </div>
+        
         <div class="card border-0 shadow-sm">
             <div class="card-header bg-info text-white">
                 <h5 class="mb-0"><i class="fas fa-question-circle"></i> Panduan</h5>
@@ -216,10 +259,31 @@ $max_tokens = $ai_settings['max_tokens'] ?? 2000;
                 <h6>Cara Mendapatkan API Key:</h6>
                 <ol>
                     <li>Kunjungi <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a></li>
-                    <li>Login dengan akun Google</li>
+                    <li>Login dengan akun Google (bisa menggunakan akun belajar.id)</li>
                     <li>Klik "Create API Key"</li>
                     <li>Salin API key yang diberikan</li>
                     <li>Paste di form ini</li>
+                </ol>
+                
+                <hr>
+                
+                <h6>Menggunakan Akun Belajar.id:</h6>
+                <div class="alert alert-info">
+                    <strong>✓ Ya, Bisa Menggunakan Akun Belajar.id!</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Akun belajar.id adalah akun Google Workspace untuk pendidikan</li>
+                        <li>Bisa digunakan untuk membuat API key Gemini (gratis)</li>
+                        <li>Google Gemini API memiliki <strong>free tier</strong> yang cukup untuk penggunaan pendidikan</li>
+                        <li>Free tier biasanya: 60 requests per menit, 1,500 requests per hari</li>
+                    </ul>
+                </div>
+                
+                <p><strong>Cara menggunakan akun belajar.id:</strong></p>
+                <ol>
+                    <li>Login ke <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a> dengan akun belajar.id</li>
+                    <li>Buat API key baru</li>
+                    <li>API key akan otomatis menggunakan free tier</li>
+                    <li>Salin API key dan paste di form ini</li>
                 </ol>
                 
                 <hr>
@@ -233,11 +297,28 @@ $max_tokens = $ai_settings['max_tokens'] ?? 2000;
                 
                 <hr>
                 
-                <h6>Catatan:</h6>
+                <h6>Catatan Penting:</h6>
                 <ul class="mb-0">
-                    <li>API key disimpan di database dengan aman</li>
-                    <li>Jangan bagikan API key kepada pihak yang tidak berwenang</li>
-                    <li>Penggunaan API akan dikenakan biaya sesuai dengan quota Google</li>
+                    <li><strong>Akun Google Reguler:</strong> Bisa digunakan untuk membuat API key (gratis dengan free tier)</li>
+                    <li><strong>Akun Belajar.id:</strong> Juga bisa digunakan (sama-sama gratis dengan free tier)</li>
+                    <li><strong>Free Tier:</strong> Google Gemini API memberikan free tier untuk semua akun Google</li>
+                    <li><strong>Quota:</strong> Free tier: 60 requests/menit, 1,500 requests/hari</li>
+                    <li><strong>Tidak Perlu Kartu Kredit:</strong> Free tier tidak memerlukan kartu kredit</li>
+                    <li><strong>Keamanan:</strong> API key disimpan di database dengan aman</li>
+                    <li><strong>Jangan bagikan:</strong> API key kepada pihak yang tidak berwenang</li>
+                    <li><strong>Monitoring:</strong> Pantau penggunaan quota di Google AI Studio</li>
+                </ul>
+                
+                <hr>
+                
+                <h6>Info Free Tier Google Gemini API:</h6>
+                <ul class="mb-0">
+                    <li>✓ <strong>Gratis</strong> untuk semua akun Google (reguler atau belajar.id)</li>
+                    <li>✓ <strong>Tidak perlu kartu kredit</strong> untuk free tier</li>
+                    <li>✓ Cocok untuk ujian dengan jumlah siswa terbatas</li>
+                    <li>✓ Quota: 60 requests/menit, 1,500 requests/hari</li>
+                    <li>✓ Quota reset setiap hari</li>
+                    <li>⚠ Jika quota habis, perlu upgrade ke paid plan atau buat API key baru</li>
                 </ul>
             </div>
         </div>

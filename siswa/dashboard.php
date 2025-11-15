@@ -306,12 +306,28 @@ try {
                         </a>
                         <small class="text-muted d-block mt-1 text-center">Kerjakan dan kumpulkan tugas</small>
                     </div>
+                    <?php
+                    // Get raport menu visibility setting
+                    $siswa_raport_menu_visible = 1; // Default visible
+                    try {
+                        $stmt = $pdo->prepare("SELECT setting_value FROM system_settings WHERE setting_key = 'siswa_raport_menu_visible'");
+                        $stmt->execute();
+                        $setting = $stmt->fetch();
+                        if ($setting) {
+                            $siswa_raport_menu_visible = intval($setting['setting_value']);
+                        }
+                    } catch (PDOException $e) {
+                        error_log("Error getting raport menu setting: " . $e->getMessage());
+                    }
+                    ?>
+                    <?php if ($siswa_raport_menu_visible): ?>
                     <div class="col-md-3">
                         <a href="<?php echo base_url('siswa/raport/list.php'); ?>" class="btn btn-outline-info w-100" title="Lihat raport nilai dan hasil belajar">
                             <i class="fas fa-file-alt"></i> Raport
                         </a>
                         <small class="text-muted d-block mt-1 text-center">Lihat raport nilai</small>
                     </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

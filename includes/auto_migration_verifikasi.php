@@ -39,7 +39,7 @@ function run_verifikasi_dokumen_migration() {
                 ('deadline_verifikasi', NULL, 'Deadline upload dokumen verifikasi (format: YYYY-MM-DD)'),
                 ('gemini_enabled', '0', 'Enable/disable Gemini API untuk OCR (0=disabled, 1=enabled)'),
                 ('gemini_api_key', '', 'Gemini API Key untuk OCR'),
-                ('gemini_model', 'gemini-1.5-flash', 'Model Gemini yang digunakan (gemini-1.5-flash atau gemini-1.5-pro)'),
+                ('gemini_model', 'gemini-pro', 'Model Gemini yang digunakan (gemini-pro, gemini-1.5-pro, atau gemini-1.5-flash)'),
                 ('menu_aktif_default', '1', 'Menu verifikasi aktif secara default untuk siswa kelas IX (0=hidden, 1=visible)')
             ON DUPLICATE KEY UPDATE setting_key=setting_key");
         }

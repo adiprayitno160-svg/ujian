@@ -63,34 +63,40 @@ if (isset($_GET['violation']) && $_GET['violation'] == '1') {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nis = sanitize($_POST['nis'] ?? '');
+    $nisn = sanitize($_POST['nis_nisn'] ?? '');
     $password = $_POST['password'] ?? '';
     
-    if (empty($nis) || empty($password)) {
-        $error = 'NIS dan password harus diisi';
+    if (empty($nisn) || empty($password)) {
+        $error = 'NISN dan password harus diisi';
     } else {
-        // Login siswa menggunakan NIS sebagai username dan password
+        // Login siswa menggunakan NISN sebagai username dan NIS sebagai password
         global $pdo;
         try {
+            // Login dengan NISN sebagai username
             $stmt = $pdo->prepare("SELECT * FROM users WHERE username = ? AND role = 'siswa' AND status = 'active'");
-            $stmt->execute([$nis]);
+            $stmt->execute([$nisn]);
             $user = $stmt->fetch();
             
             if ($user) {
-                // Password adalah NIS (verifikasi dengan password_verify atau jika belum di-hash, verifikasi langsung)
+                // Password adalah NIS (verifikasi dengan password_verify)
                 $password_valid = false;
                 
-                // Cek jika password sudah di-hash
+                // Cek jika password sudah di-hash (password adalah hash dari NIS)
                 if (password_verify($password, $user['password'])) {
                     $password_valid = true;
                 } 
-                // Fallback: jika password belum di-hash dan input sama dengan NIS
-                elseif ($password === $nis && $user['password'] === $nis) {
+                // Fallback: jika password belum di-hash dan input sama dengan NIS yang tersimpan
+                elseif (!empty($user['nis']) && $password === $user['nis'] && $user['password'] === $user['nis']) {
                     $password_valid = true;
                     // Update password menjadi hashed untuk keamanan
-                    $hashed_password = password_hash($nis, PASSWORD_DEFAULT);
+                    $hashed_password = password_hash($user['nis'], PASSWORD_DEFAULT);
                     $stmt = $pdo->prepare("UPDATE users SET password = ? WHERE id = ?");
                     $stmt->execute([$hashed_password, $user['id']]);
+                }
+                // Fallback: jika kolom nis belum ada, cek dengan username lama (backward compatibility)
+                elseif (empty($user['nis']) && password_verify($password, $user['password'])) {
+                    // Untuk siswa lama yang belum memiliki kolom nis
+                    $password_valid = true;
                 }
                 
                 if ($password_valid) {
@@ -141,10 +147,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         redirect('index.php');
                     }
                 } else {
-                    $error = 'NIS atau password salah';
+                    $error = 'NISN atau password salah';
                 }
             } else {
-                $error = 'NIS tidak ditemukan';
+                $error = 'NISN tidak ditemukan';
             }
         } catch (PDOException $e) {
             error_log("Login siswa error: " . $e->getMessage());
@@ -353,8 +359,8 @@ include __DIR__ . '/../includes/header.php';
             
             <form method="POST" action="">
                 <div class="mb-4">
-                    <label for="nis" class="form-label">
-                        <i class="fas fa-id-card me-1"></i> NIS (Nomor Induk Siswa)
+                    <label for="nis_nisn" class="form-label">
+                        <i class="fas fa-id-card me-1"></i> NISN
                     </label>
                     <div class="input-group">
                         <span class="input-group-text">
@@ -362,13 +368,12 @@ include __DIR__ . '/../includes/header.php';
                         </span>
                         <input type="text" 
                                class="form-control" 
-                               id="nis" 
-                               name="nis" 
-                               placeholder="Masukkan NIS Anda" 
+                               id="nis_nisn" 
+                               name="nis_nisn" 
+                               placeholder="Masukkan NISN Anda" 
                                required 
                                autofocus>
                     </div>
-                    <small class="form-text">Masukkan Nomor Induk Siswa Anda</small>
                 </div>
                 
                 <div class="mb-4">
@@ -383,7 +388,7 @@ include __DIR__ . '/../includes/header.php';
                                class="form-control" 
                                id="password" 
                                name="password" 
-                               placeholder="Masukkan password" 
+                               placeholder="Masukkan NIS sebagai password" 
                                required>
                     </div>
                 </div>

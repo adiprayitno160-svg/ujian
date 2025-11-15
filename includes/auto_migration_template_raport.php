@@ -28,6 +28,7 @@ function run_template_raport_migration() {
                 nama_template VARCHAR(255) NOT NULL,
                 html_content LONGTEXT NOT NULL COMMENT 'HTML content untuk template',
                 css_content TEXT DEFAULT NULL COMMENT 'CSS styling untuk template',
+                logo_raport VARCHAR(255) DEFAULT NULL COMMENT 'Logo khusus untuk raport',
                 is_active TINYINT(1) DEFAULT 1,
                 created_by INT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -35,9 +36,20 @@ function run_template_raport_migration() {
                 FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE CASCADE,
                 INDEX idx_active (is_active)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-            
-            // Insert default template
-            $default_html = '<div class="raport-container">
+        } else {
+            // Add logo_raport column if it doesn't exist
+            if (!column_exists('template_raport', 'logo_raport')) {
+                $pdo->exec("ALTER TABLE template_raport ADD COLUMN logo_raport VARCHAR(255) DEFAULT NULL COMMENT 'Logo khusus untuk raport' AFTER css_content");
+            }
+        }
+        
+        // Insert default template only if no templates exist
+        try {
+            $stmt = $pdo->query("SELECT COUNT(*) FROM template_raport");
+            $count = $stmt ? $stmt->fetchColumn() : 0;
+            if ($count == 0) {
+                // Insert default template
+                $default_html = '<div class="raport-container">
     <div class="raport-header">
         <table style="width: 100%; border-collapse: collapse;">
             <tr>
@@ -87,8 +99,8 @@ function run_template_raport_migration() {
         </tbody>
     </table>
 </div>';
-            
-            $default_css = '@media print {
+                
+                $default_css = '@media print {
     .no-print { display: none; }
     .page-break { page-break-after: always; }
     @page { margin: 1.5cm; }
@@ -180,8 +192,12 @@ body {
     text-align: center;
 }';
             
-            $stmt = $pdo->prepare("INSERT INTO template_raport (nama_template, html_content, css_content, is_active, created_by) VALUES (?, ?, ?, 1, ?)");
-            $stmt->execute(['Template Default', $default_html, $default_css, 1]); // User ID 1 as default
+                $stmt = $pdo->prepare("INSERT INTO template_raport (nama_template, html_content, css_content, is_active, created_by) VALUES (?, ?, ?, 1, ?)");
+                $stmt->execute(['Template Default', $default_html, $default_css, 1]); // User ID 1 as default
+            }
+        } catch (PDOException $e) {
+            // If table doesn't exist yet, skip insert (will be inserted on next migration run)
+            error_log("Template raport default insert error: " . $e->getMessage());
         }
         
         return true;

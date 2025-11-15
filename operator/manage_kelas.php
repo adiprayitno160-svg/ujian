@@ -92,57 +92,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $file = $_FILES['file_import'];
             $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
             
-            if (!in_array($extension, ['csv', 'xlsx', 'xls'])) {
-                $error = 'File harus berformat Excel (.xlsx, .xls) atau CSV (.csv)';
+            if (!in_array($extension, ['xlsx', 'xls'])) {
+                $error = 'File harus berformat Excel (.xlsx atau .xls)';
             } else {
                 try {
-                    $pdo->beginTransaction();
-                    $imported = 0;
-                    $skipped = 0;
-                    $errors = [];
-                    
-                    $tahun_ajaran = get_tahun_ajaran_aktif();
-                    
-                    // Verify kelas exists
-                    $stmt = $pdo->prepare("SELECT id, nama_kelas FROM kelas WHERE id = ?");
-                    $stmt->execute([$id_kelas]);
-                    $kelas_data = $stmt->fetch();
-                    if (!$kelas_data) {
-                        throw new Exception('Kelas tidak ditemukan');
-                    }
-                    
-                    if ($extension === 'csv') {
-                        // CSV import
-                        $handle = fopen($file['tmp_name'], 'r');
+                    // Check PhpSpreadsheet availability
+                    $vendor_autoload = __DIR__ . '/../vendor/autoload.php';
+                    if (!file_exists($vendor_autoload)) {
+                        $error = 'Library PhpSpreadsheet tidak ditemukan. Silakan install melalui composer: composer require phpoffice/phpspreadsheet';
+                    } else {
+                        require_once $vendor_autoload;
                         
-                        // Skip BOM if present
-                        $first_line = fgets($handle);
-                        if (substr($first_line, 0, 3) === "\xEF\xBB\xBF") {
-                            $first_line = substr($first_line, 3);
-                        }
-                        rewind($handle);
+                        $pdo->beginTransaction();
+                        $imported = 0;
+                        $skipped = 0;
+                        $errors = [];
                         
-                        // Read header
-                        $header = fgetcsv($handle);
-                        if (!$header) {
-                            throw new Exception('File CSV tidak valid');
+                        $tahun_ajaran = get_tahun_ajaran_aktif();
+                        
+                        // Verify kelas exists
+                        $stmt = $pdo->prepare("SELECT id, nama_kelas FROM kelas WHERE id = ?");
+                        $stmt->execute([$id_kelas]);
+                        $kelas_data = $stmt->fetch();
+                        if (!$kelas_data) {
+                            throw new Exception('Kelas tidak ditemukan');
                         }
                         
-                        // Normalize header
-                        $header = array_map('trim', $header);
-                        $header = array_map('strtolower', $header);
+                        // Excel import using PhpSpreadsheet
+                        $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($file['tmp_name']);
+                        $reader->setReadDataOnly(true);
+                        $spreadsheet = $reader->load($file['tmp_name']);
+                        $worksheet = $spreadsheet->getActiveSheet();
+                        $rows = $worksheet->toArray();
                         
-                        // Find column indices (only need NIS and Nama for class-specific import)
+                        if (empty($rows)) {
+                            throw new Exception('File Excel kosong');
+                        }
+                        
+                        // Get header (first row)
+                        $header = array_map('trim', array_map('strtolower', $rows[0]));
+                        
+                        // Find column indices
                         $nis_col = array_search('nis', $header);
                         $nama_col = array_search('nama', $header);
                         
                         if ($nis_col === false || $nama_col === false) {
-                            throw new Exception('Format CSV tidak valid. Kolom harus: NIS, Nama');
+                            throw new Exception('Format Excel tidak valid. Kolom harus: NIS, Nama');
                         }
                         
-                        $line_number = 1;
-                        while (($row = fgetcsv($handle)) !== false) {
-                            $line_number++;
+                        // Process rows (skip header)
+                        for ($i = 1; $i < count($rows); $i++) {
+                            $row = $rows[$i];
                             
                             if (count($row) < 2) continue;
                             
@@ -151,7 +151,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             if (empty($nis) || empty($nama)) {
                                 $skipped++;
-                                $errors[] = "Baris $line_number: Data tidak lengkap (NIS atau Nama kosong)";
+                                $errors[] = "Baris " . ($i + 1) . ": Data tidak lengkap";
                                 continue;
                             }
                             
@@ -169,7 +169,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $stmt->execute([$user_id, $id_kelas, $tahun_ajaran]);
                                 if ($stmt->fetch()) {
                                     $skipped++;
-                                    $errors[] = "Baris $line_number: Siswa dengan NIS '$nis' sudah ada di kelas ini";
+                                    $errors[] = "Baris " . ($i + 1) . ": Siswa dengan NIS '$nis' sudah ada di kelas ini";
                                     continue;
                                 }
                                 
@@ -198,109 +198,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $imported++;
                         }
                         
-                        fclose($handle);
-                    } elseif (in_array($extension, ['xlsx', 'xls'])) {
-                        // Excel import using PhpSpreadsheet if available
-                        if (class_exists('PhpOffice\PhpSpreadsheet\Spreadsheet')) {
-                            require_once __DIR__ . '/../vendor/autoload.php';
-                            
-                            $reader = \PhpOffice\PhpSpreadsheet\IOFactory::createReaderForFile($file['tmp_name']);
-                            $reader->setReadDataOnly(true);
-                            $spreadsheet = $reader->load($file['tmp_name']);
-                            $worksheet = $spreadsheet->getActiveSheet();
-                            $rows = $worksheet->toArray();
-                            
-                            if (empty($rows)) {
-                                throw new Exception('File Excel kosong');
-                            }
-                            
-                            // Get header (first row)
-                            $header = array_map('trim', array_map('strtolower', $rows[0]));
-                            
-                            // Find column indices
-                            $nis_col = array_search('nis', $header);
-                            $nama_col = array_search('nama', $header);
-                            
-                            if ($nis_col === false || $nama_col === false) {
-                                throw new Exception('Format Excel tidak valid. Kolom harus: NIS, Nama');
-                            }
-                            
-                            // Process rows (skip header)
-                            for ($i = 1; $i < count($rows); $i++) {
-                                $row = $rows[$i];
-                                
-                                if (count($row) < 2) continue;
-                                
-                                $nis = trim($row[$nis_col] ?? '');
-                                $nama = trim($row[$nama_col] ?? '');
-                                
-                                if (empty($nis) || empty($nama)) {
-                                    $skipped++;
-                                    $errors[] = "Baris " . ($i + 1) . ": Data tidak lengkap";
-                                    continue;
-                                }
-                                
-                                // Check if NIS already exists
-                                $stmt = $pdo->prepare("SELECT id FROM users WHERE username = ? AND role = 'siswa'");
-                                $stmt->execute([$nis]);
-                                $existing_user = $stmt->fetch();
-                                
-                                if ($existing_user) {
-                                    // User exists, update kelas assignment
-                                    $user_id = $existing_user['id'];
-                                    
-                                    // Check if already in this kelas
-                                    $stmt = $pdo->prepare("SELECT id FROM user_kelas WHERE id_user = ? AND id_kelas = ? AND tahun_ajaran = ?");
-                                    $stmt->execute([$user_id, $id_kelas, $tahun_ajaran]);
-                                    if ($stmt->fetch()) {
-                                        $skipped++;
-                                        $errors[] = "Baris " . ($i + 1) . ": Siswa dengan NIS '$nis' sudah ada di kelas ini";
-                                        continue;
-                                    }
-                                    
-                                    // Update or insert kelas assignment
-                                    $stmt = $pdo->prepare("SELECT id FROM user_kelas WHERE id_user = ? AND tahun_ajaran = ?");
-                                    $stmt->execute([$user_id, $tahun_ajaran]);
-                                    if ($stmt->fetch()) {
-                                        $stmt = $pdo->prepare("UPDATE user_kelas SET id_kelas = ? WHERE id_user = ? AND tahun_ajaran = ?");
-                                        $stmt->execute([$id_kelas, $user_id, $tahun_ajaran]);
-                                    } else {
-                                        $stmt = $pdo->prepare("INSERT INTO user_kelas (id_user, id_kelas, tahun_ajaran, semester) VALUES (?, ?, ?, 'ganjil')");
-                                        $stmt->execute([$user_id, $id_kelas, $tahun_ajaran]);
-                                    }
-                                } else {
-                                    // Create new user
-                                    $hashed_password = password_hash($nis, PASSWORD_DEFAULT);
-                                    $stmt = $pdo->prepare("INSERT INTO users (username, password, role, nama, status) VALUES (?, ?, 'siswa', ?, 'active')");
-                                    $stmt->execute([$nis, $hashed_password, $nama]);
-                                    $user_id = $pdo->lastInsertId();
-                                    
-                                    // Assign to kelas
-                                    $stmt = $pdo->prepare("INSERT INTO user_kelas (id_user, id_kelas, tahun_ajaran, semester) VALUES (?, ?, ?, 'ganjil')");
-                                    $stmt->execute([$user_id, $id_kelas, $tahun_ajaran]);
-                                }
-                                
-                                $imported++;
-                            }
+                        if (!$error) {
+                            $pdo->commit();
+                            $import_results = [
+                                'imported' => $imported,
+                                'skipped' => $skipped,
+                                'errors' => $errors
+                            ];
+                            $success = "Berhasil mengimport $imported siswa ke kelas " . escape($kelas_data['nama_kelas']) . ($skipped > 0 ? ", $skipped data dilewati" : "");
+                            log_activity('import_siswa_kelas', 'user_kelas', $id_kelas);
                         } else {
-                            $error = 'Library PhpSpreadsheet tidak tersedia. Silakan gunakan format CSV atau install PhpSpreadsheet.';
+                            $pdo->rollBack();
                         }
                     }
-                    
-                    if (!$error) {
-                        $pdo->commit();
-                        $import_results = [
-                            'imported' => $imported,
-                            'skipped' => $skipped,
-                            'errors' => $errors
-                        ];
-                        $success = "Berhasil mengimport $imported siswa ke kelas " . escape($kelas_data['nama_kelas']) . ($skipped > 0 ? ", $skipped data dilewati" : "");
-                        log_activity('import_siswa_kelas', 'user_kelas', $id_kelas);
-                    } else {
+                } catch (Exception $e) {
+                    if ($pdo->inTransaction()) {
                         $pdo->rollBack();
                     }
-                } catch (Exception $e) {
-                    $pdo->rollBack();
                     error_log("Import siswa kelas error: " . $e->getMessage());
                     $error = 'Terjadi kesalahan saat mengimport: ' . $e->getMessage();
                 }
@@ -606,10 +520,10 @@ $total_all = $stmt->fetch()['total'];
                         <input type="text" class="form-control" id="import_kelas_nama" readonly>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label">File Excel/CSV <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" name="file_import" accept=".csv,.xlsx,.xls" required>
+                        <label class="form-label">File Excel <span class="text-danger">*</span></label>
+                        <input type="file" class="form-control" name="file_import" accept=".xlsx,.xls" required>
                         <small class="form-text text-muted">
-                            Format file: CSV atau Excel (.xlsx, .xls)<br>
+                            Format file: Excel (.xlsx atau .xls)<br>
                             Kolom yang diperlukan: <strong>NIS</strong>, <strong>Nama</strong><br>
                             <a href="#" onclick="downloadTemplate(); return false;" class="text-primary">
                                 <i class="fas fa-download"></i> Download Template
@@ -759,6 +673,9 @@ function escapeHtml(text) {
 </script>
 
 <?php include __DIR__ . '/../includes/footer.php'; ?>
+
+
+
 
 
 

@@ -41,18 +41,66 @@ if (!$siswa) {
     redirect('operator/raport/list.php');
 }
 
-// Get penilaian
-$stmt = $pdo->prepare("SELECT pm.*, m.nama_mapel, m.kode_mapel, g.nama as nama_guru
-                      FROM penilaian_manual pm
-                      INNER JOIN mapel m ON pm.id_mapel = m.id
-                      INNER JOIN users g ON pm.id_guru = g.id
-                      WHERE pm.id_siswa = ?
-                      AND pm.tahun_ajaran = ?
-                      AND pm.semester = ?
-                      AND pm.status = 'approved'
-                      ORDER BY m.nama_mapel ASC");
+// Get penilaian - hanya yang sudah aktif (diterbitkan)
+// Check if aktif column exists
+$aktif_column_exists = false;
+try {
+    $check_stmt = $pdo->query("SHOW COLUMNS FROM penilaian_manual LIKE 'aktif'");
+    $aktif_column_exists = $check_stmt->rowCount() > 0;
+} catch (PDOException $e) {
+    $aktif_column_exists = false;
+}
+
+// Urutan mapel sesuai template raport
+$mapel_order = [
+    'PA&PBP' => 1,
+    'P.PANQ' => 2,
+    'B.INDO' => 3,
+    'MAT' => 4,
+    'IPA' => 5,
+    'IPS' => 6,
+    'B.INGG' => 7,
+    'PRAK' => 8,
+    'PJOK' => 9,
+    'INFOR' => 10,
+    'B.JAWA' => 11
+];
+
+if ($aktif_column_exists) {
+    // Hanya ambil nilai yang sudah aktif (diterbitkan)
+    $stmt = $pdo->prepare("SELECT pm.*, m.nama_mapel, m.kode_mapel, g.nama as nama_guru
+                          FROM penilaian_manual pm
+                          INNER JOIN mapel m ON pm.id_mapel = m.id
+                          INNER JOIN users g ON pm.id_guru = g.id
+                          WHERE pm.id_siswa = ?
+                          AND pm.tahun_ajaran = ?
+                          AND pm.semester = ?
+                          AND pm.status = 'approved'
+                          AND pm.aktif = 1");
+} else {
+    // Fallback: ambil semua yang approved jika kolom aktif belum ada
+    $stmt = $pdo->prepare("SELECT pm.*, m.nama_mapel, m.kode_mapel, g.nama as nama_guru
+                          FROM penilaian_manual pm
+                          INNER JOIN mapel m ON pm.id_mapel = m.id
+                          INNER JOIN users g ON pm.id_guru = g.id
+                          WHERE pm.id_siswa = ?
+                          AND pm.tahun_ajaran = ?
+                          AND pm.semester = ?
+                          AND pm.status = 'approved'");
+}
 $stmt->execute([$id_siswa, $tahun_ajaran, $semester]);
-$penilaian_list = $stmt->fetchAll();
+$penilaian_list_all = $stmt->fetchAll();
+
+// Sort berdasarkan urutan template
+usort($penilaian_list_all, function($a, $b) use ($mapel_order) {
+    $order_a = $mapel_order[$a['kode_mapel']] ?? 999;
+    $order_b = $mapel_order[$b['kode_mapel']] ?? 999;
+    if ($order_a == $order_b) {
+        return strcmp($a['nama_mapel'], $b['nama_mapel']);
+    }
+    return $order_a - $order_b;
+});
+$penilaian_list = $penilaian_list_all;
 
 // Calculate statistics
 $total_nilai = 0;
@@ -220,6 +268,9 @@ include __DIR__ . '/../../includes/header.php';
 </div>
 
 <?php include __DIR__ . '/../../includes/footer.php'; ?>
+
+
+
 
 
 

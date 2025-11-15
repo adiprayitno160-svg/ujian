@@ -25,7 +25,7 @@ $success = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $gemini_enabled = isset($_POST['gemini_enabled']) ? 1 : 0;
     $gemini_api_key = sanitize($_POST['gemini_api_key'] ?? '');
-    $gemini_model = sanitize($_POST['gemini_model'] ?? 'gemini-1.5-flash');
+    $gemini_model = sanitize($_POST['gemini_model'] ?? 'gemini-2.0-flash');
     $deadline = sanitize($_POST['deadline_verifikasi'] ?? '');
     $menu_aktif_default = isset($_POST['menu_aktif_default']) ? 1 : 0;
     
@@ -40,10 +40,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ];
         
         foreach ($settings as $key => $value) {
-            $stmt = $pdo->prepare("INSERT INTO verifikasi_settings (setting_key, setting_value, updated_by, updated_at) 
-                                  VALUES (?, ?, ?, NOW())
-                                  ON DUPLICATE KEY UPDATE setting_value = ?, updated_by = ?, updated_at = NOW()");
-            $stmt->execute([$key, $value, $_SESSION['user_id'], $value, $_SESSION['user_id']]);
+            $stmt = $pdo->prepare("INSERT INTO verifikasi_settings (setting_key, setting_value, updated_at) 
+                                  VALUES (?, ?, NOW())
+                                  ON DUPLICATE KEY UPDATE setting_value = ?, updated_at = NOW()");
+            $stmt->execute([$key, $value, $value]);
         }
         
         $success = 'Pengaturan berhasil disimpan';
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 // Get current settings
 $gemini_enabled = get_verifikasi_setting('gemini_enabled') == '1';
 $gemini_api_key = get_verifikasi_setting('gemini_api_key') ?? '';
-$gemini_model = get_verifikasi_setting('gemini_model') ?? 'gemini-1.5-flash';
+$gemini_model = get_verifikasi_setting('gemini_model') ?? 'gemini-2.0-flash';
 $deadline = get_verifikasi_setting('deadline_verifikasi') ?? '';
 $menu_aktif_default = get_verifikasi_setting('menu_aktif_default') == '1';
 ?>
@@ -107,22 +107,48 @@ $menu_aktif_default = get_verifikasi_setting('menu_aktif_default') == '1';
                                placeholder="Masukkan Gemini API Key">
                         <small class="text-muted">
                             Dapatkan API key dari 
-                            <a href="https://makersuite.google.com/app/apikey" target="_blank">Google AI Studio</a>
-                            atau <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio (Baru)</a>
+                            <a href="https://aistudio.google.com/app/apikey" target="_blank">Google AI Studio</a>
+                            <br><strong>✓ Bisa menggunakan akun Google reguler (gmail.com) atau akun belajar.id</strong>
+                            <br><strong>✓ Free tier tersedia untuk semua akun Google (gratis, tidak perlu kartu kredit)</strong>
+                            <br><strong>Free Tier:</strong> 60 requests/menit, 1,500 requests/hari
+                        </small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <a href="<?php echo base_url('admin/test_ai_api.php'); ?>" class="btn btn-success btn-sm">
+                            <i class="fas fa-vial"></i> Test API Key
+                        </a>
+                        <small class="text-muted d-block mt-2">
+                            Klik tombol di atas untuk test apakah API key sudah berfungsi dengan normal
                         </small>
                     </div>
                     
                     <div class="mb-3">
                         <label for="gemini_model" class="form-label">Model Gemini</label>
                         <select class="form-select" id="gemini_model" name="gemini_model">
+                            <option value="gemini-2.0-flash" <?php echo $gemini_model === 'gemini-2.0-flash' ? 'selected' : ''; ?>>
+                                Gemini 2.0 Flash (Recommended)
+                            </option>
+                            <option value="gemini-flash-latest" <?php echo $gemini_model === 'gemini-flash-latest' ? 'selected' : ''; ?>>
+                                Gemini Flash Latest
+                            </option>
+                            <option value="gemini-2.0-flash-001" <?php echo $gemini_model === 'gemini-2.0-flash-001' ? 'selected' : ''; ?>>
+                                Gemini 2.0 Flash 001
+                            </option>
                             <option value="gemini-1.5-flash" <?php echo $gemini_model === 'gemini-1.5-flash' ? 'selected' : ''; ?>>
-                                Gemini 1.5 Flash (Cepat, Efisien)
+                                Gemini 1.5 Flash (Legacy)
                             </option>
                             <option value="gemini-1.5-pro" <?php echo $gemini_model === 'gemini-1.5-pro' ? 'selected' : ''; ?>>
-                                Gemini 1.5 Pro (Akurat, Lebih Lambat)
+                                Gemini 1.5 Pro (Legacy)
+                            </option>
+                            <option value="gemini-pro" <?php echo $gemini_model === 'gemini-pro' ? 'selected' : ''; ?>>
+                                Gemini Pro (Legacy - May Not Work)
                             </option>
                         </select>
-                        <small class="text-muted">Pilih model Gemini yang akan digunakan untuk OCR</small>
+                        <small class="text-muted">
+                            <strong>Gemini 2.0 Flash</strong> direkomendasikan karena sudah terbukti berfungsi dengan API key saat ini dan mendukung vision (OCR).
+                            Jika terjadi error 404, sistem akan otomatis mencoba model alternatif.
+                        </small>
                     </div>
                     
                     <hr>

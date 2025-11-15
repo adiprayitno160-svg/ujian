@@ -193,10 +193,10 @@ $stmt = $pdo->prepare("SELECT m.* FROM mapel m
 $stmt->execute([$guru_id]);
 $mapel_list = $stmt->fetchAll();
 
-// Get tahun ajaran list
+// Get tahun ajaran list - ambil dari tabel tahun_ajaran (Kelola Tahun Ajaran)
 $tahun_ajaran = get_tahun_ajaran_aktif();
-$stmt = $pdo->query("SELECT DISTINCT tahun_ajaran FROM kelas WHERE tahun_ajaran IS NOT NULL ORDER BY tahun_ajaran DESC");
-$tahun_ajaran_list = $stmt->fetchAll(PDO::FETCH_COLUMN);
+$tahun_ajaran_all = get_all_tahun_ajaran('tahun_mulai DESC');
+$tahun_ajaran_list = array_column($tahun_ajaran_all, 'tahun_ajaran');
 
 // Get kelas - berdasarkan tahun ajaran yang dipilih dan kelas yang di-assign ke guru untuk mapel tersebut
 $id_mapel_selected = intval($_GET['id_mapel'] ?? $_POST['id_mapel'] ?? 0);

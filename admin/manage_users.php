@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = $_POST['password'] ?? '';
         $role = sanitize($_POST['role'] ?? '');
         $nama = sanitize($_POST['nama'] ?? '');
+        $nip = sanitize($_POST['nip'] ?? '');
         $no_hp = sanitize($_POST['no_hp'] ?? '');
         
         if (empty($username) || empty($password) || empty($role) || empty($nama)) {
@@ -48,8 +49,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("INSERT INTO users (username, password, role, nama, no_hp, is_operator) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt->execute([$username, $hashed_password, $role, $nama, $no_hp, $is_operator]);
+                $stmt = $pdo->prepare("INSERT INTO users (username, password, role, nama, nip, no_hp, is_operator) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$username, $hashed_password, $role, $nama, $nip ?: null, $no_hp, $is_operator]);
                 $success = 'User berhasil ditambahkan';
                 log_activity('create_user', 'users', $pdo->lastInsertId());
             } catch (PDOException $e) {
@@ -66,6 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $password = $_POST['password'] ?? '';
         $role = sanitize($_POST['role'] ?? '');
         $nama = sanitize($_POST['nama'] ?? '');
+        $nip = sanitize($_POST['nip'] ?? '');
         $no_hp = sanitize($_POST['no_hp'] ?? '');
         $status = sanitize($_POST['status'] ?? 'active');
         
@@ -84,11 +86,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             if (!empty($password)) {
                 $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-                $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, role = ?, nama = ?, no_hp = ?, status = ?, is_operator = ? WHERE id = ?");
-                $stmt->execute([$username, $hashed_password, $role, $nama, $no_hp, $status, $is_operator, $id]);
+                $stmt = $pdo->prepare("UPDATE users SET username = ?, password = ?, role = ?, nama = ?, nip = ?, no_hp = ?, status = ?, is_operator = ? WHERE id = ?");
+                $stmt->execute([$username, $hashed_password, $role, $nama, $nip ?: null, $no_hp, $status, $is_operator, $id]);
             } else {
-                $stmt = $pdo->prepare("UPDATE users SET username = ?, role = ?, nama = ?, no_hp = ?, status = ?, is_operator = ? WHERE id = ?");
-                $stmt->execute([$username, $role, $nama, $no_hp, $status, $is_operator, $id]);
+                $stmt = $pdo->prepare("UPDATE users SET username = ?, role = ?, nama = ?, nip = ?, no_hp = ?, status = ?, is_operator = ? WHERE id = ?");
+                $stmt->execute([$username, $role, $nama, $nip ?: null, $no_hp, $status, $is_operator, $id]);
             }
             $success = 'User berhasil diupdate';
             log_activity('update_user', 'users', $id);
@@ -198,6 +200,7 @@ $users = $stmt->fetchAll();
                         <th>ID</th>
                         <th>Username</th>
                         <th>Nama</th>
+                        <th>NIP</th>
                         <th>Role</th>
                         <th>Operator</th>
                         <th>No. HP</th>
@@ -209,7 +212,7 @@ $users = $stmt->fetchAll();
                 <tbody>
                     <?php if (empty($users)): ?>
                         <tr>
-                            <td colspan="9" class="text-center text-muted">Tidak ada data</td>
+                            <td colspan="10" class="text-center text-muted">Tidak ada data</td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($users as $user): ?>
@@ -217,6 +220,7 @@ $users = $stmt->fetchAll();
                             <td><?php echo $user['id']; ?></td>
                             <td><?php echo escape($user['username']); ?></td>
                             <td><?php echo escape($user['nama']); ?></td>
+                            <td><?php echo escape($user['nip'] ?? '-'); ?></td>
                             <td>
                                 <span class="badge bg-<?php 
                                     echo $user['role'] === 'admin' ? 'danger' : 
@@ -309,6 +313,11 @@ $users = $stmt->fetchAll();
                         <input type="text" class="form-control" name="nama" required>
                     </div>
                     <div class="mb-3">
+                        <label class="form-label">NIP</label>
+                        <input type="text" class="form-control" name="nip" placeholder="Nomor Induk Pegawai (untuk guru)">
+                        <small class="text-muted">Khusus untuk guru</small>
+                    </div>
+                    <div class="mb-3">
                         <label class="form-label">Role <span class="text-danger">*</span></label>
                         <select class="form-select" name="role" id="create_role" required onchange="toggleOperatorField('create')">
                             <option value="">Pilih Role</option>
@@ -363,6 +372,11 @@ $users = $stmt->fetchAll();
                     <div class="mb-3">
                         <label class="form-label">Nama <span class="text-danger">*</span></label>
                         <input type="text" class="form-control" name="nama" id="edit_nama" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">NIP</label>
+                        <input type="text" class="form-control" name="nip" id="edit_nip" placeholder="Nomor Induk Pegawai (untuk guru)">
+                        <small class="text-muted">Khusus untuk guru</small>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Role <span class="text-danger">*</span></label>
@@ -420,6 +434,7 @@ function editUser(user) {
     document.getElementById('edit_id').value = user.id;
     document.getElementById('edit_username').value = user.username;
     document.getElementById('edit_nama').value = user.nama;
+    document.getElementById('edit_nip').value = user.nip || '';
     document.getElementById('edit_role').value = user.role;
     document.getElementById('edit_no_hp').value = user.no_hp || '';
     document.getElementById('edit_status').value = user.status;
